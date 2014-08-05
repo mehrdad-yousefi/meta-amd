@@ -1,0 +1,28 @@
+From b56544739408d3ab3c23e890401b5dc4c7572ae0 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Fri, 23 Aug 2013 11:09:21 -0400
+Subject: [PATCH 36/59] drm/radeon: enable vce dpm on CI
+
+VCE dpm dynamically adjusts the uvd clocks on
+demand.
+
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/radeon/ci_dpm.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/radeon/ci_dpm.c b/drivers/gpu/drm/radeon/ci_dpm.c
+index 5ee3015..d96ef2b 100644
+--- a/drivers/gpu/drm/radeon/ci_dpm.c
++++ b/drivers/gpu/drm/radeon/ci_dpm.c
+@@ -5149,6 +5149,7 @@ int ci_dpm_init(struct radeon_device *rdev)
+ 	pi->caps_sclk_throttle_low_notification = false;
+ 
+ 	pi->caps_uvd_dpm = true;
++	pi->caps_vce_dpm = true;
+ 
+         ci_get_leakage_voltages(rdev);
+         ci_patch_dependency_tables_with_leakage(rdev);
+-- 
+1.9.1
+
