@@ -6,7 +6,9 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=d7810fab7487fb0aad327b76f1be7cd7"
 
 inherit kernel cml1-config
 
-SRC_URI = "https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.12.26.tar.xz \
+FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
+SRC_URI = " \
+           https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.12.26.tar.xz \
            file://defconfig \
            file://0001-yocto-amd-drm-radeon-add-vm_set_page-tracepoint.patch \
            file://0002-yocto-amd-drm-radeon-cleanup-flushing-on-CIK-v3.patch \
@@ -52,17 +54,22 @@ SRC_URI = "https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.12.26.tar.xz \
            file://0042-yocto-amd-drm-radeon-cik-enable-disable-vce-cg-when-encoding.patch \
            file://0043-yocto-amd-drm-radeon-fix-CP-semaphores-on-CIK.patch \
            file://0044-yocto-amd-drm-radeon-disable-dynamic-powering-vce.patch \
-	   file://0045-yocto-amd-drm-radeon-add-Mullins-chip-family.patch \
-	   file://0046-yocto-amd-drm-radeon-update-cik-init-for-Mullins.patch \
-	   file://0047-yocto-amd-drm-radeon-add-Mullins-UVD-support.patch \
-	   file://0048-yocto-amd-drm-radeon-add-Mullins-dpm-support.patch \
-	   file://0049-yocto-amd-drm-radeon-modesetting-updates-for-Mullins.patch \
-	   file://0050-yocto-amd-drm-radeon-add-pci-ids-for-Mullins.patch \
-	   file://0051-yocto-amd-drm-radeon-add-Mulins-VCE-support.patch \
-	   file://0052-yocto-amd-i2c-piix4-Use-different-message-for-AMD-Auxiliary-SM.patch \
-	   file://0053-yocto-amd-ACPI-Set-acpi_enforce_resources-to-ENFORCE_RESOURCES.patch"
-
+           file://0052-yocto-amd-i2c-piix4-Use-different-message-for-AMD-Auxiliary-SM.patch \
+           file://0053-yocto-amd-ACPI-Set-acpi_enforce_resources-to-ENFORCE_RESOURCES.patch \
+           file://logo.cfg \
+           file://console.cfg \
+           file://logitech.cfg \
+           file://efi-partition.cfg \
+           file://sound.cfg \
+           ${@base_contains("DISTRO_FEATURES", "bluetooth", "file://bluetooth.cfg", "", d)} \
+           file://0001-xhci-Enable-XHCI_TRUST_TX_LENGTH-quirk-for-AMD-devic.patch \
+           file://disable-debug-preempt.cfg \
+"
 S = "${WORKDIR}/linux-${PV}"
 
 SRC_URI[md5sum] = "1bb89d56342871b6f310ad9075c51a02"
 SRC_URI[sha256sum] = "cce883044f529acde9b1cca85d9210a8fb835dd8be34fb1b7a60f428665ee6be"
+
+kernel_do_install_append() {
+	ln -s ${KERNEL_IMAGETYPE}-${KERNEL_VERSION} ${D}/${KERNEL_IMAGEDEST}/${KERNEL_IMAGETYPE}
+}
