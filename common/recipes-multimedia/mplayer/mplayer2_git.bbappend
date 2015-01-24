@@ -8,3 +8,11 @@ do_compile_prepend_amd() {
 do_install_append_amd() {
     [ -e ${D}/usr/lib ] && rmdir ${D}/usr/lib
 }
+
+PNBLACKLIST[mplayer2] = ""
+
+#
+# mplayer has broken auto-tools scripts for
+# configuration which do not allow out-of-tree building
+#
+inherit autotools-brokensep

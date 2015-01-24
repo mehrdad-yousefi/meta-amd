@@ -36,3 +36,10 @@ PV .= "+git${SRCPV}"
 # but in the meantime we'll explicitly remove it here.
 #
 LICENSE_FLAGS_remove = "commercial"
+
+do_configure() {
+	cd ${S}
+	./autogen.sh --noconfigure
+	cd ${B}
+	oe_runconf
+}
