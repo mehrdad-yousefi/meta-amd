@@ -9,7 +9,7 @@ GALLIUMDRIVERS_LLVM_amdfalconx86 = "r300,svga${@',${GALLIUMDRIVERS_LLVM33}' if $
 MESA_LLVM_RELEASE_amdfalconx86 = "3.7.0"
 
 SRC_URI_amdfalconx86 = "\
-			git://anongit.freedesktop.org/git/mesa/mesa;branch=amdgpu \
+			git://anongit.freedesktop.org/git/mesa/mesa.git;branch=amdgpu;protocol=http \
 			file://0001-winsys-amdgpu-follow-libdrm-change-to-move-user-fenc.patch \
 			file://0002-winsys-amdgpu-use-amdgpu_bo_va_op-for-va-map-unmap-v.patch \
 			file://0003-winsys-amdgpu-correctly-wait-for-shared-buffers-to-b.patch \
