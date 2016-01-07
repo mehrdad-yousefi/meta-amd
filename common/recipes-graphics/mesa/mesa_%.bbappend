@@ -58,3 +58,4 @@ FILES_libomx-${PN}-dev = "${libdir}/bellagio/libomx_*.la"
 FILES_${PN}-dbg += "${libdir}/bellagio/.debug"
 
 PACKAGECONFIG[va] = "--enable-va,--disable-va,libva,libva"
+RRECOMMENDS_libgl-mesa_append_amdfalconx86 = " libva libva-x11"
