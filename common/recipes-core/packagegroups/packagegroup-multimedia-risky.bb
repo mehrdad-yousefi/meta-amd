@@ -6,6 +6,9 @@ PR = "r0"
 
 inherit packagegroup
 
+BUILD_MPLAYER = "no"
+MPLAYER = "${@bb.utils.contains('BUILD_MPLAYER', 'yes', "mplayer", "", d)}"
+
 RDEPENDS_${PN} += "\
     libfaad \
     libid3tag \
@@ -13,6 +16,7 @@ RDEPENDS_${PN} += "\
     gstreamer1.0-plugins-bad-meta \
     gstreamer1.0-plugins-ugly-meta \
     gstreamer1.0-libav \
+    ${MPLAYER} \
 "
 
 #
@@ -24,3 +28,11 @@ RDEPENDS_${PN} += "\
 #
 #IMAGE_INSTALL_append += " packagegroup-multimedia-risky"
 #LICENSE_FLAGS_WHITELIST += " commercial_libmad commercial_gstreamer1.0-plugins-ugly commercial_lame commercial_mpeg2dec"
+
+#
+# For mplayer usage which again has IP issues and other restrictions
+# set BUILD_MPLAYER above to 'yes' and use the following in
+# your local.conf
+#
+#IMAGE_INSTALL_append += " packagegroup-multimedia-risky"
+#LICENSE_FLAGS_WHITELIST += "commercial_mplayer2 commercial_libav commercial_libpostproc commercial_x264"
