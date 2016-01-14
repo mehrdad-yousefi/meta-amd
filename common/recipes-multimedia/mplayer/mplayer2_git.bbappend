@@ -1,10 +1,6 @@
-DEPENDS_append_amd = " python3-native"
+DEPENDS_append_amd = " libvorbis libvdpau"
 
-do_compile_prepend_amd() {
-    # Make sure we can find python3
-    export PATH="${PATH}:${STAGING_BINDIR_NATIVE}/python3-native"
-}
-
-do_install_append_amd() {
-    [ -e ${D}/usr/lib ] && rmdir ${D}/usr/lib
-}
+# mplayer has a build issue with gcc-5.x
+# which can be worked around by disabling theora
+EXTRA_OECONF_remove_amd = "--enable-theora"
+EXTRA_OECONF_append_amd = "--disable-theora"
