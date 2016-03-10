@@ -7,7 +7,8 @@ DEPENDS += "zlib"
 RDEPENDS_${PN} += "ncurses-terminfo"
 PROVIDES += "llvm"
 
-EXTRA_OECONF += "--enable-targets=x86_64,amdgpu"
+EXTRA_OECONF_append_amdgpu = " --enable-targets=x86_64,amdgpu"
+EXTRA_OECONF_append_radeon = " --enable-targets=x86_64,r600"
 
 SRC_URI = "\
 	   git://llvm.org/git/llvm.git;branch=release_37;protocol=http \
