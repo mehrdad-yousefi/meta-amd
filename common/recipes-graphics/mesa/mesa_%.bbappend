@@ -1,6 +1,7 @@
 DEPENDS_append_amd = " libvdpau"
 PACKAGECONFIG_append_amd = " xvmc gallium r600"
 PACKAGECONFIG_append_amd = " gallium-llvm"
+PACKAGECONFIG_append_amdfalconx86 = " va"
 MESA_LLVM_RELEASE_amd = "3.4"
 
 # Set DRIDRIVERS with anonymous python so we can effectively
@@ -52,3 +53,6 @@ PACKAGES =+ "libomx-${PN} libomx-${PN}-dev"
 FILES_libomx-${PN} = "${libdir}/bellagio/libomx_*.so"
 FILES_libomx-${PN}-dev = "${libdir}/bellagio/libomx_*.la"
 FILES_${PN}-dbg += "${libdir}/bellagio/.debug"
+
+PACKAGECONFIG[va] = "--enable-va,--disable-va,libva,libva"
+RRECOMMENDS_libgl-mesa_append_amdfalconx86 = " libva libva-x11"
