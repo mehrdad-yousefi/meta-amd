@@ -6,20 +6,12 @@ accelerated OpenGL drivers."
 HOMEPAGE = "http://dri.freedesktop.org"
 SECTION = "x11/base"
 LICENSE = "MIT"
-LIC_FILES_CHKSUM = "file://xf86drm.c;beginline=9;endline=32;md5=c8a3b961af7667c530816761e949dc71"
+LIC_FILES_CHKSUM = "file://xf86drm.c;md5=cba422f036eef91085d03597adaac6af"
 PROVIDES = "drm"
 DEPENDS = "libpthread-stubs udev libpciaccess freetype libxext cairo fontconfig libxrender libpng pixman"
 
-SRC_URI = "http://dri.freedesktop.org/libdrm/${BP}.tar.bz2 \
-           file://0001-tests-also-install-tests-app.patch \
-	   file://0002-amdgpu-drop-address-patching-logics.patch \
-	   file://0003-amdgpu-validate-user-memory-for-userptr.patch \
-	   file://0004-amdgpu-add-semaphore-support.patch \
-	   file://0005-amdgpu-list-each-entry-safely-for-sw-semaphore-when-.patch \
-	   file://0006-amdgpu-fix-for-submition-with-no-ibs.patch \
+SRC_URI = "file://libdrm-2.4.66.tar.bz2 \
 "
-SRC_URI[md5sum] = "c6809c48538d6e5999588832045ff014"
-SRC_URI[sha256sum] = "79cb8e988749794edfb2d777b298d5292eff353bbbb71ed813589e61d2bc2d76"
 
 inherit autotools pkgconfig
 
