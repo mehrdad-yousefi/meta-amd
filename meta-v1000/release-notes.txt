@@ -1,0 +1,45 @@
+
+Release Notes for V1000 amdgpu Alpha release 
+=============================================================================
+
+1. Features supported in this release:
+
+	1	2D   acceleration
+	2	OpenGL 3D
+	3	Vulkan 3D (Lunar SDK from Khronos)
+	4	Libdrm (amdgpu_test)
+	5	4K display
+
+2.	Component Versions
+
+   Component 	   Version 
+	1. Libdrm 		2.4.80		
+	2. Mesa 		17.2.0		
+	3. Ddx 			1.3.0		
+	4. LLVM			5.0	
+	5. LunarG SDK	1.0.46.0
+	6. Vulkan CTS	1.0.1.2
+
+3.	Platforms Supported
+
+	1.	Dibbler
+		- Configuration:
+			1. BIOS Version	: 	RDB0080C
+			2. VRAM			:	2GB
+		
+4.	Known Issues/Limitations
+
+	1.	System hang while stopping the Norbert Nopper Demo Vulkan Samples. 
+	2.	MCE error observed in the kernel log while running the Vulkan samples.
+	3.	Corruption found while running Vulkan tessellation samples.
+	4.	Unable to boot to USB or HDD when Realtek NIC card is connected to Dibbler B platform.
+		- Workaround: Intel,Broadcom NIC cards are working.
+	5.	Out of 4 displays only two displays work.
+	6.	UART is not functional.
+	7.	On board Ethernet is not supported.
+		- Workaround: use PCIe NIC card
+	8.	Reboot, shutdown and cold reset do not work reliably, complete power cycle required to reboot the system reliably.
+	9.	System hangs with hot plug of 4k monitor.
+	10.	kernel stack dumps observed on boot.
+	
+	
