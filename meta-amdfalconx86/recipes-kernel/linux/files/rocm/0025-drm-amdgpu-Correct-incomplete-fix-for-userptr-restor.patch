@@ -1,0 +1,44 @@
+From 42fb02e280cb3fa3081f61dd351db38bb00981a6 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Thu, 9 Feb 2017 13:31:51 -0500
+Subject: [PATCH 025/104] drm/amdgpu: Correct incomplete fix for userptr
+ restore race
+
+Missed one place where we drop the lock and need to mark the buffer
+as busy to prevent restore cancellation while a restore is in progress.
+
+Bug: SWDEV-113047, SWDEV-113032
+Change-Id: I12f8f8b0021f03807ef9d996963f07b5e2b22469
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c       | 1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index 34587b6..d223c09 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -262,6 +262,7 @@ static void amdgdu_amdkfd_restore_mem_worker(struct work_struct *work)
+ 			mem->evicted = 0;
+ 	}
+ 
++	BUG_ON(mem->mm != mm);
+ 	mem->mm = NULL;
+ 
+ 	mutex_unlock(&mem->lock);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index a14ac03..05ca91c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -885,6 +885,7 @@ static int update_user_pages(struct kgd_mem *mem, struct mm_struct *mm,
+ 			release_pages(pages, bo->tbo.ttm->num_pages, 0);
+ 			ttm_eu_backoff_reservation(&ctx->ticket, &ctx->list);
+ 			ctx->reserved = false;
++			mem->busy = true;
+ 			mutex_unlock(&mem->lock);
+ 		}
+ 
+-- 
+2.7.4
+

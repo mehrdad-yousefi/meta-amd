@@ -1,0 +1,83 @@
+From 5c5a242a8d130f77681c40942025331c0b20a21b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Wed, 12 Oct 2016 13:20:52 +0200
+Subject: [PATCH 078/104] drm/amdgpu: rename page_directory_fence to
+ last_dir_update
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Decribes better what this is used for.
+
+Change-Id: I1bd496522fbdd6531d2c1d17434822b53bec06d0
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Avinash M N <avimn@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 8 ++++----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h | 2 +-
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 616c0e5..2b77a13 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -804,7 +804,7 @@ static int amdgpu_bo_vm_update_pte(struct amdgpu_cs_parser *p,
+ 	if (r)
+ 		return r;
+ 
+-	r = amdgpu_sync_fence(adev, &p->job->sync, vm->page_directory_fence);
++	r = amdgpu_sync_fence(adev, &p->job->sync, vm->last_dir_update);
+ 	if (r)
+ 		return r;
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index aed65ed..7503e66 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -813,8 +813,8 @@ int amdgpu_vm_update_page_directory(struct amdgpu_device *adev,
+ 			goto error_free;
+ 
+ 		amdgpu_bo_fence(vm->page_directory, fence, true);
+-		fence_put(vm->page_directory_fence);
+-		vm->page_directory_fence = fence_get(fence);
++		fence_put(vm->last_dir_update);
++		vm->last_dir_update = fence_get(fence);
+ 		fence_put(fence);
+ #if !defined(CONFIG_HSA_AMD) && !defined(CONFIG_HSA_AMD_MODULE)
+ 	}
+@@ -1885,7 +1885,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 		goto err;
+ 
+ 
+-	vm->page_directory_fence = NULL;
++	vm->last_dir_update = NULL;
+ 
+ 	r = amdgpu_bo_create(adev, pd_size, align, true,
+ 			     AMDGPU_GEM_DOMAIN_VRAM,
+@@ -2001,7 +2001,7 @@ void amdgpu_vm_fini(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 
+ 	amdgpu_bo_unref(&vm->page_directory->shadow);
+ 	amdgpu_bo_unref(&vm->page_directory);
+-	fence_put(vm->page_directory_fence);
++	fence_put(vm->last_dir_update);
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 91056c1..b92952c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -104,7 +104,7 @@ struct amdgpu_vm {
+ 	/* contains the page directory */
+ 	struct amdgpu_bo	*page_directory;
+ 	unsigned		max_pde_used;
+-	struct fence		*page_directory_fence;
++	struct fence		*last_dir_update;
+ 	uint64_t		last_eviction_counter;
+ 
+ 	/* array of page tables, one for each page directory entry */
+-- 
+2.7.4
+

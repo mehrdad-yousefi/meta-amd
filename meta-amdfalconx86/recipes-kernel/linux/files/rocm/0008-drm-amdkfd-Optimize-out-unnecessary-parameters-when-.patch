@@ -1,0 +1,140 @@
+From 3a55a9b78c42ae91145fd53a0c23a2117b2d3327 Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Fri, 16 Dec 2016 18:18:02 -0500
+Subject: [PATCH 008/104] drm/amdkfd: Optimize out unnecessary parameters when
+ mapping BOs
+
+Change-Id: I3258ff353209872d07df9fb229de3859059ba3ee
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c | 29 ++++++++++++------------
+ 1 file changed, 14 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 310dcf7..f33127f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -982,12 +982,12 @@ static int update_user_pages(struct kgd_mem *mem, struct mm_struct *mm,
+ }
+ 
+ static int unmap_bo_from_gpuvm(struct amdgpu_device *adev,
+-				struct amdgpu_bo *bo,
+ 				struct kfd_bo_va_list *entry,
+ 				struct amdgpu_sync *sync)
+ {
+ 	struct amdgpu_bo_va *bo_va = entry->bo_va;
+ 	struct amdgpu_vm *vm = bo_va->vm;
++	struct amdgpu_bo *bo = bo_va->bo;
+ 
+ 	amdgpu_vm_bo_unmap(adev, bo_va, entry->va);
+ 
+@@ -1000,16 +1000,18 @@ static int unmap_bo_from_gpuvm(struct amdgpu_device *adev,
+ 	return 0;
+ }
+ 
+-static int update_gpuvm_pte(struct amdgpu_device *adev, struct amdgpu_bo *bo,
++static int update_gpuvm_pte(struct amdgpu_device *adev,
+ 		struct kfd_bo_va_list *entry,
+ 		struct amdgpu_sync *sync)
+ {
+ 	int ret;
+ 	struct amdgpu_vm *vm;
+ 	struct amdgpu_bo_va *bo_va;
++	struct amdgpu_bo *bo;
+ 
+ 	bo_va = entry->bo_va;
+ 	vm = bo_va->vm;
++	bo = bo_va->bo;
+ 	/* Validate PT / PTs */
+ 	ret = validate_pt_pd_bos(vm);
+ 	if (ret != 0) {
+@@ -1041,18 +1043,17 @@ static int update_gpuvm_pte(struct amdgpu_device *adev, struct amdgpu_bo *bo,
+ 	return 0;
+ }
+ 
+-static int map_bo_to_gpuvm(struct amdgpu_device *adev, struct amdgpu_bo *bo,
++static int map_bo_to_gpuvm(struct amdgpu_device *adev,
+ 		struct kfd_bo_va_list *entry, uint32_t pte_flags,
+ 		struct amdgpu_sync *sync)
+ {
+ 	int ret;
+-	struct amdgpu_bo_va *bo_va;
++	struct amdgpu_bo *bo = entry->bo_va->bo;
+ 
+-	bo_va = entry->bo_va;
+ 	/* Set virtual address for the allocation, allocate PTs,
+ 	 * if needed, and zero them.
+ 	 */
+-	ret = amdgpu_vm_bo_map(adev, bo_va,
++	ret = amdgpu_vm_bo_map(adev, entry->bo_va,
+ 			entry->va, 0, amdgpu_bo_size(bo),
+ 			pte_flags);
+ 	if (ret != 0) {
+@@ -1061,7 +1062,7 @@ static int map_bo_to_gpuvm(struct amdgpu_device *adev, struct amdgpu_bo *bo,
+ 		return ret;
+ 	}
+ 
+-	ret = update_gpuvm_pte(adev, bo, entry, sync);
++	ret = update_gpuvm_pte(adev, entry, sync);
+ 	if (ret != 0) {
+ 		pr_err("update_gpuvm_pte() failed\n");
+ 		goto update_gpuvm_pte_failed;
+@@ -1070,7 +1071,7 @@ static int map_bo_to_gpuvm(struct amdgpu_device *adev, struct amdgpu_bo *bo,
+ 	return 0;
+ 
+ update_gpuvm_pte_failed:
+-	unmap_bo_from_gpuvm(adev, bo, entry, sync);
++	unmap_bo_from_gpuvm(adev, entry, sync);
+ 	return ret;
+ }
+ 
+@@ -1345,7 +1346,7 @@ int amdgpu_amdkfd_gpuvm_map_memory_to_gpu(
+ 					entry->va, entry->va + bo_size,
+ 					entry);
+ 
+-			ret = map_bo_to_gpuvm(adev, bo, entry, mem->pte_flags,
++			ret = map_bo_to_gpuvm(adev, entry, mem->pte_flags,
+ 					&ctx.sync);
+ 			if (ret != 0) {
+ 				pr_err("Failed to map radeon bo to gpuvm\n");
+@@ -1593,8 +1594,7 @@ int amdgpu_amdkfd_gpuvm_unmap_memory_from_gpu(
+ 					entry->va + bo_size,
+ 					entry);
+ 
+-			ret = unmap_bo_from_gpuvm(adev, mem->bo,
+-						entry, &ctx.sync);
++			ret = unmap_bo_from_gpuvm(adev, entry, &ctx.sync);
+ 			if (ret == 0) {
+ 				entry->is_mapped = false;
+ 			} else {
+@@ -1963,8 +1963,7 @@ int amdgpu_amdkfd_gpuvm_evict_mem(struct kgd_mem *mem, struct mm_struct *mm)
+ 
+ 		adev = (struct amdgpu_device *)entry->kgd_dev;
+ 
+-		r = unmap_bo_from_gpuvm(adev, mem->bo,
+-					entry, &ctx.sync);
++		r = unmap_bo_from_gpuvm(adev, entry, &ctx.sync);
+ 		if (r != 0) {
+ 			pr_err("Failed unmap VA 0x%llx\n",
+ 			       mem->va);
+@@ -2063,7 +2062,7 @@ int amdgpu_amdkfd_gpuvm_restore_mem(struct kgd_mem *mem, struct mm_struct *mm)
+ 			continue;
+ 		}
+ 
+-		r = map_bo_to_gpuvm(adev, mem->bo, entry, mem->pte_flags,
++		r = map_bo_to_gpuvm(adev, entry, mem->pte_flags,
+ 				&ctx.sync);
+ 		if (unlikely(r != 0)) {
+ 			pr_err("Failed to map BO to gpuvm\n");
+@@ -2262,7 +2261,7 @@ int amdgpu_amdkfd_gpuvm_restore_process_bos(void *m_vm)
+ 				    bo_list) {
+ 			ret = update_gpuvm_pte((struct amdgpu_device *)
+ 					      bo_va_entry->kgd_dev,
+-					      bo, bo_va_entry,
++					      bo_va_entry,
+ 					      &ctx.sync);
+ 			if (ret) {
+ 				pr_debug("Memory eviction: Map failed. Try again\n");
+-- 
+2.7.4
+
