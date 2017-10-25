@@ -1,0 +1,80 @@
+From d9e2f7d84aaeb2bca38923000d36d03e1c50c79c Mon Sep 17 00:00:00 2001
+From: Kent Russell <kent.russell@amd.com>
+Date: Mon, 6 Mar 2017 08:09:41 -0500
+Subject: [PATCH 049/104] drm/amdgpu: Consolidate 2 eviction_valuable calls
+
+There were two differing eviction_valuable functions. Consolidate them
+by moving the kfd-based one into the original function. This also
+addresses an unused-function warning.
+
+Change-Id: I42e369813ad8f2b7d4bd018b7fcc913581297361
+Signed-off-by: Kent Russell <kent.russell@amd.com>
+Signed-off-by: Avinash M N <avimn@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 39 +++++++++++++--------------------
+ 1 file changed, 15 insertions(+), 24 deletions(-)
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+old mode 100644
+new mode 100755
+index ccade26..3cac0ac
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1176,6 +1176,20 @@ static bool amdgpu_ttm_bo_eviction_valuable(struct ttm_buffer_object *bo,
+ 	struct reservation_object_list *flist;
+ 	struct fence *f;
+ 	int i;
++
++	/* If bo is a KFD BO, check if the bo belongs to the current process.
++	 * If true, then return false as any KFD process needs all its BOs to
++	 * be resident to run successfully
++	 */
++	flist = reservation_object_get_list(bo->resv);
++	if (flist) {
++		for (i = 0; i < flist->shared_count; ++i) {
++			f = rcu_dereference_protected(flist->shared[i],
++				reservation_object_held(bo->resv));
++			if (amd_kfd_fence_check_mm(f, current->mm))
++				return false;
++		}
++	}
+ #endif
+ 
+ 	if (bo->mem.mem_type == TTM_PL_VRAM &&
+@@ -1195,31 +1209,8 @@ static bool amdgpu_ttm_bo_eviction_valuable(struct ttm_buffer_object *bo,
+ 
+ 		return false;
+ 	}
+-#if !defined(CONFIG_HSA_AMD) && !defined(CONFIG_HSA_AMD_MODULE)
+-	return ttm_bo_eviction_valuable(bo, place);
+-#else
+-	/* Don't evict this BO if it's outside of the
+-	 * requested placement range
+-	 */
+-	if (!ttm_bo_eviction_valuable(bo, place))
+-		return false;
+-	/* If bo is a KFD BO, check if the bo belongs to the current process.
+-	 * If true, then return false as any KFD process needs all its BOs to
+-	 * be resident to run successfully
+-	 */
+-	flist = reservation_object_get_list(bo->resv);
+-	if (!flist)
+-		return true;
+-
+-	for (i = 0; i < flist->shared_count; ++i) {
+-		f = rcu_dereference_protected(flist->shared[i],
+-			reservation_object_held(bo->resv));
+-		if (amd_kfd_fence_check_mm(f, current->mm))
+-			return false;
+-	}
+ 
+-	return true;
+-#endif
++	return ttm_bo_eviction_valuable(bo, place);
+ }
+ 
+ static struct ttm_bo_driver amdgpu_bo_driver = {
+-- 
+2.7.4
+

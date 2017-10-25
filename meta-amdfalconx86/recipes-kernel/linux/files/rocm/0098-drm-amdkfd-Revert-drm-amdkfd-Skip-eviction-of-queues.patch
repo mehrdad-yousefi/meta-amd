@@ -1,0 +1,38 @@
+From fd8cdd702e965bd8892a4f481afab40ac0768523 Mon Sep 17 00:00:00 2001
+From: Avinash M N <avimn@amd.com>
+Date: Wed, 26 Apr 2017 16:07:47 +0530
+Subject: [PATCH 098/104] drm/amdkfd: Revert "drm/amdkfd: Skip eviction of
+ queues when queue list is empty"
+
+Eviction logic has been fixed in a better way. Hence this patch is no longer required.
+
+Signed-off-by: Avinash M N <avimn@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c | 11 +----------
+ 1 file changed, 1 insertion(+), 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index f337e50..e9512f2 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -591,16 +591,7 @@ int process_evict_queues(struct device_queue_manager *dqm,
+ 	BUG_ON(!dqm || !qpd);
+ 
+ 	mutex_lock(&dqm->lock);
+-	/* Eviction of queues can be ignored if no queues are available.
+-	   We should not decrement qpd->evicted if no queues are available
+-	   amdgpu chnages creating fence eviction signal. This chnages is needed
+-	   even we fix the actual reason from amdgpu for eviction
+-	*/
+-	if(list_empty(&qpd->queues_list))  
+-	{
+-		mutex_unlock(&dqm->lock);
+-		return 0;
+-	}
++
+ 	if (qpd->evicted++ > 0) { /* already evicted, do nothing */
+ 		mutex_unlock(&dqm->lock);
+ 		return 0;
+-- 
+2.7.4
+

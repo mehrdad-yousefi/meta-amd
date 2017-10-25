@@ -1,0 +1,34 @@
+From 9645297a12d671d1bac0a74b14bc321c2fcae070 Mon Sep 17 00:00:00 2001
+From: Kent Russell <kent.russell@amd.com>
+Date: Wed, 2 Nov 2016 16:09:59 -0400
+Subject: [PATCH 012/104] drm/amdgpu: Don't clear BO during memory allocation
+
+Using an offset doesn't work as larger memory allocations are split into
+smaller chunks. For now, don't clear the BO. Use the fill_buffer
+function in a future patch to address the issue properly
+
+Change-Id: I80f6070097998d47db08b4719a78f289bbc44edd
+Signed-off-by: Kent Russell <kent.russell@amd.com>
+
+ Conflicts:
+	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+Signed-off-by: Avinash M N <avimn@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index e9e2bcd..2b788a2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -715,7 +715,6 @@ allocate_mem_reserve_bo_failed:
+ 	if (userptr)
+ 		amdgpu_mn_unregister(bo);
+ allocate_mem_set_userptr_failed:
+-err_bo_clear:
+ 	amdgpu_bo_unref(&bo);
+ err_bo_create:
+ 	kfree(*mem);
+-- 
+2.7.4
+

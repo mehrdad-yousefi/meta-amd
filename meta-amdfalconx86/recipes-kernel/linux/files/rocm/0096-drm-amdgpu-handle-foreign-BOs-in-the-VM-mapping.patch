@@ -1,0 +1,93 @@
+From 2d052feffa3c5a3160be8a5692457690fa3ae284 Mon Sep 17 00:00:00 2001
+From: Amber Lin <Amber.Lin@amd.com>
+Date: Thu, 13 Apr 2017 16:49:58 -0400
+Subject: [PATCH 096/104] drm/amdgpu: handle foreign BOs in the VM mapping
+
+Use the correct device for the PTE creation.
+
+Bug: SWDEV-118409
+
+Change-Id: Idf9989d122f9923702f13c3f7dd3b4d1a0796448
+Signed-off-by: Amber Lin <Amber.Lin@amd.com>
+(cherry picked from commit 180d5edd4eb52d5f84181ccd35940189cd557ccc)
+Signed-off-by: Avinash M N <avimn@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index c3be10b..8558e65 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1038,6 +1038,7 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 				      dma_addr_t *pages_addr,
+ 				      struct amdgpu_vm *vm,
+ 				      struct amdgpu_bo_va_mapping *mapping,
++				      uint64_t vram_base_offset,
+ 				      uint32_t flags,
+ 				      struct drm_mm_node *nodes,
+ 				      struct fence **fence)
+@@ -1084,7 +1085,7 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 				max_entries = min(max_entries, 16ull * 1024ull);
+ 			addr = 0;
+ 		} else if (flags & AMDGPU_PTE_VALID) {
+-			addr += adev->vm_manager.vram_base_offset;
++			addr += vram_base_offset;
+ 		}
+ 		addr += pfn << PAGE_SHIFT;
+ 
+@@ -1129,6 +1130,8 @@ int amdgpu_vm_bo_update(struct amdgpu_device *adev,
+ 	struct ttm_mem_reg *mem;
+ 	struct drm_mm_node *nodes;
+ 	struct fence *exclusive;
++	uint64_t vram_base_offset = adev->vm_manager.vram_base_offset;
++	struct amdgpu_device *bo_adev;
+ 	int r;
+ 
+ 	if (clear) {
+@@ -1149,8 +1152,14 @@ int amdgpu_vm_bo_update(struct amdgpu_device *adev,
+ 	}
+ 
+ 	flags = amdgpu_ttm_tt_pte_flags(adev, bo_va->bo->tbo.ttm, mem);
++	bo_adev = amdgpu_ttm_adev(bo_va->bo->tbo.bdev);
+ 	gtt_flags = (amdgpu_ttm_is_bound(bo_va->bo->tbo.ttm) &&
+-		adev == amdgpu_ttm_adev(bo_va->bo->tbo.bdev)) ? flags : 0;
++		adev == bo_adev) ? flags : 0;
++	if (mem && mem->mem_type == TTM_PL_VRAM &&
++		adev != bo_adev) {
++		flags |= AMDGPU_PTE_SYSTEM;
++		vram_base_offset = bo_adev->mc.aper_base;
++	}
+ 
+ 	spin_lock(&vm->status_lock);
+ 	if (!list_empty(&bo_va->vm_status))
+@@ -1160,7 +1169,8 @@ int amdgpu_vm_bo_update(struct amdgpu_device *adev,
+ 	list_for_each_entry(mapping, &bo_va->invalids, list) {
+ 		r = amdgpu_vm_bo_split_mapping(adev, exclusive,
+ 					       gtt_flags, pages_addr, vm,
+-					       mapping, flags, nodes,
++					       mapping, vram_base_offset,
++					       flags, nodes,
+ 					       &bo_va->last_pt_update);
+ 		if (r)
+ 			return r;
+@@ -1199,6 +1209,7 @@ int amdgpu_vm_clear_freed(struct amdgpu_device *adev,
+ 			  struct amdgpu_vm *vm)
+ {
+ 	struct amdgpu_bo_va_mapping *mapping;
++	uint64_t vram_base_offset = adev->vm_manager.vram_base_offset;
+ 	int r;
+ 
+ 	while (!list_empty(&vm->freed)) {
+@@ -1207,7 +1218,7 @@ int amdgpu_vm_clear_freed(struct amdgpu_device *adev,
+ 		list_del(&mapping->list);
+ 
+ 		r = amdgpu_vm_bo_split_mapping(adev, NULL, 0, NULL, vm, mapping,
+-					       0, 0, NULL);
++					       vram_base_offset, 0, 0, NULL);
+ 		kfree(mapping);
+ 		if (r)
+ 			return r;
+-- 
+2.7.4
+

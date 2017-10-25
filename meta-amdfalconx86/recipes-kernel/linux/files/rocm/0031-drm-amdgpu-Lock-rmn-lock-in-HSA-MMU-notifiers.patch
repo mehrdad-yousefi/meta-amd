@@ -1,0 +1,60 @@
+From 38bd6c0bec23d7dd6d0aea58c47f9085cb72e56f Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 15 Feb 2017 15:24:12 -0500
+Subject: [PATCH 031/104] drm/amdgpu: Lock rmn->lock in HSA MMU notifiers
+
+This is necessary to protect against concurrent access to the
+rmn->objects interval tree.
+
+Bug: SWDEV-112668, SWDEV-112670
+
+Change-Id: I69438bc2837f10a5c62c252f1aa7d77d1a1c3cb4
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Avinash M N <avimn@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c
+index 0b7c6f4..7a4d7d3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c
+@@ -264,6 +264,8 @@ static void amdgpu_mn_invalidate_range_start_hsa(struct mmu_notifier *mn,
+ 	/* notification is exclusive, but interval is inclusive */
+ 	end -= 1;
+ 
++	mutex_lock(&rmn->lock);
++
+ 	it = interval_tree_iter_first(&rmn->objects, start, end);
+ 	while (it) {
+ 		struct amdgpu_mn_node *node;
+@@ -282,6 +284,8 @@ static void amdgpu_mn_invalidate_range_start_hsa(struct mmu_notifier *mn,
+ 						mem, mm);
+ 		}
+ 	}
++
++	mutex_unlock(&rmn->lock);
+ }
+ 
+ /**
+@@ -309,6 +313,8 @@ static void amdgpu_mn_invalidate_range_end_hsa(struct mmu_notifier *mn,
+ 	/* notification is exclusive, but interval is inclusive */
+ 	end -= 1;
+ 
++	mutex_lock(&rmn->lock);
++
+ 	it = interval_tree_iter_first(&rmn->objects, start, end);
+ 	while (it) {
+ 		struct amdgpu_mn_node *node;
+@@ -327,6 +333,8 @@ static void amdgpu_mn_invalidate_range_end_hsa(struct mmu_notifier *mn,
+ 						mem, mm, 1);
+ 		}
+ 	}
++
++	mutex_unlock(&rmn->lock);
+ }
+ 
+ static const struct mmu_notifier_ops amdgpu_mn_ops[] = {
+-- 
+2.7.4
+

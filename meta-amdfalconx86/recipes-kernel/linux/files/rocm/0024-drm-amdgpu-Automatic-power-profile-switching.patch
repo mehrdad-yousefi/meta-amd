@@ -1,0 +1,123 @@
+From 49aa314ffd9e2edc10be110a5548393838cbbecf Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 5 Oct 2016 16:25:45 -0400
+Subject: [PATCH 024/104] drm/amdgpu: Automatic power profile switching
+
+Switch between compute and graphic profiles automatically when KFD
+compute work starts and stops. It uses the number of KFD VMs as a
+criteria for the existence of KFD compute work.
+
+Change-Id: I11d34f45d901f4dd1e16e4a64c1ad1010088d9b8
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+
+ Conflicts:
+	drivers/gpu/drm/amd/amdgpu/amdgpu.h
+	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+	drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+	drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+Signed-off-by: Avinash M N <avimn@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c |  4 +---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c          |  9 +--------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c           | 17 +----------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h           |  6 +-----
+ 4 files changed, 4 insertions(+), 32 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 8704130..a14ac03 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1357,9 +1357,7 @@ int amdgpu_amdkfd_gpuvm_create_process_vm(struct kgd_dev *kgd, void **vm,
+ 	/* Initialize the VM context, allocate the page directory and zero it */
+ 	vm_update_using_cpu = !!(amdgpu_vm_update_context &
+ 				AMDGPU_VM_USE_CPU_UPDATE_FOR_COMPUTE_MASK);
+-	ret = amdgpu_vm_init(adev, &new_vm->base,
+-			     (vm_update_using_cpu && check_if_large_bar(kgd)),
+-			     true);
++	ret = amdgpu_vm_init(adev, &new_vm->base, true);
+ 	if (ret != 0) {
+ 		pr_err("Failed init vm ret %d\n", ret);
+ 		/* Undo everything related to the new VM context */
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index b547241..e706228 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -601,14 +601,7 @@ int amdgpu_driver_open_kms(struct drm_device *dev, struct drm_file *file_priv)
+ 		goto out_suspend;
+ 	}
+ 
+-#if defined(CONFIG_HSA_AMD) || defined(CONFIG_HSA_AMD_MODULE)
+-	r = amdgpu_vm_init(adev, &fpriv->vm,
+-		!!(amdgpu_vm_update_context &
+-		AMDGPU_VM_USE_CPU_UPDATE_FOR_GRAPHICS_MASK),
+-		false);
+-#else
+-	r = amdgpu_vm_init(adev, &fpriv->vm);
+-#endif
++	r = amdgpu_vm_init(adev, &fpriv->vm, false);
+ 
+ 	if (r) {
+ 		kfree(fpriv);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index c44aae2..c80f95d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1827,12 +1827,8 @@ void amdgpu_vm_bo_invalidate(struct amdgpu_device *adev,
+  *
+  * Init @vm fields.
+  */
+-#if defined(CONFIG_HSA_AMD) || defined(CONFIG_HSA_AMD_MODULE)
+ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+-		   bool vm_update_mode, bool is_kfd_vm)
+-#else
+-int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+-#endif
++		   bool is_kfd_vm)
+ {
+ 	const unsigned align = min(AMDGPU_VM_PTB_ALIGN_SIZE,
+ 		AMDGPU_VM_PTE_COUNT * 8);
+@@ -1872,23 +1868,12 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 	if (r)
+ 		goto err;
+ 
+-#if defined(CONFIG_HSA_AMD) || defined(CONFIG_HSA_AMD_MODULE)
+-	vm->is_vm_update_mode_cpu = vm_update_mode;
+-	DRM_DEBUG_DRIVER("VM update mode is %s\n",
+-			 vm_update_mode ? "CPU" : "SDMA");
+-#endif
+ 
+ 	vm->page_directory_fence = NULL;
+ 
+ 	r = amdgpu_bo_create(adev, pd_size, align, true,
+ 			     AMDGPU_GEM_DOMAIN_VRAM,
+-#if defined(CONFIG_HSA_AMD) || defined(CONFIG_HSA_AMD_MODULE)
+-			     vm->is_vm_update_mode_cpu ?
+-				AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED :
+-				AMDGPU_GEM_CREATE_NO_CPU_ACCESS |
+-#else
+ 			     AMDGPU_GEM_CREATE_NO_CPU_ACCESS |
+-#endif
+ 			     AMDGPU_GEM_CREATE_SHADOW |
+ 			     AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS |
+ 			     AMDGPU_GEM_CREATE_VRAM_CLEARED,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 773c2d8..91056c1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -183,12 +183,8 @@ struct amdgpu_vm_manager {
+ 
+ void amdgpu_vm_manager_init(struct amdgpu_device *adev);
+ void amdgpu_vm_manager_fini(struct amdgpu_device *adev);
+-#if defined(CONFIG_HSA_AMD) || defined(CONFIG_HSA_AMD_MODULE)
+ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+-		  bool vm_update_mode, bool is_kfd_vm);
+-#else
+-int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm);
+-#endif
++		   bool is_kfd_vm);
+ void amdgpu_vm_fini(struct amdgpu_device *adev, struct amdgpu_vm *vm);
+ void amdgpu_vm_get_pd_bo(struct amdgpu_vm *vm,
+ 			 struct list_head *validated,
+-- 
+2.7.4
+
