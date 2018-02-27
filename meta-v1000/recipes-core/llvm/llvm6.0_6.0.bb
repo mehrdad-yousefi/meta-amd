@@ -108,6 +108,7 @@ llvm_sysroot_preprocess() {
 
 ALLOW_EMPTY_${PN} = "1"
 ALLOW_EMPTY_${PN}-staticdev = "1"
+ALLOW_EMPTY_libllvm6.0-llvm-6.0-dbg = "1"
 FILES_${PN} = ""
 FILES_${PN}-staticdev = ""
 FILES_${PN}-dbg = " \
