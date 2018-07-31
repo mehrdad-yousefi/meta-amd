@@ -1,0 +1,122 @@
+Radeon GPU Profiler V1.2 05-25-2018
+-----------------------------------
+
+
+V1.2 Changes
+------------------------------------
+
+* Radeon GPU Profiler
+
+1) Show presentation indicators in the System Activity section (reliant on 18.10 driver or newer)
+2) Add feature to find an event's parent command buffer (RGP panes --> System Activity)
+3) Add feature to find a command buffer's first child event (System Activity --> RGP panes)
+4) For driver-inserted barriers, show the reason why the barrier was inserted. Shown on the barriers
+   pane and in the details pane when an event is selected in one of the Events panes
+5) Add interop between RGP and RenderDoc. An RGP profile can be taken from RenderDoc and events can be
+   selected in one tool and displayed in the other (reliant on 18.10 driver or newer and a compatible
+   version of RenderDoc)
+
+
+V1.11 Changes
+------------------------------------
+
+* Radeon GPU Profiler
+
+1) Change the ruler in the event views and frame summary to use base 10
+2) Fixed duplicate events for small profiles seen in the most expensive events view
+3) Show all events sequentially in the barriers pane if multiple queues are used
+4) Fixed-function clipping issue fixed in the event timeline view of the wavefront occupancy
+5) User event nesting fixed for certain profiles in the event timeline treeview
+6) Display LDS allocated by compute shader in CS pipeline stage if applicable
+
+
+V1.10 Changes
+------------------------------------
+
+* Radeon GPU Profiler
+
+1) GPU only view option added to system activity view
+2) Placed system activity checkboxes inside new pulldowns: Workload views and CPU submission markers
+3) Color by command buffer added to Event Timing and wavefront occupancy timeline views
+4) Barriers & layout transitions extended to show whether they originated from the application or the driver. Text indicating the reason for the barrier will be shown if available
+5) Fixed-function work shown as part of an event in the Event timing pane and the timeline in the wavefront occupancy view
+6) Actionable context rolls, showing the state changes that caused them
+7) Improved wavefront occupancy resolution settings
+8) Support for PIX3 user markers
+9) Updated to use Qt5.9.2
+10) Bug/stability fixes & UI clean ups
+
+* Radeon Developer Panel
+
+1) Max clocks reported correctly on the clocks tab when capturing Linux profiles
+2) Close button added to the Radeon Developer Service configuration dialog box, allowing it to be closed & dragged
+3) A button has been added to the Radeon Developer Service configuration dialog box to reset the default port number
+4) The local connection is highlighted if a previous connection attempt fails
+5) Provides feedback if the path to the Radeon GPU Profiler or the path to the profiles folders are invalid
+6) Updated to use Qt5.9.2
+7) Miscellaneous bug fixes & UI clean ups
+
+
+V1.03 Changes
+------------------------------------
+
+* Radeon GPU Profiler
+
+1) System Information added to device configuration pane (Windows only, Linux system information will be blank)
+2) GPU time duration added to user marker regions and groups in Event timing view
+3) Selected event status information added to the Event timing view to match the Wavefront occupancy view
+4) It is now possible to open a profile in RGP by dragging it onto the RGP exe or onto the RGP UI
+5) Web browser-style navigation enhancements - track event changes and zoom levels within a single view
+6) When selecting a region in the event timing pane, the selected events are shown in the side details panel (to match Wavefront occupancy pane functionality)
+7) When selecting an event in an overview pane using the mouse or context menu, auto-zoom to the selected event in the Events panes
+8) Bring the selected event into view when shift-left/shift-right keys (previous/next event) are used on Wavefront occupancy event timeline
+9) The CP marker can be colorized differently to shader stages in the events panes to help them stand out. The color is selected from the settings
+10) Option added to settings to anchor the event views to the same clock range
+11) Ctrl-T is used to cycle though time units in any view, rather than changing the time units via the settings
+12) User events have been added to the side details panel, if present
+13) Miscellaneous bug fixes & UI clean ups
+
+* Radeon Developer Panel
+
+1) A headless version of the Radeon Developer Service has been added, RadeonDeveloperServiceCLI.exe on Windows and RadeonDeveloperServiceCLI on Linux.
+2) Show the correct listen port in the Radeon Developer Service configuration window
+3) Fix the Radeon Developer Panel so it works in 720p resolution
+4) Bug/stability fixes & UI clean ups
+
+
+V1.02 Changes
+------------------------------------
+
+* Radeon GPU Profiler
+
+1) Added Vega support
+2) Added web browser-style navigation
+3) Keyboard navigation improvements
+4) Improvements to the System Activity frame visualization and frame duration data 
+5) Select next/previous event in event timeline if the event hasn't been filtered out
+6) Treat SetMarker user markers as points in time and don't associate the next event with them
+7) Fix the ruler from disappearing when zoomed in on a 4K display
+8) Fix displaying of memory sizes in the Device configuration. Auto adjust to display memory units depending on memory size
+9) View dragging issues fixed
+10) Prevent loading of profiles created on unsupported hardware. The data will be unreliable if shown
+11) Bug/stability fixes & UI clean ups
+
+* Radeon Developer Panel
+
+1) Linux Ctrl-C (SIGINT) handler added to RadeonDeveloperPanel and RadeonDeveloperService for clean shutdown
+2) Don't allow the user to attempt another connection while attempting a connection
+3) Extend Linux hotkey keyboard device support
+4) Improve application blacklist support - don't try to attach to known applications
+5) Fixes for connection timeout countdown issue
+6) Allow profiling using peak clock mode
+7) Miscellaneous bug/stability fixes
+
+
+V1.01 Changes
+------------------------------------
+
+* Radeon GPU Profiler
+
+1) Fixed crash when loading certain profiles
+
+

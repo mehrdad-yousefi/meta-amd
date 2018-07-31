@@ -1,0 +1,1433 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>The Radeon GPU Profiler &mdash; Radeon GPU Profiler 1.2.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="_static/theme_overrides.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Radeon GPU Profiler 1.2.0 documentation" href="#"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="#" class="icon icon-home"> Radeon GPU Profiler
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">The Radeon GPU Profiler</a><ul>
+<li><a class="reference internal" href="#supported-graphics-apis-gcn-hardware-and-operating-systems">Supported graphics APIs, GCN hardware, and operating systems</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#radeon-gpu-profiler-quick-start">Radeon GPU Profiler - Quick Start</a><ul>
+<li><a class="reference internal" href="#how-to-generate-a-profile">How to generate a profile</a></li>
+<li><a class="reference internal" href="#starting-the-radeon-gpu-profiler">Starting the Radeon GPU Profiler</a></li>
+<li><a class="reference internal" href="#how-to-load-a-profile">How to load a profile</a></li>
+<li><a class="reference internal" href="#the-radeon-gpu-profiler-user-interface">The Radeon GPU Profiler user interface</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#settings">Settings</a><ul>
+<li><a class="reference internal" href="#general">General</a></li>
+<li><a class="reference internal" href="#themes-and-colors">Themes and colors</a></li>
+<li><a class="reference internal" href="#keyboard-shortcuts">Keyboard shortcuts</a></li>
+<li><a class="reference internal" href="#ui-navigation">UI Navigation</a><ul>
+<li><a class="reference internal" href="#back-and-forward-navigation">Back and forward navigation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#overview-windows">Overview Windows</a><ul>
+<li><a class="reference internal" href="#frame-summary">Frame summary</a></li>
+<li><a class="reference internal" href="#barriers">Barriers</a></li>
+<li><a class="reference internal" href="#most-expensive-events">Most expensive events</a></li>
+<li><a class="reference internal" href="#context-rolls">Context rolls</a></li>
+<li><a class="reference internal" href="#device-configuration">Device configuration</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#events-windows">Events Windows</a><ul>
+<li><a class="reference internal" href="#wavefront-occupancy">Wavefront occupancy</a></li>
+<li><a class="reference internal" href="#event-timing">Event timing</a></li>
+<li><a class="reference internal" href="#the-anatomy-of-an-event">The anatomy of an event</a></li>
+<li><a class="reference internal" href="#pipeline-state">Pipeline state</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#user-debug-markers">User Debug Markers</a><ul>
+<li><a class="reference internal" href="#directx12-user-markers">DirectX12 User Markers</a></li>
+<li><a class="reference internal" href="#using-pix3-event-instrumentation-for-directx12-user-debug-markers">Using PIX3 event instrumentation for DirectX12 user debug markers</a></li>
+<li><a class="reference internal" href="#using-ags-for-directx12-user-debug-markers">Using AGS for DirectX12 user debug markers</a><ul>
+<li><a class="reference internal" href="#download-ags">Download AGS</a></li>
+<li><a class="reference internal" href="#integrate-ags-header-libs-and-dll-into-your-project">Integrate AGS header, libs, and DLL into your project</a></li>
+<li><a class="reference internal" href="#initialize-ags">Initialize AGS</a></li>
+<li><a class="reference internal" href="#initialize-the-directx12-extension">Initialize the DirectX12 Extension</a></li>
+<li><a class="reference internal" href="#insert-markers-in-application">Insert Markers in Application</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#vulkan-user-markers">Vulkan User Markers</a></li>
+<li><a class="reference internal" href="#viewing-user-markers">Viewing User Markers</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#renderdoc-radeon-gpu-profiler-interop-beta">RenderDoc &amp; Radeon GPU Profiler interop BETA</a><ul>
+<li><a class="reference internal" href="#intended-usage">Intended usage</a></li>
+<li><a class="reference internal" href="#obtaining-a-profile-from-renderdoc">Obtaining a profile from RenderDoc</a></li>
+<li><a class="reference internal" href="#navigating-between-events">Navigating between events</a></li>
+<li><a class="reference internal" href="#known-limitations">Known limitations</a></li>
+</ul>
+</li>
+</ul>
+</div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">Radeon GPU Profiler</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="#">Docs</a> &raquo;</li>
+        
+      <li>The Radeon GPU Profiler</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="the-radeon-gpu-profiler">
+<h1>The Radeon GPU Profiler<a class="headerlink" href="#the-radeon-gpu-profiler" title="Permalink to this headline">¶</a></h1>
+<p>The Radeon GPU Profiler is a performance tool that can be used by
+developers to optimize DirectX12© and Vulkan© applications for AMD GCN
+hardware. It is part of a suite of tools comprised of the following
+software:</p>
+<ul>
+<li><p class="first"><strong>Radeon Developer Mode Driver</strong> - This is shipped as part of the AMD
+public Adrenaline driver and supports the developer mode features required for
+profiling.</p>
+</li>
+<li><p class="first"><strong>Radeon Developer Service (RDS)</strong> - A system tray application that
+unlocks the Developer Mode Driver features and supports
+communications with high level tools. A headless version is also
+available called RadeonDeveloperServiceCLI.</p>
+</li>
+<li><p class="first"><strong>Radeon Developer Panel (RDP)</strong> - A GUI application that allows the
+developer to configure driver settings and generate profiler data
+from DirectX12 and Vulkan applications.</p>
+</li>
+<li><p class="first"><strong>Radeon GPU Profiler (RGP)</strong> - A GUI tool used to visualize and
+analyze the profile data.</p>
+<p>This document describes how to generate a profile using the Radeon
+Developer Panel and how the Radeon GPU Profiler can be used to
+examine the output profiles. The Radeon GPU Profiler is currently
+designed to work with frame based graphics applications only. It is
+specifically designed to address the issues that developers are
+dealing with in the move from traditional graphics APIs to explicit
+APIs. It also provides the visualization of GCN hardware specific
+information allowing the developer to tune their application to the
+full potential of the architecture. The tool provides unique
+visualizations of queue synchronization using fences and semaphores,
+asynchronous compute, and barrier timings. Currently, it supports the
+explicit APIs (DirectX12 and Vulkan) and will NOT work with older
+APIs such as DirectX11 or OpenGL.</p>
+</li>
+</ul>
+<div class="section" id="supported-graphics-apis-gcn-hardware-and-operating-systems">
+<h2>Supported graphics APIs, GCN hardware, and operating systems<a class="headerlink" href="#supported-graphics-apis-gcn-hardware-and-operating-systems" title="Permalink to this headline">¶</a></h2>
+<p><strong>Supported graphics APIs</strong></p>
+<ul class="simple">
+<li>DirectX12</li>
+<li>Vulkan</li>
+</ul>
+<p><strong>Supported GCN hardware</strong></p>
+<ul class="simple">
+<li>AMD RX Vega 64 and RX Vega 56</li>
+<li>AMD Radeon™ R9 Fury and Nano series</li>
+<li>AMD Radeon™ RX 400 and RX 500 series</li>
+<li>AMD Tonga R9 285, R9 380</li>
+</ul>
+<p><strong>Supported Operating Systems</strong></p>
+<ul class="simple">
+<li>Windows 10</li>
+<li>Windows 7</li>
+<li>Ubuntu 16.04.3</li>
+</ul>
+</div>
+</div>
+<div class="section" id="radeon-gpu-profiler-quick-start">
+<h1>Radeon GPU Profiler - Quick Start<a class="headerlink" href="#radeon-gpu-profiler-quick-start" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="how-to-generate-a-profile">
+<h2>How to generate a profile<a class="headerlink" href="#how-to-generate-a-profile" title="Permalink to this headline">¶</a></h2>
+<p>The first thing you will need to do is generate a profile. Currently,
+this is done via the Radeon Developer Panel. Read the documentation
+provided with this distribution for information on how to create a profile.
+This can be obtained from within the Radeon Developer Panel or from the
+link on the Radeon GPU Profiler “Welcome” view.</p>
+</div>
+<div class="section" id="starting-the-radeon-gpu-profiler">
+<h2>Starting the Radeon GPU Profiler<a class="headerlink" href="#starting-the-radeon-gpu-profiler" title="Permalink to this headline">¶</a></h2>
+<p>The following executables can be found in the download directory.</p>
+<a class="reference internal image-reference" href="_images/RGP_Executables.png"><img alt="_images/RGP_Executables.png" src="_images/RGP_Executables.png" style="width: 1.83569in; height: 0.77416in;" /></a>
+<p>Start <strong>RadeonGPUProfiler.exe</strong> (this is the tool used to view profile
+data).</p>
+</div>
+<div class="section" id="how-to-load-a-profile">
+<h2>How to load a profile<a class="headerlink" href="#how-to-load-a-profile" title="Permalink to this headline">¶</a></h2>
+<p>There are a few ways to load a profile into RGP.</p>
+<ol class="arabic simple">
+<li>Use the “File/Open profile” pull down menu, or the “File/Recent
+profile” pull down menu item.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/RGP_FileLoad.png"><img alt="_images/RGP_FileLoad.png" src="_images/RGP_FileLoad.png" style="width: 1.37973in; height: 1.61458in;" /></a>
+<a class="reference internal image-reference" href="_images/RGP_FileRecent.png"><img alt="_images/RGP_FileRecent.png" src="_images/RGP_FileRecent.png" style="width: 6.39203in; height: 1.58205in;" /></a>
+<ol class="arabic simple" start="2">
+<li>Go to the “Welcome” view and click on the “Open a Radeon GPU
+Profile…”</li>
+<li>Go to the “Welcome” view and click on a profile that you have
+previously loaded in the Recent list.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/RGP_Welcome.png"><img alt="_images/RGP_Welcome.png" src="_images/RGP_Welcome.png" style="width: 10.55759in; height: 5.09626in;" /></a>
+<ol class="arabic simple">
+<li>Go to the Recent profiles view to see a full list of all your recent
+profiles.</li>
+<li>Load a profile into a new instance of the <strong>Radeon GPU Profiler</strong>
+from the <strong>Radeon Developer Panel</strong>. Select a profile in the list and
+click on “Open profile”.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/RDP_OpenProfile.png"><img alt="_images/RDP_OpenProfile.png" src="_images/RDP_OpenProfile.png" style="width: 7.08333in; height: 6.08568in;" /></a>
+<ol class="arabic simple" start="3">
+<li>Drag and drop a profile onto the <strong>Radeon GPU Profiler</strong> executable,
+or, onto an already open RGP instance.</li>
+</ol>
+</div>
+<div class="section" id="the-radeon-gpu-profiler-user-interface">
+<h2>The Radeon GPU Profiler user interface<a class="headerlink" href="#the-radeon-gpu-profiler-user-interface" title="Permalink to this headline">¶</a></h2>
+<p>There are four main menus in the Radeon GPU Profiler and each has a
+number of sub-windows. The two main UIs that deal with the analysis of
+the profile data are within the <strong>Overview</strong> and <strong>Events</strong> sections.</p>
+<ol class="arabic simple">
+<li><strong>Start</strong><ol class="loweralpha">
+<li><strong>Welcome</strong> - Shows links to help documentation, and a list of
+recently opened profiles, and a sample profile.</li>
+<li><strong>Recent profiles</strong> - Displays a list of the recently opened
+profiles.</li>
+<li><strong>About</strong> - Shows build information about RGP and useful links.</li>
+</ol>
+</li>
+<li><strong>Overview</strong><ol class="loweralpha">
+<li><strong>Frame Summary</strong> - Contains summaries of structure of the
+graphics frame.</li>
+<li><strong>Barriers</strong> - Details of the barrier usage in the profiled frame.</li>
+<li><strong>Most expensive events</strong> - List of the most expensive events.</li>
+<li><strong>Context rolls</strong> - Details of the hardware context register usage.</li>
+<li><strong>Device Configuration</strong> - Information about the GPU the profile
+was generated on.</li>
+</ol>
+</li>
+<li><strong>Events</strong><ol class="loweralpha">
+<li><strong>Wavefront occupancy</strong> - Shows detailed information about
+wavefront occupancy and event timings.</li>
+<li><strong>Event timing</strong> - Tree view of profile events and their timing
+data.</li>
+<li><strong>Pipeline state</strong> - Tree view of profile events and their
+graphics/compute pipeline state.</li>
+</ol>
+</li>
+<li><strong>Settings</strong><ol class="loweralpha">
+<li><strong>General</strong> - Adjust desired time units, state buckets, GPU boundness
+percentage, and wavefront view detail levels.</li>
+<li><strong>Themes and colors</strong> - Customize colors for graphics API and
+hardware data.</li>
+<li><strong>Keyboard shortcuts</strong> - Shortcuts for navigating the wavefront
+occupancy UI.</li>
+</ol>
+</li>
+</ol>
+</div>
+</div>
+<div class="section" id="settings">
+<h1>Settings<a class="headerlink" href="#settings" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="general">
+<h2>General<a class="headerlink" href="#general" title="Permalink to this headline">¶</a></h2>
+<p><strong>Units:</strong> This tells profiler whether to work in clocks, nanoseconds, microseconds,
+or milliseconds. Refer to the keyboard binding in the secion below to quickly
+toggle between these time units.</p>
+<p><strong>State buckets:</strong> Specify how the profiler should generate its own state buckets.
+This can be based off a combination of shader base address, depth buffer address,
+and render target address.</p>
+<p><strong>Sync event time windows:</strong> Keep the Wavefront Occupancy and Event Timing
+panes in sync while browsing through different time ranges.</p>
+<p><strong>Processor boundness:</strong> Specific to the Frame Summary, this value will tell
+RGP at which point to consider an application as being GPU bound or CPU bound.</p>
+<p><strong>Wavefront occupancy detail:</strong> Increase the visual quality of wavefronts in
+the Wavefront Occupancy pane. This allows users to see a more accurate
+representation of GPU occupancy at the expense of some profiler performance.</p>
+</div>
+<div class="section" id="themes-and-colors">
+<h2>Themes and colors<a class="headerlink" href="#themes-and-colors" title="Permalink to this headline">¶</a></h2>
+<p>The profiler makes heavy use of coloring to display its information.
+This pane allows users to thoroughly customize those colors.</p>
+<a class="reference internal image-reference" href="_images/RGP_ThemesAndColors_Settings.png"><img alt="_images/RGP_ThemesAndColors_Settings.png" src="_images/RGP_ThemesAndColors_Settings.png" style="width: 5.07581in; height: 7.60122in;" /></a>
+</div>
+<div class="section" id="keyboard-shortcuts">
+<h2>Keyboard shortcuts<a class="headerlink" href="#keyboard-shortcuts" title="Permalink to this headline">¶</a></h2>
+<p>Here users will find the <strong>Keyboard shortcuts</strong> pane:</p>
+<a class="reference internal image-reference" href="_images/RGP_KeyboardShortcuts_Settings.png"><img alt="_images/RGP_KeyboardShortcuts_Settings.png" src="_images/RGP_KeyboardShortcuts_Settings.png" style="width: 5.07581in; height: 7.60122in;" /></a>
+<p>The <strong>System activity, Wavefront occupancy and Event timing</strong> shortcuts
+are specific to zooming and panning operations that can be performed
+within the Frame Summary and Events subtabs (see below):</p>
+<a class="reference internal image-reference" href="_images/RGP_Tabs_1.png"><img alt="_images/RGP_Tabs_1.png" src="_images/RGP_Tabs_1.png" style="width: 3.49135in; height: 0.55208in;" /></a>
+<a class="reference internal image-reference" href="_images/RGP_Tabs_2.png"><img alt="_images/RGP_Tabs_2.png" src="_images/RGP_Tabs_2.png" style="width: 5.10170in; height: 0.70833in;" /></a>
+<p>The <strong>Event timeline</strong> section refers to panning and event selection
+operations for the bottom graph within the Wavefront occupancy view.</p>
+<p>The <strong>Global navigation</strong> section refers to keystrokes that aid user
+navigation, and are always detected regardless of which pane is visible.</p>
+<p>The <strong>Global hotkeys</strong> section refers to any hotkeys available anywhere
+in the product. Currently there is just one setting that allows you to
+cycle through the different time units from any pane, rather than having
+to go to the settings. This allows you to view a timeline in clock
+cycles, milliseconds, microseconds or nanoseconds very quickly.</p>
+<p>We encourage all users to adopt these keystrokes while using RGP.</p>
+</div>
+<div class="section" id="ui-navigation">
+<h2>UI Navigation<a class="headerlink" href="#ui-navigation" title="Permalink to this headline">¶</a></h2>
+<p>In an effort to improve workflow, RGP supports keyboard shortcuts and
+back and forward history to quickly navigate throughout the UI.</p>
+<div class="section" id="back-and-forward-navigation">
+<h3>Back and forward navigation<a class="headerlink" href="#back-and-forward-navigation" title="Permalink to this headline">¶</a></h3>
+<p>RGP tracks navigation history, which allows users to navigate back and
+forward between all of RGP’s panes. This is achieved using global
+navigation <strong>hotkeys</strong> shown above, or the back and forward <strong>buttons</strong>
+shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_Navigation.png"><img alt="_images/RGP_Navigation.png" src="_images/RGP_Navigation.png" style="width: 1.45225in; height: 1.00000in;" /></a>
+<p>Currently, back and forward navigation is restricted to pane switches
+and moving between events within a pane, but further releases may
+support navigation history of more detailed user actions within panes.</p>
+</div>
+</div>
+</div>
+<div class="section" id="overview-windows">
+<h1>Overview Windows<a class="headerlink" href="#overview-windows" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="frame-summary">
+<h2>Frame summary<a class="headerlink" href="#frame-summary" title="Permalink to this headline">¶</a></h2>
+<p>This window describes the structure of a profile from a number of
+different perspectives.</p>
+<a class="reference internal image-reference" href="_images/RGP_FrameSummary_1.png"><img alt="_images/RGP_FrameSummary_1.png" src="_images/RGP_FrameSummary_1.png" style="width: 9.41799in; height: 4.00025in;" /></a>
+<p>The System activity section displays a system-level view of sync
+operations and when command buffers were submitted to the GPU. Speaking
+in general terms, all profiles contain two types of data: command buffer
+timing data and SQTT timing data. This pane displays the former, and the
+rest of RGP displays the latter.</p>
+<p>Along the top, we find a series of controls:</p>
+<ul>
+<li><p class="first"><strong>GPU and CPU based frames:</strong> Controls how to display frame
+boundaries, which are also bracketed by black markers. The difference
+in time between both modes can help to visualize latency between
+workload submission and execution. The driver provides each command
+buffer with a frame number, a CPU submit timestamp, a GPU start
+timestamp, and a GPU end timestamp.</p>
+<ul class="simple">
+<li><strong>GPU-based frames:</strong> Interprets frame boundaries to begin when
+a present finished on the GPU.</li>
+<li><strong>CPU-based frames:</strong> Interprets frame boundaries to begin when
+a present was submitted on the CPU.</li>
+</ul>
+</li>
+<li><p class="first"><strong>Workload views:</strong> Provide twelve different ways to view the same data:</p>
+<ul class="simple">
+<li><strong>Command buffers:</strong> Shows a list of all command buffers in a
+submission. Disabling this will condense all command buffers into
+a single submission block which also specifies the number of
+contained command buffers.</li>
+<li><strong>Sync objects</strong>: Toggles whether to display signals and waits.</li>
+<li><strong>Sequential</strong>: An alternate view which shows data linearly as
+opposed to stacked. The dark right-most portion of command buffers
+and submits indicates execution time on the GPU.</li>
+<li><strong>GPU only</strong>: A flat view of the data which represents solely GPU
+work. This helps visualize parallelism among all GPU queues.</li>
+</ul>
+</li>
+<li><p class="first"><strong>CPU submission markers:</strong> Draw vertical lines to help visualize
+when the CPU issued certain types of workloads to the GPU.</p>
+</li>
+<li><p class="first"><strong>Zoom controls:</strong> Consistent with the rest of the tool, these allow
+users to drill down into points of interest.</p>
+<p>In the middle, we find the actual view. Each queue (Graphics,
+Compute, Copy) gets its own section. The alternating grey and white
+backgrounds indicate frame boundaries. The blue region indicates
+which command buffers were profiled with SQTT data, for more detailed
+event analysis in other sections of the tool. Note that command
+buffers are visualized using two shades of the same color. The
+lighter shade represents time spent prior to reaching the GPU, and
+the darker shade represents actual execution.</p>
+<p>Please note that the view is interactive, making it possible for users to
+select and highlight command buffers, sync objects, and submission
+points.</p>
+<p>Starting with RGP 1.2 it is possible to correlate between command buffer
+timing data and SQTT data. Users may do this by right-clicking on a command
+buffer within the “Detailed GPU events” region, which will bring up an event
+finder context menu. This menu shows three options for finding the first
+event  within the selected command buffer. Selecting an option will
+trigger the profiler to navigate to the appropriate pane and focus on the
+first event.</p>
+<p>Along the bottom, we find information about user selections:</p>
+</li>
+<li><p class="first"><strong>Submit time:</strong> Specifies when work was issued by the CPU</p>
+</li>
+<li><p class="first"><strong>Submit duration:</strong> Specifies the full duration of the submit</p>
+</li>
+<li><p class="first"><strong>Enqueue duration:</strong> Specifies how long the work was queued before
+beginning on the GPU</p>
+</li>
+<li><p class="first"><strong>GPU duration:</strong> Specifies how long the GPU took to execute it.</p>
+<p>Below the queue timings view we find the following summary:</p>
+</li>
+</ul>
+<a class="reference internal image-reference" href="_images/RGP_FrameSummary_2.png"><img alt="_images/RGP_FrameSummary_2.png" src="_images/RGP_FrameSummary_2.png" style="width: 8.65468in; height: 3.54555in;" /></a>
+<blockquote>
+<div><p>This shows an interpretation of queue timings data to determine which
+processor is the bottleneck. By default, if the GPU is idle more than
+5% of the time then the profile is considered to be CPU-bound. This
+percentage may be adjusted in RGP settings.</p>
+<p>Please note that the values displayed under <strong>Frame duration</strong> and
+<strong>Frame rate</strong> are sourced from SQTT data. In other words, they are
+based on duration and shader clock frequency used in other RGP panes
+such as Wavefront occupancy.</p>
+<p>The <strong>Command buffers</strong> pie chart shows the number of command buffers
+in the frame broken down by the Direct and Compute queues. Compute
+submissions are colored in red and graphics submissions are colored
+in light blue. The <strong>Sync Primitives</strong> section counts how many unique
+signal and wait objects were detected throughout the profile.</p>
+</div></blockquote>
+<a class="reference internal image-reference" href="_images/RGP_FrameSummary_3.png"><img alt="_images/RGP_FrameSummary_3.png" src="_images/RGP_FrameSummary_3.png" style="width: 8.73428in; height: 4.44337in;" /></a>
+<blockquote>
+<div>The <strong>Event statistics</strong> pie chart and table show the event counts
+colored by type. In the above example there are 281 Dispatch and
+1,633 DrawIndexedInstanced events. The <strong>Instanced primitives</strong>
+histogram shows the number of events that drew N (1 to 16+)
+instances. In the example above we see that most events drew just a
+single instance, whereas a lesser number of events drew 2-9 and 16
+instances.</div></blockquote>
+<a class="reference internal image-reference" href="_images/RGP_FrameSummary_4.png"><img alt="_images/RGP_FrameSummary_4.png" src="_images/RGP_FrameSummary_4.png" style="width: 9.93224in; height: 2.84491in;" /></a>
+<blockquote>
+<div><strong>Geometry breakdown</strong> gives a summary of the vertices,
+shaded primitives, shaded pixels, and instanced primitives. In the
+above example we can see that the GS is being used to expand the
+number of shaded primitives. Also, looking at the <strong>Rendered
+Primitives</strong> histogram we can see that one draw uses between 0 and 1K
+primitives, and the other draw call uses 11k or more primitives. This
+makes sense given that the profile is from the D3D12nBodyGravity SDK
+sample.</div></blockquote>
+</div>
+<div class="section" id="barriers">
+<h2>Barriers<a class="headerlink" href="#barriers" title="Permalink to this headline">¶</a></h2>
+<p>The developer is now responsible for the use of barriers in their
+application to control when resources are ready for use in specific
+parts of the frame. Poor usage of barriers can lead to poor performance
+but the effects on the frame are not easily visible to the developer -
+until now. The Barriers UI gives the developer a list of barriers in use
+on the graphics queue, including the additional barriers inserted by the
+driver.</p>
+<p>Note that in older profiles or if the barrier origin isn’t known, all
+barriers and layout transitions will be shown as ‘N/A’.</p>
+<a class="reference internal image-reference" href="_images/RGP_Barriers_1.png"><img alt="_images/RGP_Barriers_1.png" src="_images/RGP_Barriers_1.png" style="width: 9.99535in; height: 5.16960in;" /></a>
+<p>The table gives a summary at the top left of the UI that quickly lets
+the developer know if there is an issue with barrier usage in the frame.
+In the case above the barrier usage is taking up 0% of the frame - below
+the recommended max value of 5%.</p>
+<p>The table shows the following information:</p>
+<ol class="arabic">
+<li><p class="first"><strong>Event Numbers</strong> - ID of the barrier - selecting and event in this
+UI will select it on the other Events windows</p>
+</li>
+<li><p class="first"><strong>Duration</strong> - Lifetime of the barrier</p>
+</li>
+<li><p class="first"><strong>Drain time</strong> - This is the amount of time the barrier spends waiting
+for the pipeline to drain, or work to finish. Once the pipeline is empty,
+new wavefronts can be dispatched</p>
+</li>
+<li><p class="first"><strong>Stalls</strong> - The type of stalls associated with the barrier - where
+in the graphics pipe we need the work to drain from</p>
+</li>
+<li><p class="first"><strong>Layout transitions</strong> - A blue check box indicates if the barrier is
+associated with a layout transition. There are 6 columns indicating the
+type of layout transition</p>
+</li>
+<li><p class="first"><strong>Invalidated</strong> - A list of invalidated caches</p>
+</li>
+<li><p class="first"><strong>Flushed</strong> - A list of flushed caches</p>
+</li>
+<li><p class="first"><strong>Barrier type</strong> - Whether the barrier originated from the application
+or from the driver (or ‘N/A’ if unknown)</p>
+</li>
+<li><p class="first"><strong>Reason for barrier</strong> - In the case of driver-inserted barriers, a brief
+description of why this barrier was inserted</p>
+<p><strong>NOTE</strong>: Selecting a barrier in this list will select the same event
+in the other Event windows.</p>
+<p>The user can also right-click on any of the rows and navigate to
+Wavefront occupancy, Event timing or Pipeline state panes and view
+the event represented by the selected row in these panes, as well as
+in the side panels.</p>
+<p>In addition, the user can also see the parent command buffer in the Overview
+pane. If selected, the Overview pane will be opened and the parent command
+buffer will be selected.</p>
+<p>Below is a screenshot of what the right-click context menu looks like:</p>
+</li>
+</ol>
+<a class="reference internal image-reference" href="_images/RGP_Barriers_2.png"><img alt="_images/RGP_Barriers_2.png" src="_images/RGP_Barriers_2.png" style="width: 9.50751in; height: 2.09462in;" /></a>
+</div>
+<div class="section" id="most-expensive-events">
+<h2>Most expensive events<a class="headerlink" href="#most-expensive-events" title="Permalink to this headline">¶</a></h2>
+<p>The Most Expensive events UI allows the developer to quickly locate the
+most expensive events by duration. At the top of the window is a
+histogram of the event durations. The least expensive events are to the
+left of the graph and the most expensive to the right. A blue summary
+bar with an arrow points to the bucket that is the most costly by time.
+The events in this bucket are most in need of optimization. The double
+slider below the chart can be used to select different regions of the
+histogram. The summary and table below will update as the double
+slider’s position is changed. In the example below we can see that the
+most expensive 5% of events take 44% of the frame time.</p>
+<p>Below the histogram is a summary of the frame. In this case, the top 10%
+of events take 70% of the frame time, with 56% of the selected region
+consisting of graphics events and 44% async compute events.</p>
+<p>The table below the summary shows a list of the events in the selected
+region with the most expensive at the top of the list.</p>
+<a class="reference internal image-reference" href="_images/RGP_MostExpensiveEvents_1.png"><img alt="_images/RGP_MostExpensiveEvents_1.png" src="_images/RGP_MostExpensiveEvents_1.png" style="width: 9.50528in; height: 5.57875in;" /></a>
+<p><strong>NOTE</strong>: Selecting an event in this list will select the same event in
+the other Event windows.</p>
+<p>The user can also right-click on any of the rows and navigate to
+Wavefront occupancy, Event timing or Pipeline state panes and view the
+event represented by the selected row in these panes, as well as in the
+side panels. Below is a screenshot of what the right-click context menu
+looks like.</p>
+<a class="reference internal image-reference" href="_images/RGP_MostExpensiveEvents_2.png"><img alt="_images/RGP_MostExpensiveEvents_2.png" src="_images/RGP_MostExpensiveEvents_2.png" style="width: 9.62053in; height: 1.41990in;" /></a>
+</div>
+<div class="section" id="context-rolls">
+<h2>Context rolls<a class="headerlink" href="#context-rolls" title="Permalink to this headline">¶</a></h2>
+<p>Context rolling is a hardware feature specific to the GCN graphics
+architecture and needs to be taken into consideration when optimizing
+draws for AMD GPUs. Each draw requires a set of hardware context
+registers that describe the rendering state for that specific draw. When
+a new draw that requires a different render state enters the pipeline,
+an additional set of context registers is required. The process of
+assigning a set of context registers is called context rolling. A set of
+context registers follows the draw through the graphics pipeline until
+it is completed. On completion of the draw, that associated set of
+registers is free to be used by the next incoming draw.</p>
+<p>On GCN hardware there are 8 logical banks of context registers, of which
+only seven are available for draws. The worst-case scenario is that 8
+subsequent draws each require a unique set of context register. In this
+scenario the last draw has to wait for the first draw to finish before
+it can use the context registers. This causes a stall that can be
+measured and visualized by RGP.</p>
+<a class="reference internal image-reference" href="_images/RGP_ContextRolls_1.png"><img alt="_images/RGP_ContextRolls_1.png" src="_images/RGP_ContextRolls_1.png" style="width: 9.26223in; height: 5.24325in;" /></a>
+<p>In the example above, a DirectX 12 application, we can see that there
+are 223 context rolls in the frame and none of them are redundant.
+The Radeon GPU Profiler compares the context register values across state
+changes to calculate if the context roll was redundant. Redundant context
+rolls can be caused by the application and the driver. Ineffective draw
+batching can be a cause on the application’s end.</p>
+<p>The chart to the right shows the number of times each context was
+rolled. The fact that contexts 2,3,4 and 6 were used ~120 times probably
+indicates that stalls were generated.</p>
+<p>The table underneath shows the state from the API’s perspective, and
+which parts of the state were involved in context rolls. The first column
+indicates how many context rolls it was involved in, and the second column
+indicates how many of these changes were redundant (the state was written
+with the exact same value). The next column indicates the number of
+context rolls that were completely redundant (the whole context was redundant,
+not just the state). The final column shows the number of context rolls of
+this state where this was the only thing that changed in the event.</p>
+<a class="reference internal image-reference" href="_images/RGP_ContextRolls_2.png"><img alt="_images/RGP_ContextRolls_2.png" src="_images/RGP_ContextRolls_2.png" style="width: 9.26223in; height: 5.24325in;" /></a>
+<p>Selecting an API-state shows all the draw calls in the second table,
+called the Events table, that rolled context due to this state
+changing, with or without other states changing too.</p>
+<p>The search box in the top-right corner of the state table works
+similarly to the other search boxes in the application and filters
+API-state tree in real-time as you type.</p>
+<p><strong>NOTE</strong>: Selecting an event in this list will select the same event in
+the other Event windows.</p>
+<p>The user can also right-click on any of the rows and navigate to
+Wavefront occupancy, Event timing or Pipeline state panes and view the
+event represented by the selected row in these panes, as well as in the
+side panels. Below is a screenshot of what the right-click context menu
+looks like.</p>
+<a class="reference internal image-reference" href="_images/RGP_ContextRolls_3.png"><img alt="_images/RGP_ContextRolls_3.png" src="_images/RGP_ContextRolls_3.png" style="width: 9.81021in; height: 2.19095in;" /></a>
+<p><strong>NOTE</strong>: When selecting events on the event panes and using the
+right-click context menu to jump between panes, the option to “View in
+context rolls” will only be available if the selected event is currently
+present in the events table on the context rolls pane.</p>
+</div>
+<div class="section" id="device-configuration">
+<h2>Device configuration<a class="headerlink" href="#device-configuration" title="Permalink to this headline">¶</a></h2>
+<p>This UI reports the GPU configuration of the system that was used to
+generate the profile. The Radeon Developer Panel can retrieve profiles
+from remote systems so the GPU details can be different from the system
+that you are using to view the data. The clock frequencies refer to the
+clock frequency running when the capture was taken. The number in
+parentheses represents the peak clock frequency the graphics hardware
+can run at.</p>
+<a class="reference internal image-reference" href="_images/RGP_DeviceConfiguration.png"><img alt="_images/RGP_DeviceConfiguration.png" src="_images/RGP_DeviceConfiguration.png" style="width: 6.38599in; height: 6.16848in;" /></a>
+</div>
+</div>
+<div class="section" id="events-windows">
+<h1>Events Windows<a class="headerlink" href="#events-windows" title="Permalink to this headline">¶</a></h1>
+<p>This section of RGP is where users will perform most analysis at the
+event level. An RGP event is simply an API call within a command buffer
+that was issued by either the application or the driver.</p>
+<div class="section" id="wavefront-occupancy">
+<h2>Wavefront occupancy<a class="headerlink" href="#wavefront-occupancy" title="Permalink to this headline">¶</a></h2>
+<p>This section presents users with an interactive timeline that shows GPU
+utilization and all events in the profile.</p>
+<a class="reference internal image-reference" href="_images/RGP_WavefrontOccupancy_1.png"><img alt="_images/RGP_WavefrontOccupancy_1.png" src="_images/RGP_WavefrontOccupancy_1.png" style="width: 9.73301in; height: 5.47482in;" /></a>
+<p>There are three components, the Wavefront timeline view, the Events
+timeline view, and the Details panel.</p>
+<p><strong>Wavefront timeline view</strong></p>
+<p>This section shows how many wavefronts were in flight. All wavefronts
+are grouped into buckets which are represented by vertical bars. The top
+half shows wavefronts on the graphics queue, and the bottom half shows
+wavefronts on the async compute queue.</p>
+<a class="reference internal image-reference" href="_images/RGP_WavefrontOccupancy_2.png"><img alt="_images/RGP_WavefrontOccupancy_2.png" src="_images/RGP_WavefrontOccupancy_2.png" style="width: 9.88146in; height: 2.47686in;" /></a>
+<p>Users may examine regions by selecting ranges within the graph and using
+the zoom buttons on the top right. Users may also hover over this view
+and use mouse wheel to zoom and center in on a particular spot. A region
+of wavefronts can be selected by using either mouse button to drag over
+the desired region as shown below.</p>
+<a class="reference internal image-reference" href="_images/RGP_WavefrontOccupancy_3.png"><img alt="_images/RGP_WavefrontOccupancy_3.png" src="_images/RGP_WavefrontOccupancy_3.png" style="width: 9.78732in; height: 2.45327in;" /></a>
+<p>You can zoom into the region by selecting Ctrl + Z, or by clicking on
+“Zoom to selection” (result shown below).</p>
+<a class="reference internal image-reference" href="_images/RGP_WavefrontOccupancy_4.png"><img alt="_images/RGP_WavefrontOccupancy_4.png" src="_images/RGP_WavefrontOccupancy_4.png" style="width: 9.83002in; height: 2.46397in;" /></a>
+<p>You can also drag the graph if you are zoomed in. Hold down the space
+bar first, then hold the mouse button down. The graph will now move with
+the mouse.</p>
+<p>Users may use the combo-box on the top left to visualize wavefronts in
+different ways:</p>
+<ul class="simple">
+<li><strong>Color by API stage.</strong>&nbsp;Default, and shows which wavefronts
+correspond to which Vulkan/DX12 pipeline stage.</li>
+<li><strong>Color by GCN stage.</strong>&nbsp;Shows which wavefronts correspond to which
+GCN pipeline stage.</li>
+<li><strong>Color by hardware context.</strong>&nbsp;Shows which GCN context (0-7) the
+wavefronts ran on. This can be useful to visualize the amount of
+context rolls that occurred.</li>
+<li><strong>Color by shader engine.</strong>&nbsp;Shows which shader engine the wavefronts
+ran on.</li>
+<li><strong>Color by event.</strong>&nbsp;Shows which wavefronts correspond to which event
+of the profile. Each event is assigned a unique color.</li>
+<li><strong>Color by pass.</strong>&nbsp;Groups wavefronts into different passes depending
+on which render target or attachment type (color, depth-only,
+compute). These three types are assigned a base color, and each pass
+within each type is assigned a different shade of the base color.
+This can be useful to visualize when the application attempted to
+render different portions of a scene.</li>
+</ul>
+<p>Additionally, there are filters along the top intended to help visualize
+the occupancy of only certain GCN pipeline stages. Lastly, there are
+colored legends on the bottom which serve as color reminders. Note these
+colors can be customized within Settings.</p>
+<p><strong>Events timeline view</strong></p>
+<p>This section shows all events in your profile. This includes both
+application-issued and driver-issued submissions. Each event can consist
+of one or more active shader stages and these are shown with rectangular
+blocks. The longer the block, the longer the shader took to execute. If
+there is more than 1 shader active, then each shader stage is connected
+with a thin line to indicate they belong to the same event. This view
+just shows actual shader work; it doesn’t show when the event was
+submitted.</p>
+<a class="reference internal image-reference" href="_images/RGP_WavefrontOccupancy_5.png"><img alt="_images/RGP_WavefrontOccupancy_5.png" src="_images/RGP_WavefrontOccupancy_5.png" style="width: 9.43974in; height: 3.37447in;" /></a>
+<p>Users may single-click on individual events to see detailed information
+on the details pane described below. Zooming into this graph is done by
+selecting the desired region in the wavefront graph above. Additionally,
+zooming in on a single event can be done by selecting the event and
+clicking on ‘Zoom to selection’.</p>
+<p>Users may use the combo-box on the top left to visualize events in
+different ways:</p>
+<ul class="simple">
+<li><strong>Color by queue.</strong>&nbsp;Default, and shows which events were submitted to
+graphics or async compute queues. In addition, the CP marker is shown
+in a unique color, as well as the barriers and layout transitions so
+they can be easily distinguished. Note that barrier and layout transitions
+originating from the driver are colored differently to those from the
+application, and this is shown in the legend below the timeline view.</li>
+<li><strong>Color by hardware context.</strong>&nbsp;Shows which events ran on which
+context. This can be useful to visualize the amount of context rolls
+that occurred.</li>
+<li><strong>Color by event.</strong> Will show each event in a unique color.</li>
+<li><strong>Color by pass.</strong>&nbsp;Groups events into different passes depending on
+which render target or attachment type (color, depth-only, compute).
+These three types are assigned a base color, and each pass within
+each type is assigned a different shade of the base color. This can
+be useful to visualize when the application attempted render
+different portions of a scene.</li>
+<li><strong>Color by command buffer.</strong> Shows each event in a color associated
+with its command buffer, so making it easy to see events are in the same
+command buffer.</li>
+<li><strong>Color by user events.</strong> Will colorize each event depending on which
+user event it is surrounded by.</li>
+</ul>
+<p>Additionally, there are also filters to help visualize only certain
+types of events. For example, users can select to see draws, dispatches,
+barriers, clears, copies and resolves. There is also an option to switch
+the CP marker on or off. Switching the CP marker off will just show the
+active shader blocks. The event duration percentile filter allows users
+to only see events whose durations fall within a certain percentile. For
+example, selecting the rightmost-region of the slider will highlight the
+most expensive events. One will also find a textbox to filter out by
+event name.</p>
+<p>The same zooming and dragging that is available on the wavefront
+timeline view is also available here.</p>
+<p>Lastly, there are colored legends on the bottom which serve as color
+reminders. Note these colors can be customized within Settings.</p>
+<p><strong>Details pane</strong></p>
+<p>Pressing&nbsp;<strong>Show Details</strong>&nbsp;on the top right will open a side panel with
+more in-depth information. The contents of this panel will change,
+depending on what the user last selected. If a single event was selected
+in the Events timeline the details panel will look like below:</p>
+<a class="reference internal image-reference" href="_images/RGP_DetailsPanel_1.png"><img alt="_images/RGP_DetailsPanel_1.png" src="_images/RGP_DetailsPanel_1.png" style="width: 2.45788in; height: 6.17499in;" /></a>
+<p>The Details panel for a single event contains the following data:</p>
+<ul class="simple">
+<li>The event’s API call name</li>
+<li>The queue it was launched on</li>
+<li>User event hierarchy (if present)</li>
+<li>Start, End, and Duration timings</li>
+<li>Hardware context and if it was rolled</li>
+<li>Wavefront pie chart showing the distribution of wavefront counts per
+stage</li>
+<li>List of GCN hardware stages and wavefront counts</li>
+<li>Total wavefront count</li>
+<li>Total threads</li>
+<li>GCN shader timeline graphic showing active stages and duration</li>
+<li>Block diagram of active pipeline stages</li>
+<li>Primitive, vertex, control point, and pixel counts</li>
+</ul>
+<p>The ‘Duration’ shows the time from the start of the first shader to the
+end of the last shader, including any space between shaders where no
+actual work is done (denoted by a line connecting the shader ‘blocks’).
+The ‘Work duration’ only shows the time when the shaders are actually
+doing work. This is the sum of all the shader blocks, ignoring the
+connecting lines where no work is being done. If there is overlap
+between shaders, the overlap time is only accounted for once. If all
+shaders are overlapping, then the duration will be the same as the work
+duration.</p>
+<p>If the user selects a range of wavefronts in the wavefront timeline the
+details panel contains a summary of all the wavefronts in the selected
+region as shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_DetailsPanel_2.png"><img alt="_images/RGP_DetailsPanel_2.png" src="_images/RGP_DetailsPanel_2.png" style="width: 3.36458in; height: 5.87575in;" /></a>
+<p>If the user selects a barrier, the details panel will show information
+relating to the barrier, such as the barrier flags and any layout
+transitions associated with this barrier. It will also show the barrier
+type (whether it came from the application or the driver). Note that the
+barrier type is dependent on whether the video driver has support for
+this feature. If not, then it will be indicated as ‘N/A’. An example of
+a user-inserted barrier is shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_DetailsPanel_3.png"><img alt="_images/RGP_DetailsPanel_3.png" src="_images/RGP_DetailsPanel_3.png" style="width: 4.12758in; height: 4.71899in;" /></a>
+<p>If the driver needed to insert a barrier, a detailed reason why this barrier
+was inserted is also displayed, as shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_DetailsPanel_5.png"><img alt="_images/RGP_DetailsPanel_5.png" src="_images/RGP_DetailsPanel_5.png" style="width: 4.12758in; height: 4.71899in;" /></a>
+<p>If the user selects a layout transition, the details panel will show
+information relating to the layout transition as shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_DetailsPanel_4.png"><img alt="_images/RGP_DetailsPanel_4.png" src="_images/RGP_DetailsPanel_4.png" style="width: 3.74332in; height: 5.04131in;" /></a>
+<p>The user can also right-click on any of the events in the Events
+timeline view and navigate to Event timing or Pipeline state panes, as
+well as Barriers, Most expensive events and Context rolls panes within
+Overview tab, and view the selected event in these panes, as well as in
+the side panels.</p>
+<p>In addition, the user can zoom into an event using the “Zoom to
+selection” option from this context menu.</p>
+<p>Below is a screenshot of what the right-click context menu looks like.</p>
+<a class="reference internal image-reference" href="_images/RGP_WavefrontOccupancy_6.png"><img alt="_images/RGP_WavefrontOccupancy_6.png" src="_images/RGP_WavefrontOccupancy_6.png" style="width: 8.03391in; height: 2.71875in;" /></a>
+</div>
+<div class="section" id="event-timing">
+<h2>Event timing<a class="headerlink" href="#event-timing" title="Permalink to this headline">¶</a></h2>
+<p>The event timing window shows a list of events and their corresponding
+timings. The treeview in the left hand column shows each event name and
+its unique index, starting at 0, and are listed in sequential order.
+Events can be ordered into groups, and group categories are shown in
+bold text.</p>
+<a class="reference internal image-reference" href="_images/RGP_EventTiming_1.png"><img alt="_images/RGP_EventTiming_1.png" src="_images/RGP_EventTiming_1.png" style="width: 8.79520in; height: 6.27399in;" /></a>
+<p>The pane to the right of the treeview shows a graphical representation
+of the duration for each event. The darker blue span to the right of
+each tree node shows the duration of all the events in that node.</p>
+<p>In the graphic for each event (shown in light blue above) the first
+small block at the left is the CP marker, indicating when the event was
+issued. This is followed, some time later, by actual work done by the
+shaders. The delay between the CP marker and the start of actual work
+may indicate bottlenecks in the application. One of the shaders may be
+waiting for a resource which is currently being used by another wave in
+flight and cannot start until it obtains that resource. The time when
+the first shader started work and the last shader finished work is the
+number indicated in this column. Each shader stage is represented by a
+rectangular block. The longer the block, the longer the shader took to
+execute. Shaders are linked by a solid line to show that they are
+connected in the pipeline. For groups, a dark line spans all events
+within the group, showing the time taken for that group to complete
+work.</p>
+<p>Control on this pane is similar to the Wavefront occupancy pane. Zooming
+can be done by clicking on the zoom buttons or selecting a region with
+the mouse and clicking on ‘Zoom to selection’. ‘Zoom to selection’ will
+also zoom in on an event if the line for that event is selected in the
+table. If zoomed in, dragging is also possible using the same method
+described previously.</p>
+<p><strong>Grouping modes</strong></p>
+<p>The events can be grouped together. Normally these groups don’t affect
+the event ordering but sometimes can (sort by state bucket).</p>
+<ul class="simple">
+<li><strong>Group by pass</strong> will show events depending on the render
+target or attachment type (color, depth-only, compute).</li>
+<li><strong>Group by hardware context</strong> will group events by their hardware
+context, making it easy to see which events caused the context to
+change.</li>
+<li><strong>Group by state bucket</strong> <strong>(unsorted)</strong> will order the events by
+state bucket but won’t sort the state buckets by duration.
+Theoretically, all events in a state bucket use the same shaders. The
+duration of a state bucket is represented by the dark blue line
+corresponding to the state bucket group text.</li>
+<li><strong>Group by state bucket</strong> <strong>(serialized)</strong> will take all the event
+timings within the group and sum the total time that the shaders were
+busy, ignoring all empty space between events. This has the effect of
+serializing the shader work and doesn’t take into account that some
+shaders will be executing in parallel. This is used to highlight when
+you have a lot of small shaders whose cumulative work can be
+extensive. As an example, if you have 2 shaders which start at the
+same time and one takes 2000 clks and another takes 10000 clks, the
+total duration would be 12000 clks.</li>
+<li><strong>Group by state bucket (overlapped)</strong> takes into account the
+parallelism of the shader execution so will highlight shaders which
+take a long time to execute. Using the same example above, since both
+shaders start together, the total duration in this case would be
+10000 clks.</li>
+<li><strong>Group by command buffer</strong> will group events depending on which
+command buffer they are on.</li>
+<li><strong>Group by user events</strong> will group the events depending on which
+user event(s) they are surrounded by.</li>
+</ul>
+<p>The default grouping mode is by user event if user events are present in
+the profile. Otherwise the default will be to group by pass.</p>
+<p>Note that grouping by hardware context or command buffer will group
+events by queue first. Grouping by pass or user event will
+chronologically group events irrespective of which queue they originated
+from. Grouping by state bucket just shows events in the graphics queue.
+Grouping by hardware context is shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_EventTiming_2.png"><img alt="_images/RGP_EventTiming_2.png" src="_images/RGP_EventTiming_2.png" style="width: 9.60341in; height: 6.86412in;" /></a>
+<p><strong>Color modes</strong></p>
+<p>The events can be rendered using different color schemes in the same manor
+as in the Wavefront occupancy view.</p>
+<p>The user can also right-click on any of the events and navigate to
+Wavefront occupancy or Pipeline state panes, as well as Barriers, Most
+expensive events and Context rolls panes within Overview tab, and view
+the selected event in these panes, as well as in the side panels.</p>
+<p>In addition, the user can zoom into an event using the “Zoom to
+selection” option from this context menu.</p>
+<p>Below is a screenshot of what the right-click context menu looks like.</p>
+<a class="reference internal image-reference" href="_images/RGP_EventTiming_3.png"><img alt="_images/RGP_EventTiming_3.png" src="_images/RGP_EventTiming_3.png" style="width: 7.26627in; height: 2.64543in;" /></a>
+<p><strong>Wavefront occupancy and event timing window synchronization</strong></p>
+<p>Normally, adjusting the time window in one of these views (by zooming in
+and scrolling) doesn’t affect the other window. This can be useful in
+some cases when tracking more than one item. However, it is sometimes
+useful to lock both the event timing and wavefront occupancy views to
+the same visible time window. There is an option to control this in the
+‘General’ tab of the Settings section called <strong>Sync event time
+windows</strong>. With this enabled, any zooming and scrolling will in one
+window will be reflected in the other. If adjustments are made in the
+wavefront occupancy view, the vertical scroll bar in the event timing
+view will be automatically adjusted so that there are always events
+shown on screen if an event isn’t manually selected.</p>
+</div>
+<div class="section" id="the-anatomy-of-an-event">
+<h2>The anatomy of an event<a class="headerlink" href="#the-anatomy-of-an-event" title="Permalink to this headline">¶</a></h2>
+<p>Two examples of typical draw call events are shown below:</p>
+<img alt="_images/RGP_Event1.png" src="_images/RGP_Event1.png" />
+<img alt="_images/RGP_Event2.png" src="_images/RGP_Event2.png" />
+<p><strong>A</strong> shows the CP marker. This is the point the command processor in the
+GPU issues work to be done. It is then queued up until the GPU can process
+the workload.</p>
+<p><strong>B</strong> shows the work being done by the various shader stages. The gap between
+the CP marker and the start of <strong>B</strong> indicates that the GPU didn’t start on
+the workload straight away and was busy doing other things, for example, previous
+draw calls.</p>
+<p><strong>C</strong> shows any fixed-function work that needs doing after the shaders have
+finished executing. This occurs when a draw call is doing depth-only rendering.
+The fixed function work shown is the primitive assembly and scan conversion
+of the vertices shaded by the vertex shader.</p>
+<p>Starting with RGP 1.2 users may also obtain information about an event’s
+parent command buffer. When right-clicking on an event, users are presented with
+a context menu containing an option to find its parent command buffer. This
+will trigger RGP to navigate to the Frame Summary and focus on said parent
+command buffer. Once here, users can obtain valuable system-level insight
+about the surrounding context for the event in question.</p>
+</div>
+<div class="section" id="pipeline-state">
+<h2>Pipeline state<a class="headerlink" href="#pipeline-state" title="Permalink to this headline">¶</a></h2>
+<p>The pipeline state window shows the render state information for
+individual events by stage. In the example below the event is a
+DirectX12 DrawInstanced call using a VS, GS, and a PS. Active stages are
+rendered in black and can be selected, gray stages are inactive on this
+draw and cannot be selected.</p>
+<p>The user has selected the PS stage for viewing and it is rendered in
+blue to indicate this. Below the pipeline stage graphic is a summary of
+the wavefront activity for this draw and the per-wavefront register
+resources used by the shader.</p>
+<p>The register values indicate the number of registers that the shader is
+using. The value in parentheses is the number of registers that have
+been allocated for the shader.</p>
+<p>From this information and knowledge about the GCN architecture we can
+calculate the theoretical maximum wavefront occupancy for the pixel
+shader. In this case the maximum of 8 wavefronts per SIMD are
+theoretically possible, but may be limited by other factors.</p>
+<a class="reference internal image-reference" href="_images/RGP_PipelineState_1.png"><img alt="_images/RGP_PipelineState_1.png" src="_images/RGP_PipelineState_1.png" style="width: 7.98168in; height: 4.48969in;" /></a>
+<p><strong>Grouping modes</strong></p>
+<p>The grouping modes are the same is in the Event timing pane.</p>
+<p>The user can also right-click on any of the events and navigate to
+Wavefront occupancy or Event timing panes, as well as Barriers, Most
+expensive events and Context rolls panes within Overview tab, and view
+the selected event in these panes, as well as in the side panels. Below
+is a screenshot of what the right-click context menu looks like.</p>
+<a class="reference internal image-reference" href="_images/RGP_PipelineState_2.png"><img alt="_images/RGP_PipelineState_2.png" src="_images/RGP_PipelineState_2.png" style="width: 8.57800in; height: 1.20282in;" /></a>
+<p><strong>Note:</strong> The Output Merger stage of a DirectX 12 application may report
+the LogicOp as D3D12_LOGIC_OP_COPY, even though it is set in an
+application as D3D12_LOGIC_OP_NOOP. These 2 operations are
+semantically the same if blending is enabled. A no-op indicates that no
+transform of the data is to be performed so the output is the same as
+the source.</p>
+</div>
+</div>
+<div class="section" id="user-debug-markers">
+<h1>User Debug Markers<a class="headerlink" href="#user-debug-markers" title="Permalink to this headline">¶</a></h1>
+<p>User markers can help application developers to correlate the data seen
+in RGP with their application behavior.</p>
+<div class="section" id="directx12-user-markers">
+<h2>DirectX12 User Markers<a class="headerlink" href="#directx12-user-markers" title="Permalink to this headline">¶</a></h2>
+<p>For DirectX12, there are two recommended ways to instrument your application
+with user markers that can be viewed within RGP:</p>
+<ol class="arabic simple">
+<li>using Microsoft® PIX3 event instrumentation, or</li>
+<li>using the debug marker support in AMD GPU Services (AGS) Library.</li>
+</ol>
+</div>
+<div class="section" id="using-pix3-event-instrumentation-for-directx12-user-debug-markers">
+<h2>Using PIX3 event instrumentation for DirectX12 user debug markers<a class="headerlink" href="#using-pix3-event-instrumentation-for-directx12-user-debug-markers" title="Permalink to this headline">¶</a></h2>
+<p>If your application has been instrumented with PIX3 user markers, then
+to view the markers within RGP is a simple matter of recompiling the source code
+of the application with a slightly modified PIX header file to include AMD header files.</p>
+<p>The currently supported PIX3 event instrumentation for RGP are:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">void</span> <span class="n">PIXBeginEvent</span><span class="p">(</span><span class="n">ID3D12GraphicsCommandList</span><span class="o">*</span> <span class="n">commandList</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<span class="n">void</span> <span class="n">PIXEndEvent</span><span class="p">(</span><span class="n">ID3D12GraphicsCommandList</span><span class="o">*</span> <span class="n">commandList</span><span class="p">)</span>
+<span class="n">void</span> <span class="n">PIXSetMarker</span><span class="p">(</span><span class="n">ID3D12GraphicsCommandList</span><span class="o">*</span> <span class="n">commandList</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The steps to update the PIX header file are:</p>
+<p>1. Copy the entire <code class="docutils literal notranslate"><span class="pre">samples\AMDDxExt</span></code> folder provided in the RGP package to the location where the PIX header
+files (<code class="docutils literal notranslate"><span class="pre">pix3.h</span></code>, <code class="docutils literal notranslate"><span class="pre">pix3_win.h</span></code>) resides (typically at <code class="docutils literal notranslate"><span class="pre">WinPixEventRuntime.[x.x]\Include\WinPixEventRuntime</span></code>).</p>
+<p>2. Update the content of <code class="docutils literal notranslate"><span class="pre">pix3.h</span></code> file to replace the inclusion of <code class="docutils literal notranslate"><span class="pre">pix3_win.h</span></code> with <code class="docutils literal notranslate"><span class="pre">AMDDxExt\AmdPix3.h</span></code> file.
+For example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#if defined(XBOX) || defined(_XBOX_ONE) || defined(_DURANGO)</span>
+<span class="c1">#include &quot;pix3_xbox.h&quot;</span>
+<span class="c1">#else</span>
+<span class="o">//</span><span class="c1">#include &quot;pix3_win.h&quot;</span>
+<span class="c1">#include &quot;AMDDxExt\AmdPix3.h&quot;</span>
+<span class="c1">#endif</span>
+</pre></div>
+</div>
+<p>3. Recompile the application.  Note that the RGP user markers are only enabled when the corresponding
+PIX event instrumentation is also enabled with one of the preprocessor symbols:
+<strong>USE_PIX</strong>, <strong>DBG</strong>, <strong>_DEBUG</strong>, <strong>PROFILE</strong>, or <strong>PROFILE_BUILD</strong>.</p>
+<p>The PIX3 event instrumentation within the application continues to be usable for
+<a class="reference external" href="https://blogs.msdn.microsoft.com/pix/introduction/">Microsoft PIX tool</a> without additional side effects or overhead.</p>
+<p>To find a more complete description of how to use the PIX event instrumentation, refer to
+<a class="reference external" href="https://blogs.msdn.microsoft.com/pix/winpixeventruntime/">https://blogs.msdn.microsoft.com/pix/winpixeventruntime/</a>.</p>
+<p>See many examples of using PIX event instrumentation at <a class="reference external" href="https://github.com/Microsoft/DirectX-Graphics-Samples">https://github.com/Microsoft/DirectX-Graphics-Samples</a>.</p>
+</div>
+<div class="section" id="using-ags-for-directx12-user-debug-markers">
+<h2>Using AGS for DirectX12 user debug markers<a class="headerlink" href="#using-ags-for-directx12-user-debug-markers" title="Permalink to this headline">¶</a></h2>
+<p>The AMD GPU Services (AGS) library provides software developers
+with the ability to query AMD GPU software and hardware state
+information that is not normally available through standard operating
+systems or graphic APIs. AGS includes support for querying graphics
+driver version info, GPU performance, Crossfire™ (AMD’s multi-GPU
+rendering technology) configuration info, and Eyefinity (AMD’s
+multi-display rendering technology) configuration info. AGS also exposes
+the explicit Crossfire API extension, GCN shader extensions, and
+additional extensions supported in the AMD drivers for DirectX® 11 and
+DirectX 12. One of the latest features in AGS is the support for DirectX
+12 user debug markers.</p>
+<p>User markers can be inserted into your application using AGS function
+calls. The inserted user markers can then be viewed within RGP. The main
+steps to obtaining user markers are described below.</p>
+<p>Articles and blogs about AGS can be found here:
+<a class="reference external" href="https://gpuopen.com/gaming-product/amd-gpu-services-ags-library/">https://gpuopen.com/gaming-product/amd-gpu-services-ags-library/</a></p>
+<p>Additional API documentation for AGS can be found at:
+<a class="reference external" href="https://gpuopen-librariesandsdks.github.io/ags/">https://gpuopen-librariesandsdks.github.io/ags/</a></p>
+<div class="section" id="download-ags">
+<h3>Download AGS<a class="headerlink" href="#download-ags" title="Permalink to this headline">¶</a></h3>
+<p>Download the AGS library from:
+<a class="reference external" href="https://github.com/GPUOpen-LibrariesAndSDKs/AGS_SDK/">https://github.com/GPUOpen-LibrariesAndSDKs/AGS_SDK/</a></p>
+<p>The library consists of pre-built Windows libraries, DLLs, sample and
+documentation. You will need to use files in the following two dirs.</p>
+<ul class="simple">
+<li>Headers: AGS_SDK-master\ags_lib\inc</li>
+<li>Libraries: AGS_SDK-master\ags_lib\lib</li>
+</ul>
+</div>
+<div class="section" id="integrate-ags-header-libs-and-dll-into-your-project">
+<h3>Integrate AGS header, libs, and DLL into your project<a class="headerlink" href="#integrate-ags-header-libs-and-dll-into-your-project" title="Permalink to this headline">¶</a></h3>
+<p>AGS requires one header (<code class="docutils literal notranslate"><span class="pre">amd\ags.h</span></code>) to be included in your source code.
+Add the location of the AGS header to the Visual Studio project settings
+and include the header in the relevant code files.</p>
+<p>#include “amd_ags.h”</p>
+<p>Link your exe against correct AGS library for your project (32 or 64bit,
+MD, MT, DLL, or UWP DLL).</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="11%" />
+<col width="24%" />
+<col width="25%" />
+<col width="41%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">&#160;</th>
+<th class="head"><strong>Library Name</strong></th>
+<th class="head"><strong>AGS Runtime DLL required</strong></th>
+<th class="head"><strong>Library Type</strong></th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td><strong>64 Bit</strong></td>
+<td>amd_ags_uwp_x64.lib</td>
+<td>amd_ags_uwp_x64.dll</td>
+<td>UWP</td>
+</tr>
+<tr class="row-odd"><td>&#160;</td>
+<td>amd_ags_x64.lib</td>
+<td>amd_ags_x64.dll</td>
+<td>DLL</td>
+</tr>
+<tr class="row-even"><td>&#160;</td>
+<td>amd_ags_x64_2015_MD.lib</td>
+<td>NA</td>
+<td>VS2015 Lib (multithreaded dll runtime library)</td>
+</tr>
+<tr class="row-odd"><td>&#160;</td>
+<td>amd_ags_x64_2015_MT.lib</td>
+<td>NA</td>
+<td>VS2015 Lib (multithreaded static runtime library)</td>
+</tr>
+<tr class="row-even"><td>&#160;</td>
+<td>amd_ags_x64_2017_MD.lib</td>
+<td>NA</td>
+<td>VS2017 Lib (multithreaded dll runtime library)</td>
+</tr>
+<tr class="row-odd"><td>&#160;</td>
+<td>amd_ags_x64_2017_MT.lib</td>
+<td>NA</td>
+<td>VS2017 Multithreaded static</td>
+</tr>
+<tr class="row-even"><td><strong>32 Bit</strong></td>
+<td>amd_ags_uwp_x86.lib</td>
+<td>amd_ags_uwp_x86.dll</td>
+<td>UWP</td>
+</tr>
+<tr class="row-odd"><td>&#160;</td>
+<td>amd_ags_x86.lib</td>
+<td>amd_ags_x86.dll</td>
+<td>DLL</td>
+</tr>
+<tr class="row-even"><td>&#160;</td>
+<td>amd_ags_x86_2015_MD.lib</td>
+<td>NA</td>
+<td>VS2015 Lib (multithreaded dll runtime library)</td>
+</tr>
+<tr class="row-odd"><td>&#160;</td>
+<td>amd_ags_x86_2015_MT.lib</td>
+<td>NA</td>
+<td>VS2015 Lib (multithreaded static runtime library)</td>
+</tr>
+<tr class="row-even"><td>&#160;</td>
+<td>amd_ags_x86_2017_MD.lib</td>
+<td>NA</td>
+<td>VS2017 Lib (multithreaded dll runtime library)</td>
+</tr>
+<tr class="row-odd"><td>&#160;</td>
+<td>amd_ags_x86_2017_MT.lib</td>
+<td>NA</td>
+<td>VS2017 Lib (multithreaded static runtime library)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="initialize-ags">
+<h3>Initialize AGS<a class="headerlink" href="#initialize-ags" title="Permalink to this headline">¶</a></h3>
+<p>When you have your project building the first thing to do is to initialize the AGS context.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">//</span> <span class="n">Specify</span> <span class="k">if</span> <span class="n">memory</span> <span class="n">allocation</span> <span class="n">callbacks</span> <span class="n">are</span> <span class="n">required</span><span class="p">,</span> <span class="ow">and</span> <span class="n">the</span> <span class="nb">type</span> <span class="n">of</span> <span class="n">crossfire</span> <span class="n">support</span>
+<span class="n">AGSConfiguration</span> <span class="n">config</span> <span class="o">=</span> <span class="p">{};</span>
+
+<span class="o">//</span> <span class="n">Initialize</span> <span class="n">AGS</span>
+<span class="n">AGSReturnCode</span> <span class="n">agsInitReturn</span> <span class="o">=</span> <span class="n">agsInit</span><span class="p">(</span><span class="o">&amp;</span><span class="n">m_AGSContext</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">config</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">m_AmdgpuInfo</span><span class="p">);</span>
+
+<span class="o">//</span> <span class="n">Check</span> <span class="n">to</span> <span class="n">see</span> <span class="k">if</span> <span class="n">AGS</span> <span class="n">was</span> <span class="n">started</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">agsInitReturn</span> <span class="o">!=</span> <span class="n">AGS_SUCCESS</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">nError: AGS Library was NOT initialized - Return Code </span><span class="si">%d</span><span class="se">\\</span><span class="s2">n&quot;</span><span class="p">,</span> <span class="n">agsInitReturn</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="initialize-the-directx12-extension">
+<h3>Initialize the DirectX12 Extension<a class="headerlink" href="#initialize-the-directx12-extension" title="Permalink to this headline">¶</a></h3>
+<p>Once the AGS extension has been successfully created we need to create the DirectX12 extension as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">//</span> <span class="n">Initialize</span> <span class="n">the</span> <span class="n">DX12</span> <span class="n">extension</span> <span class="n">on</span> <span class="n">the</span> <span class="n">device</span>
+<span class="n">unsigned</span> <span class="nb">int</span> <span class="n">flags</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="n">AGSReturnCode</span> <span class="n">dxInitReturn</span> <span class="o">=</span> <span class="n">agsDriverExtensionsDX12_Init</span><span class="p">(</span><span class="n">m_AGSContext</span><span class="p">,</span> <span class="n">m_device</span><span class="o">.</span><span class="n">Get</span><span class="p">(),</span> <span class="o">&amp;</span><span class="n">flags</span><span class="p">);</span>
+
+<span class="o">//</span> <span class="n">Check</span> <span class="n">to</span> <span class="n">see</span> <span class="k">if</span> <span class="n">the</span> <span class="n">DX12</span> <span class="n">extension</span> <span class="n">was</span> <span class="n">created</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">agsInitReturn</span> <span class="o">!=</span> <span class="n">AGS_SUCCESS</span><span class="p">)</span>
+<span class="p">{</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;AGS DX12 extension was NOT initialized - Return Code </span><span class="si">%d</span><span class="se">\\</span><span class="s2">n&quot;</span><span class="p">,</span><span class="n">agsInitReturn</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">else</span>
+<span class="p">{</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;AGS DX12 extension was initialized.</span><span class="se">\\</span><span class="s2">n&quot;</span><span class="p">);</span>
+        <span class="o">//</span> <span class="n">Check</span> <span class="n">to</span> <span class="n">see</span> <span class="k">if</span> <span class="n">user</span> <span class="n">markers</span> <span class="n">are</span> <span class="n">supported</span> <span class="ow">in</span> <span class="n">the</span> <span class="n">current</span> <span class="n">driver</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="n">AGS_DX12_EXTENSION_USER_MARKERS</span><span class="p">)</span>
+        <span class="p">{</span>
+                <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;AGS_DX12_EXTENSION_USER_MARKERS are supported.</span><span class="se">\\</span><span class="s2">n&quot;</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="k">else</span>
+        <span class="p">{</span>
+                <span class="n">printf</span><span class="p">(</span><span class="s2">&quot;AGS_DX12_EXTENSION_USER_MARKERS are NOT supported.</span><span class="se">\\</span><span class="s2">n&quot;</span><span class="p">);</span>
+        <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Please note that the above code checks if the driver is capable of
+supporting user markers by testing the output flags produced by the
+creation of the DirectX12 extension. This step may fail on older
+drivers.</p>
+</div>
+<div class="section" id="insert-markers-in-application">
+<h3>Insert Markers in Application<a class="headerlink" href="#insert-markers-in-application" title="Permalink to this headline">¶</a></h3>
+<p>The main functions provided by AGS for marking applications are:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">agsDriverExtensionsDX12_PushMarker</span><span class="p">;</span>
+<span class="n">agsDriverExtensionsDX12_PopMarker</span><span class="p">;</span>
+<span class="n">agsDriverExtensionsDX12_SetMarker</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>The below example shows how a draw call can be enclosed within a “Draw
+Particles” user marker, followed by inserting a marker.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>// Push a marker
+agsDriverExtensionsDX12_PushMarker(m_AGSContext, pCommandList, &quot;DrawParticles&quot;);
+
+// This draw call will be in the “Draw Particles” User Marker
+pCommandList-&gt;DrawInstanced(ParticleCount, 1, 0, 0);
+
+// Pop a marker
+agsDriverExtensionsDX12_PopMarker(m_AGSContext, pCommandList);
+
+// Insert a marker
+agsDriverExtensionsDX12_SetMarker(m_AGSContext, pCommandList, &quot;Finished Drawing Particles&quot;);
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="vulkan-user-markers">
+<h2>Vulkan User Markers<a class="headerlink" href="#vulkan-user-markers" title="Permalink to this headline">¶</a></h2>
+<p>Vulkan has support for user debug markers please read the following
+article for details:</p>
+<p><a class="reference external" href="https://www.saschawillems.de/?page_id=2017">https://www.saschawillems.de/?page_id=2017</a></p>
+<p>See code sample at:</p>
+<p><a class="reference external" href="https://github.com/SaschaWillems/Vulkan/blob/master/examples/debugmarker/debugmarker.cpp">https://github.com/SaschaWillems/Vulkan/blob/master/examples/debugmarker/debugmarker.cpp</a></p>
+</div>
+<div class="section" id="viewing-user-markers">
+<h2>Viewing User Markers<a class="headerlink" href="#viewing-user-markers" title="Permalink to this headline">¶</a></h2>
+<p>The RGP file captured for a frame of the above application contains many
+user markers. The user markers can be seen in the “Event timing” and
+“Pipeline state” views when you choose the “Group by User Marker” option
+as shown below.</p>
+<a class="reference internal image-reference" href="_images/RGP_UserMarkers_1.png"><img alt="_images/RGP_UserMarkers_1.png" src="_images/RGP_UserMarkers_1.png" style="width: 9.58619in; height: 5.39223in;" /></a>
+<p>“Draw Particles” User marker with the draw calls enclosed in the User
+Marker</p>
+<p>User markers can also be seen in the wavefront occupancy view when you
+color by User Events. Coloring by user events is also possible in the
+event timing view. As seen below, the draw calls enclosed by the User
+marker change color to purple. The events not enclosed by User Markers
+are shown in gray. The coloration is only affected by the Push/PopMarker
+combination; the SetMarker has no effect on the user event color since
+these markers simply mark a particular moment in time.</p>
+<p>The full user even hierarchy is also visible on the third line of the
+side pane when clicking on individual events. If the event does not
+contain a user event hierarchy, nothing will be shown.</p>
+<a class="reference internal image-reference" href="_images/RGP_UserMarkers_2.png"><img alt="_images/RGP_UserMarkers_2.png" src="_images/RGP_UserMarkers_2.png" style="width: 10.08435in; height: 5.51488in;" /></a>
+<p>Events enclosed by user markers are colored in the wavefront occupancy
+view. They are also visible in the side panel.</p>
+</div>
+</div>
+<div class="section" id="renderdoc-radeon-gpu-profiler-interop-beta">
+<h1>RenderDoc &amp; Radeon GPU Profiler interop BETA<a class="headerlink" href="#renderdoc-radeon-gpu-profiler-interop-beta" title="Permalink to this headline">¶</a></h1>
+<p>Prior to version 1.2, users were expected to generate profiles by pairing
+Radeon Developer Panel with their native application. This new feature
+empowers RenderDoc to also generate profiles, plus allowing users to correlate
+between events across both tools.</p>
+<div class="section" id="intended-usage">
+<h2>Intended usage<a class="headerlink" href="#intended-usage" title="Permalink to this headline">¶</a></h2>
+<p>We encourage users to use both Radeon Developer Panel and RenderDoc to obtain
+profiling data. The former will produce the best data for performance analysis,
+and the latter can be used to pinpoint which elements of a frame consume
+the most GPU time. Consider this interop feature as a supplement instead of a
+replacement for profile generation.</p>
+</div>
+<div class="section" id="obtaining-a-profile-from-renderdoc">
+<h2>Obtaining a profile from RenderDoc<a class="headerlink" href="#obtaining-a-profile-from-renderdoc" title="Permalink to this headline">¶</a></h2>
+<p>First, load RenderDoc and obtain a trace as usual. Next, create a new profile
+for that trace as shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_RDC_Interop_1.png"><img alt="_images/RGP_RDC_Interop_1.png" src="_images/RGP_RDC_Interop_1.png" style="width: 4.0in; height: 2.0in;" /></a>
+<p>This will kick off the profiling process, which will embed a new profile into
+the RenderDoc trace file. If this is the first time doing this, RenderDoc will
+bring up a prompt to allow specification of a path to Radeon GPU Profiler. Once
+profiling is complete, RenderDoc will launch Radeon GPU Profiler and the new
+profile will be ready for analysis.</p>
+</div>
+<div class="section" id="navigating-between-events">
+<h2>Navigating between events<a class="headerlink" href="#navigating-between-events" title="Permalink to this headline">¶</a></h2>
+<p>Navigating between events in both tools is done via context menus. For example,
+in Radeon GPU Profiler one would right click on an event and select
+“Select RenderDoc event” as shown below:</p>
+<a class="reference internal image-reference" href="_images/RGP_RDC_Interop_2.png"><img alt="_images/RGP_RDC_Interop_2.png" src="_images/RGP_RDC_Interop_2.png" style="width: 10.0in; height: 5.0in;" /></a>
+<p>This will cause both tools to communicate with and trigger selection of that
+same event in RenderDoc, as shown here:</p>
+<a class="reference internal image-reference" href="_images/RGP_RDC_Interop_3.png"><img alt="_images/RGP_RDC_Interop_3.png" src="_images/RGP_RDC_Interop_3.png" style="width: 4.0in; height: 2.0in;" /></a>
+<p>At this point, users may use RenderDoc’s frame debugging capabilities to
+inspect the event in question.</p>
+<p>Next, users may follow the same procedure to go back to RGP. This is achieved
+by right clicking an event in the Event Browser and selecting “Select RGP Event”
+as show below:</p>
+<a class="reference internal image-reference" href="_images/RGP_RDC_Interop_4.png"><img alt="_images/RGP_RDC_Interop_4.png" src="_images/RGP_RDC_Interop_4.png" style="width: 4.0in; height: 2.0in;" /></a>
+<p>This will cause both tools to communicate and trigger selection of that same
+event in Radeon GPU Profiler, as shown here:</p>
+<a class="reference internal image-reference" href="_images/RGP_RDC_Interop_5.png"><img alt="_images/RGP_RDC_Interop_5.png" src="_images/RGP_RDC_Interop_5.png" style="width: 10.0in; height: 5.0in;" /></a>
+<p>Please be aware that both tools use different numbering schemes to label
+their events. It is therefore expected for the same event to have a different
+ID in each tool.</p>
+<p><strong>NOTE:</strong> You may get a Windows firewall alert when connecting RGP to
+RenderDoc. This is normal behavior as RenderDoc and RGP need to communicate
+with each other (via a socket). This in no way indicates that the RGP or
+RenderDoc are trying to communicate to an AMD server over the internet. These
+tools do not attempt to connect to a remote AMD server of any description and
+do not send personal or system information over remote connections.</p>
+</div>
+<div class="section" id="known-limitations">
+<h2>Known limitations<a class="headerlink" href="#known-limitations" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>Users may correlate GPU work (draws/dispatches) across both tools.
+Note that this excludes entry points such as copies, barriers, clears,
+and indirect draw/dispatch.</li>
+<li>Since the RenderDoc replayer serializes entry points, generated profiles
+could appear CPU bound. This can be seen as gaps in the wavefront
+occupancy view, which may not be present when obtaining the profile
+using Radeon Developer Panel.</li>
+<li>Creating consecutive RGP profiles from the same RenderDoc instance
+sometimes fails. This occurs if users obtain multiple RenderDoc captures
+of the same application prior to triggering a second profile. To work
+around this, start a fresh instance of RenderDoc with the desired trace
+to profile.</li>
+<li>In some cases profiles originating from RenderDoc contain no GPU events.
+To work around this, repeat the profiling process again via
+“Tools –&gt; Create new RGP Profile”</li>
+<li>The System Activity view for a RenderDoc profile will likely mismatch that
+of a native profile. This is due to different command buffer submission
+patterns between the replayer and native application.</li>
+<li>Vulkan-specific: During image creation, RenderDoc sometimes forces additional
+usage/flags that may have not been present as per the native application.
+This effectively disables hardware tiling optimizations which are by default
+enabled during native app runtime.</li>
+<li>Vulkan-specific: The RenderDoc replayer does not support playback of
+compute work on the async compute queue. This means that the profile will
+show all compute work running on the graphics queue.</li>
+<li>Vulkan-specific: In some cases native profiles will contain color/depth
+clears which may not be present in the RenderDoc profile.</li>
+<li>DX12-specific: The RenderDoc replayer will sometimes inject CopyBufferRegion
+calls as part of an optimization to Map/Unmap. These will be visible as
+tall spikes of compute work in the wavefront occupancy view.</li>
+</ul>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, 2018, AMD Developer Tools.
+
+    </p>
+  </div> 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1.2.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

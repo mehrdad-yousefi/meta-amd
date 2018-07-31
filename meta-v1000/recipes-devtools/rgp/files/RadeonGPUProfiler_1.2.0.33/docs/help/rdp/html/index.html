@@ -1,0 +1,717 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>The Radeon Developer Panel &mdash; Radeon Developer Panel 1.2.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="_static/theme_overrides.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Radeon Developer Panel 1.2.0 documentation" href="#"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="#" class="icon icon-home"> Radeon Developer Panel
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">The Radeon Developer Panel</a></li>
+<li><a class="reference internal" href="#how-to-profile-your-application">How to profile your application</a><ul>
+<li><a class="reference internal" href="#profiling-on-a-local-system">Profiling on a local system</a></li>
+<li><a class="reference internal" href="#profiling-on-a-remote-system">Profiling on a remote system</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#how-to-use-the-driver-settings">How to use the Driver Settings</a></li>
+<li><a class="reference internal" href="#using-the-clock-settings">Using the Clock settings</a></li>
+<li><a class="reference internal" href="#the-log">The Log</a></li>
+<li><a class="reference internal" href="#the-radeon-developer-service">The Radeon Developer Service</a><ul>
+<li><a class="reference internal" href="#radeon-developer-service-for-desktop-developer-system">Radeon Developer Service for desktop developer system</a></li>
+<li><a class="reference internal" href="#radeon-developer-service-for-headless-gpu-systems">Radeon Developer Service for headless GPU systems</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#known-issues">Known Issues</a><ul>
+<li><a class="reference internal" href="#cleanup-after-a-radeondeveloperservicecli-crash">Cleanup After a RadeonDeveloperServiceCLI Crash</a></li>
+<li><a class="reference internal" href="#windows-firewall-blocking-incoming-connections">Windows Firewall Blocking Incoming Connections</a></li>
+<li><a class="reference internal" href="#disabling-linux-firewall">Disabling Linux Firewall</a></li>
+<li><a class="reference internal" href="#setting-gpu-clock-modes-on-linux">Setting GPU clock modes on Linux</a></li>
+<li><a class="reference internal" href="#radeon-developer-panel-connection-issues-on-linux">Radeon Developer Panel connection issues on Linux</a></li>
+<li><a class="reference internal" href="#missing-timing-data-for-directx-12-applications">Missing Timing Data for DirectX 12 Applications</a></li>
+<li><a class="reference internal" href="#radeon-developer-service-port-numbers">Radeon Developer Service Port numbers</a></li>
+<li><a class="reference internal" href="#problems-caused-by-the-presence-of-non-amd-gpus-and-non-amd-cpus-with-integrated-graphics">Problems caused by the presence of non-AMD GPUs and non-AMD CPUs with integrated graphics</a></li>
+</ul>
+</li>
+</ul>
+</div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">Radeon Developer Panel</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="#">Docs</a> &raquo;</li>
+        
+      <li>The Radeon Developer Panel</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="the-radeon-developer-panel">
+<h1>The Radeon Developer Panel<a class="headerlink" href="#the-radeon-developer-panel" title="Permalink to this headline">¶</a></h1>
+<p>The Radeon Developer panel is part of a suite of tools that can be used
+by developers to optimize DirectX12 and Vulkan applications for AMD GCN
+graphics hardware. The suite is comprised of the following software:</p>
+<ul>
+<li><p class="first"><strong>Radeon Developer Mode Driver</strong> – This is shipped as part of the AMD
+public Adrenaline driver and supports the developer mode features
+required for profiling and debugging.</p>
+</li>
+<li><p class="first"><strong>Radeon Developer Service (RDS)</strong> – A system tray application that
+unlocks the Developer Mode Driver features and supports
+communications with high level tools.</p>
+</li>
+<li><p class="first"><strong>Radeon Developer Service - CLI (Headless RDS)</strong> – A console (i.e.
+non-GUI) application that unlocks the Developer Mode Driver features
+and supports communication with high level tools.</p>
+</li>
+<li><p class="first"><strong>Radeon Developer Panel (RDP)</strong> – A GUI application that allows the
+developer to configure driver settings and generate profiles from
+DirectX12 and Vulkan applications.</p>
+</li>
+<li><p class="first"><strong>Radeon GPU Profiler (RGP)</strong> – A GUI tool used to visualize and
+analyze the profile data.</p>
+<p>This document describes how the Radeon Developer Panel can be used to
+profile frame-based applications on AMD GCN graphics hardware. The
+Radeon Developer Panel connects to the Radeon Developer Service in
+order to collect a profile.</p>
+</li>
+</ul>
+</div>
+<div class="section" id="how-to-profile-your-application">
+<h1>How to profile your application<a class="headerlink" href="#how-to-profile-your-application" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="profiling-on-a-local-system">
+<h2>Profiling on a local system<a class="headerlink" href="#profiling-on-a-local-system" title="Permalink to this headline">¶</a></h2>
+<p><strong>IMPORTANT:</strong> The application you want to profile must NOT already be
+running. The panel needs to be configured in advance of starting your
+application.</p>
+<ol class="arabic simple">
+<li><strong>Start the RadeonDeveloperPanel.exe</strong> on your local system. The
+panel will startup up with the Connection tab already highlighted
+(see below).</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Connection_1.png"><img alt="_images/Connection_1.png" src="_images/Connection_1.png" style="width: 6.96793in; height: 5.98653in;" /></a>
+<blockquote>
+<div>The UI has three main elements:</div></blockquote>
+<ul class="simple">
+<li><strong>Connection status</strong> – to the Radeon Developer Service (currently
+not connected)</li>
+<li><strong>Recent connections</strong> – list shows a history of your previous
+connections</li>
+<li><strong>New connection</strong> – section that allows you to make either a new
+local or remote connection</li>
+</ul>
+<ol class="arabic simple">
+<li><strong>Connect the Radeon Developer Panel to the Radeon Developer
+Service</strong> using either of the following methods:<ol class="loweralpha">
+<li><strong>Select the localhost entry in the “Recent connections” list,
+then click the “Connect” button.</strong> This will start the Radeon
+Developer Service on the local system and establish a connection.</li>
+<li><strong>Double-click on any Recent connection</strong>, and RDP will attempt to
+establish a connection to RDS running on the given host.</li>
+</ol>
+</li>
+</ol>
+<p>Note that the red dot to left of the “CONNECTION” tab should change to
+green to indicate that the connection was successful.</p>
+<blockquote>
+<div>You may get a <strong>“Failed to connect to RDS”</strong> pop up message when
+running the panel for the very first time. If the Radeon Developer
+Service is not running, the panel will try to start the service
+automatically for local connections and this can fail due to Windows
+file permissions (the Radeon Developer Service will not be a known
+application to Windows and the program will not be permitted to
+start). If you see this message try manually starting the
+“RadeonDeveloperService.exe” and connect again.</div></blockquote>
+<a class="reference internal image-reference" href="_images/Connection_2.png"><img alt="_images/Connection_2.png" src="_images/Connection_2.png" style="width: 6.56902in; height: 5.64381in;" /></a>
+<ol class="arabic">
+<li><p class="first"><strong>Select the executable you want to profile</strong> using either of the
+following methods:</p>
+<ol class="loweralpha simple">
+<li>Use the “…” button to browse to the executable, or manually type
+it in the executable name textbox.</li>
+<li>Select an active process within the Active Applications table, and
+click the “Add to targets” button. The process will need to be
+restarted in order to apply settings at application startup, and
+to enable collection of RGP profiles.</li>
+</ol>
+</li>
+<li><p class="first">Click the “Add to list” button to add the new executable to the list
+of processes that will start in Developer Mode.</p>
+</li>
+<li><p class="first">The “Enable profiling” check box should be checked automatically for
+the application you just added to the list.</p>
+</li>
+<li><p class="first"><strong>Start your application.</strong></p>
+<p>The driver will render an overlay on top of the application’s render
+window if all is working correctly. The overlay will indicate if
+Profiling is enabled for the application, and will display the Client
+Id that RDP uses to communicate with the process.</p>
+</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Application_1.png"><img alt="_images/Application_1.png" src="_images/Application_1.png" style="width: 6.20000in; height: 1.61458in;" /></a>
+<p>The panel will detect when your application has started, and will switch
+to the Profiling tab.</p>
+<a class="reference internal image-reference" href="_images/Profiling_1.png"><img alt="_images/Profiling_1.png" src="_images/Profiling_1.png" style="width: 6.80562in; height: 5.84708in;" /></a>
+<ol class="arabic">
+<li><p class="first"><strong>Click the “Capture profile” button</strong> or press the <strong>Ctrl + Shift +
+C</strong> hotkey to generate an RGP profile. The hotkey can be useful when
+capturing profiles from applications running full screen or when an
+app requires focus when rendering. After a few seconds a new profile
+should appear in the list below.</p>
+<p><strong>Note:</strong> Certain anti-virus software may block the hotkey feature
+from monitoring key presses.</p>
+<p><strong>Note to Linux users:</strong> The hotkey is only available when starting
+the panel with root privileges (ie sudo ./RadeonDeveloperPanel). Root
+privileges are needed in order to read the keyboard device, which by
+default is found in the path ‘/dev/input/by-path’, and is a file
+ending with ‘event-kbd’. If this path doesn’t exist or the keyboard
+device has a different name, copy the KeyboardDevice.txt file from
+the docs directory to the root folder where these tools are located
+and edit this file so it contains the full path and file name of the
+keyboard device on your system.</p>
+</li>
+</ol>
+<ol class="arabic simple">
+<li>Right-clicking on a row in the list of recent profiles will open a
+context menu for the selected file. The context menu allows you to
+quickly navigate to the profile location in the filesystem, and
+rename or delete the file.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Profiling_3.png"><img alt="_images/Profiling_3.png" src="_images/Profiling_3.png" style="width: 6.14488in; height: 1.92639in;" /></a>
+<ol class="arabic simple" start="2">
+<li>To open a profile file in the Radeon GPU Profiler, select the profile
+in the list and <strong>click the “Open profile” button</strong> or <strong>double-click
+the selected row</strong>.</li>
+</ol>
+</div>
+<div class="section" id="profiling-on-a-remote-system">
+<h2>Profiling on a remote system<a class="headerlink" href="#profiling-on-a-remote-system" title="Permalink to this headline">¶</a></h2>
+<p>There are two variations of the Radeon Developer Service: The GUI based
+RadeonDeveloperService and the RadeonDeveloperServiceCLI (command line
+interface). For headless operating systems which do not support a
+graphical user interface, the RadeonDeveloperServiceCLI executable can
+be started from a terminal console window.</p>
+<p>The following steps are used to connect the RadeoDeveloperPanel to a
+remote Radeon Developer Service:</p>
+<ol class="arabic simple">
+<li><strong>Start the RadeonDeveloperService or RadeonDeveloperServiceCLI
+executable</strong> on the <strong>remote</strong> system.<ol class="loweralpha">
+<li><strong>NOTE: RadeonDeveloperServiceCLI</strong> is a command line version of
+the Radeon Developer Service that has no UI components and is
+designed to run from the command line. Please note that no system
+tray icon will appear when the command line version of the service
+is running.</li>
+</ol>
+</li>
+<li><strong>Start the RadeonDeveloperPanel executable</strong> on your <strong>local</strong>
+system. The panel will start up with the Connection tab already
+highlighted (see below).</li>
+<li>In the <strong>New connection</strong> section, fill in the <strong>Address</strong> text box
+with the IP address of the remote system running the Radeon Developer
+Service.</li>
+<li><strong>Click the “Connect new” button</strong>. This will establish a connection
+to the remote system. The red dot to left of the “CONNECTION” tab
+should change to green to indicate that the connection was
+successful.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Connection_3.png"><img alt="_images/Connection_3.png" src="_images/Connection_3.png" style="width: 8.19868in; height: 7.04393in;" /></a>
+<ol class="arabic simple" start="5">
+<li><strong>Go to step 3</strong> in <strong>“</strong>Profiling on a local system” above and
+continue.</li>
+</ol>
+</div>
+</div>
+<div class="section" id="how-to-use-the-driver-settings">
+<h1>How to use the Driver Settings<a class="headerlink" href="#how-to-use-the-driver-settings" title="Permalink to this headline">¶</a></h1>
+<p><strong>NOTE:</strong> Currently, the driver settings are only implemented for
+DirectX12. Vulkan driver settings will be available soon.</p>
+<p>The Radeon developer Panel (RDP) allows the developer to modify driver
+settings to experiment with features that may affect performance and
+quality. When you run RDP for the first time the driver settings are
+empty in the tool and you will need to run your application with the
+panel once to retrieve the driver settings. This is a one-time setup
+process.</p>
+<p><strong>The important thing to remember is that when you change settings they
+will only be applied the next time you start the application. Changes to
+the settings do not effect a currently running application.</strong></p>
+<ol class="arabic simple">
+<li>To get started with settings <strong>configure your connection, connect,
+and setup your application</strong> as shown below.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Connection_2.png"><img alt="_images/Connection_2.png" src="_images/Connection_2.png" style="width: 7.78403in; height: 6.68750in;" /></a>
+<ol class="arabic simple" start="2">
+<li><strong>Start your application</strong> and let it run for a short while (few
+seconds) then terminate the process. This will populate the driver
+settings in the tool.</li>
+<li><strong>Click on the Settings tab</strong></li>
+<li>Currently, there are two categories of settings (Debug and General),
+and there are only 4 settings in total. Many more will be made
+available soon. The General settings are shown below. Click on the
+small arrow to the right of the setting name to see the possible
+values and descriptions. The “Default All” button will reset the
+values back to the original driver settings. Settings can also be
+exported and imported.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Settings_1.png"><img alt="_images/Settings_1.png" src="_images/Settings_1.png" style="width: 7.51519in; height: 6.45671in;" /></a>
+<ol class="arabic simple">
+<li>Make the changes you require to the settings and then click on the
+Connection tab.</li>
+<li>Make sure you have selected the “Apply settings” checkbox on the
+application you wish to change the settings for.</li>
+<li>Start your application, the settings are applied by the panel as your
+application starts.</li>
+<li>Profile your application as described in the “<strong>How to profile your
+application</strong>” section above.</li>
+</ol>
+</div>
+<div class="section" id="using-the-clock-settings">
+<h1>Using the Clock settings<a class="headerlink" href="#using-the-clock-settings" title="Permalink to this headline">¶</a></h1>
+<p>The Radeon developer Panel (RDP) allows the developer to select from a
+number of clock modes.</p>
+<a class="reference internal image-reference" href="_images/Clocks_1.png"><img alt="_images/Clocks_1.png" src="_images/Clocks_1.png" style="width: 7.51519in; height: 6.45671in;" /></a>
+<p>Normal clock mode will run the GPU as it would normally run your
+application. To ensure that the GPU runs within its designed power and
+temperature envelopes, it dynamically adjusts the internal clock frequency.
+This means that profiles taken of the same application may differ
+significantly, making side-by-side comparisons impossible.</p>
+<p>Stable clock mode will run the GPU at a lower, fixed clock rate. Even though
+the application may run slower than normal, it will be much easier to compare
+profiles of the same application.</p>
+<p>For the Radeon GPU Profiler tool, the clock settings here are not used since the
+driver forces a profile to take place using peak clocks.</p>
+</div>
+<div class="section" id="the-log">
+<h1>The Log<a class="headerlink" href="#the-log" title="Permalink to this headline">¶</a></h1>
+<p>Select the Log tab to see any logging information that is produced by
+the driver and the panel activity. The driver can output logging
+information about issues it has detected, and additional information
+about the connection and any errors encountered by RDP and the RDS are
+displayed here. Below is an example of typical output from a session
+that captured two profiles. The log can be saved and cleared using the
+buttons at the bottom.</p>
+<div class="line-block">
+<div class="line">This log is also saved in a log file located at:</div>
+<div class="line">“C:\Users\your_name\AppData\Roaming\RadeonDeveloperDriver\RDPLogFile.txt”</div>
+</div>
+<div class="line-block">
+<div class="line">On Linux, this log is located at:</div>
+<div class="line">“~/.RadeonDeveloperDriver/RDPLogFile.txt”</div>
+</div>
+<a class="reference internal image-reference" href="_images/Log_1.png"><img alt="_images/Log_1.png" src="_images/Log_1.png" style="width: 7.83588in; height: 6.73223in;" /></a>
+</div>
+<div class="section" id="the-radeon-developer-service">
+<h1>The Radeon Developer Service<a class="headerlink" href="#the-radeon-developer-service" title="Permalink to this headline">¶</a></h1>
+<p>Two version of the Radeon developer service are provided, one with a
+configuration UI and system tray icon, and one designed for use with
+headless GPU system where no UI can be supported.</p>
+<div class="section" id="radeon-developer-service-for-desktop-developer-system">
+<h2>Radeon Developer Service for desktop developer system<a class="headerlink" href="#radeon-developer-service-for-desktop-developer-system" title="Permalink to this headline">¶</a></h2>
+<p>RadeonDeveloperService(.exe) – Can be used for general use where the
+system has a monitor and UI (e.g. desktop development machines). The
+Radeon Developer Service includes a configuration window containing
+basic service configuration settings and software info. <strong>Double click
+the Radeon Developer Service system tray icon</strong> to open the
+configuration window, or right-click on the system tray icon and select
+‘configure’ from the context menu.</p>
+<a class="reference internal image-reference" href="_images/RDS_1.png"><img alt="_images/RDS_1.png" src="_images/RDS_1.png" style="width: 3.55258in; height: 2.76080in;" /></a>
+<ul class="simple">
+<li><strong>Listen port</strong> – The port that the Radeon Developer Service uses to
+listen for incoming connections from a remote Radeon Developer Panel.
+<strong>The default port is 27300</strong>. Altering the port will disconnect all
+existing sessions. The circular arrows icon to the right of the
+Listen port field can be clicked to reset the port to the default
+value.</li>
+<li><strong>Version info</strong> – Software version information for the Radeon
+Developer Service.</li>
+</ul>
+<p>Double click the Radeon Developer Service system tray icon again or
+right-click on the system tray icon and select ‘configure’ from the
+context menu to close the configuration window.</p>
+<p><strong>Please note</strong> that when running both the Radeon Developer Panel and
+the Radeon Developer Service on the same system the communication
+between the two uses pipes, not sockets and ports, so setting the port
+has no effect.</p>
+</div>
+<div class="section" id="radeon-developer-service-for-headless-gpu-systems">
+<h2>Radeon Developer Service for headless GPU systems<a class="headerlink" href="#radeon-developer-service-for-headless-gpu-systems" title="Permalink to this headline">¶</a></h2>
+<p>RadeonDeveloperServiceCLI(.exe) – Command line version for use with
+headless GPU systems where no UI can be provided. NOTE: This version can
+also run on a system that has a monitor and UI.</p>
+<p>The following command line options are available for
+RadeonDeveloperServiceCLI:</p>
+<ol class="arabic simple">
+<li><strong>– port &lt;port number&gt;</strong> <em>Overrides the default listener port used
+by the service (27300 is the default).</em></li>
+<li><strong>– enableUWP</strong> <em>Enables UWP support (disabled by default).</em></li>
+</ol>
+<p><strong>Please note</strong> that the service will need to be explicitly started
+before starting the Radeon Developer Panel. If the service isn’t
+running, the Radeon Developer Panel will automatically start the UI
+version of the Radeon Developer Service, which may not be what is
+required.</p>
+</div>
+</div>
+<div class="section" id="known-issues">
+<h1>Known Issues<a class="headerlink" href="#known-issues" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="cleanup-after-a-radeondeveloperservicecli-crash">
+<h2>Cleanup After a RadeonDeveloperServiceCLI Crash<a class="headerlink" href="#cleanup-after-a-radeondeveloperservicecli-crash" title="Permalink to this headline">¶</a></h2>
+<p>If the RadeonDeveloperServiceCLI executable crashes on Linux, shared
+memory may need to be cleaned up by running the RemoveSharedMemory.sh
+script located in the script folder of the RGP release kit. Run the
+script with elevated privileges using sudo.</p>
+</div>
+<div class="section" id="windows-firewall-blocking-incoming-connections">
+<h2>Windows Firewall Blocking Incoming Connections<a class="headerlink" href="#windows-firewall-blocking-incoming-connections" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic">
+<li><p class="first"><strong>Deleting the settings file</strong>. If problems arise with connection or
+application histories, these can be resolved by deleting the Radeon
+Developer Panel’s settings file at:
+“C:\Users\your_name\AppData\Roaming\RadeonDeveloperDriver\RDPSettings.xml”</p>
+<p>on Windows. On Linux, the corresponding file is located at:</p>
+<p>“~/.RadeonDeveloperDriver/RDPSettings.xml”</p>
+</li>
+<li><p class="first"><strong>“Connection Failure”</strong> error message. This issue is sometimes seen
+when running the panel for the very first time. The panel tries to
+start the service automatically for local connections and this can
+fail. If you see this message try manually starting the
+“RadeonDeveloperService.exe” and connect again.</p>
+</li>
+<li><p class="first"><strong>Remote connection attempts timing out.</strong> When running the Radeon
+Developer Service on Windows, the Windows Firewall may attempt to
+block incoming connection attempts from other machines. The best
+methods of ensuring that remote connections are established correctly
+are:</p>
+<ol class="loweralpha simple">
+<li>Allow the RDS firewall exception to be created within the Windows
+Firewall when RDS is first started. Within the Windows Security
+Alert popup, enable the checkboxes that apply for your network
+configuration, and click “Allow access”.</li>
+</ol>
+</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Firewall_1.png"><img alt="_images/Firewall_1.png" src="_images/Firewall_1.png" style="width: 5.48484in; height: 4.34000in;" /></a>
+<ol class="loweralpha simple">
+<li>If “Cancel” was previously clicked in the above step during the first
+run, the exception for RDS can still be enabled by allowing it within
+the Windows Control Panel firewall settings. Navigate to the “Allow
+an app or feature” section, and ensure that the checkbox next to the
+RadeonDeveloperService.exe entry is checked:</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Firewall_2.png"><img alt="_images/Firewall_2.png" src="_images/Firewall_2.png" style="width: 5.49000in; height: 3.72728in;" /></a>
+<a class="reference internal image-reference" href="_images/Firewall_3.png"><img alt="_images/Firewall_3.png" src="_images/Firewall_3.png" style="width: 5.49000in; height: 3.72728in;" /></a>
+<ol class="loweralpha">
+<li><p class="first">Alternatively, disable the Windows Firewall entirely will also allow
+RDS to be connected to.</p>
+<p><strong>NOTE</strong> The Windows firewall alert in no way indicates that the Radeon
+Developer tools are trying to communicate to an AMD server over the
+internet. The Radeon Developer tools do not attempt to connect to a remote
+AMD server of any description and do not send personal or system information
+over remote connections. The Radeon Developer Panel needs to communicate
+with the Radeon Developer Service, which may or may not be on the same
+machine, and a connection needs to be made between the two (normally via a
+socket).</p>
+</li>
+</ol>
+</div>
+<div class="section" id="disabling-linux-firewall">
+<h2>Disabling Linux Firewall<a class="headerlink" href="#disabling-linux-firewall" title="Permalink to this headline">¶</a></h2>
+<p>If the remote machine is running Linux and the <strong>“Connection Failure”</strong>
+error message is displayed, the Linux firewall may need to be disabled.
+This is done by typing “<strong>sudo ufw disable</strong>” in a terminal. The
+firewall can be re-enabled after capturing by typing “<strong>sudo ufw
+enable</strong>”.</p>
+</div>
+<div class="section" id="setting-gpu-clock-modes-on-linux">
+<h2>Setting GPU clock modes on Linux<a class="headerlink" href="#setting-gpu-clock-modes-on-linux" title="Permalink to this headline">¶</a></h2>
+<p>Adjusting the GPU clock mode on Linux is accomplished by writing to
+/sys/class/drm/card&lt;n&gt;/device/power_dpm_force_performance_level,
+where &lt;n&gt; is the index of the card in question. By default this file is
+only modifiable by root, so the application being profiled would have to
+be run as root in order for it to modify the clock mode. It is possible
+to modify the permissions for the file instead so that it can be written
+by unprivileged users. The Radeon GPU Profiler package includes the
+“<strong>scripts/EnableSetClockMode.sh</strong>” script which will allow setting
+GPU clock mode in cases where the target application is not, or cannot,
+run as root. <strong>Execute this script before running the Radeon Developer
+Service and target application,</strong> and the GPU clock mode can be updated
+correctly at runtime.</p>
+</div>
+<div class="section" id="radeon-developer-panel-connection-issues-on-linux">
+<h2>Radeon Developer Panel connection issues on Linux<a class="headerlink" href="#radeon-developer-panel-connection-issues-on-linux" title="Permalink to this headline">¶</a></h2>
+<p>The Radeon Developer Panel may fail to start the Radeon Developer
+Service when the Connect button is clicked. If this occurs, manually
+start the Radeon Developer Service, select localhost from the the Recent
+connections list and click the Connect button again.</p>
+</div>
+<div class="section" id="missing-timing-data-for-directx-12-applications">
+<h2>Missing Timing Data for DirectX 12 Applications<a class="headerlink" href="#missing-timing-data-for-directx-12-applications" title="Permalink to this headline">¶</a></h2>
+<p>To collect complete profile datasets for DirectX 12 applications, the
+user account in Windows needs to be associated with the “Performance Log
+Users” group. If these privileges aren’t configured properly, profiles
+collected under the user’s account may not include all timing data for
+GPU Sync objects.</p>
+<p>A batch file is provided to add the current user to the group
+(scripts\AddUserToGroup.bat). The batch file should be run as
+administrator (Right click on file and select “Run as Administrator”).
+The script’s output is shown below:</p>
+<a class="reference internal image-reference" href="_images/Bat_1.png"><img alt="_images/Bat_1.png" src="_images/Bat_1.png" style="width: 7.99000in; height: 2.66000in;" /></a>
+<p>Alternatively, to manually add the active user to the proper group,
+follow these steps:</p>
+<ol class="arabic simple">
+<li><strong>Open the Run dialog</strong> by using the Windows Start menu, or through
+the Windows + R shortcut.<ol class="loweralpha">
+<li><strong>Type</strong> “<strong>lusrmgr.msc</strong>” into the Run window, and <strong>click OK</strong>.</li>
+</ol>
+</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Run_1.png"><img alt="_images/Run_1.png" src="_images/Run_1.png" style="width: 4.15000in; height: 2.14000in;" /></a>
+<ol class="arabic simple" start="2">
+<li>Within the “Local Users and Groups” configuration window that opens,
+<strong>select the Groups node</strong>.<ol class="loweralpha">
+<li><strong>Select the Performance Log Users entry. Right-click and select
+Properties</strong>.</li>
+</ol>
+</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Users_1.png"><img alt="_images/Users_1.png" src="_images/Users_1.png" style="width: 9.81000in; height: 5.55000in;" /></a>
+<ol class="arabic simple">
+<li>To add the active user to the group, <strong>click the Add… button</strong>. (If
+the active user appears within this list, the account is already
+configured properly.)</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Add_User_1.png"><img alt="_images/Add_User_1.png" src="_images/Add_User_1.png" style="width: 4.87912in; height: 5.55000in;" /></a>
+<ol class="arabic simple" start="2">
+<li><strong>Type the active user’s account name</strong> into the Select Users,
+Computers, Service Accounts, or Groups dialog, and <strong>click OK</strong>.</li>
+</ol>
+<a class="reference internal image-reference" href="_images/Select_User_1.png"><img alt="_images/Select_User_1.png" src="_images/Select_User_1.png" style="width: 4.87912in; height: 2.68458in;" /></a>
+<ol class="arabic simple" start="3">
+<li>When the user has been added to the group, <strong>restart the machine</strong>
+and log back in. RDS should now be configured to collect full timing
+information for DirectX 12 applications.</li>
+</ol>
+</div>
+<div class="section" id="radeon-developer-service-port-numbers">
+<h2>Radeon Developer Service Port numbers<a class="headerlink" href="#radeon-developer-service-port-numbers" title="Permalink to this headline">¶</a></h2>
+<p>Please note that when running both the Radeon Developer Panel and the
+Radeon Developer Service on the same system the communication between
+the two uses pipes, not sockets and ports, so setting the port has no
+effect. In this scenario, it is possible to set the service to listen on
+a no-default port, leave the panel on the default port, and connection
+will work fine. This is a UI bug.</p>
+</div>
+<div class="section" id="problems-caused-by-the-presence-of-non-amd-gpus-and-non-amd-cpus-with-integrated-graphics">
+<h2>Problems caused by the presence of non-AMD GPUs and non-AMD CPUs with integrated graphics<a class="headerlink" href="#problems-caused-by-the-presence-of-non-amd-gpus-and-non-amd-cpus-with-integrated-graphics" title="Permalink to this headline">¶</a></h2>
+<p>The presence of non-AMD GPU’s and CPU’s on your system can cause the failure to generate a profile
+or apps to not run at all.</p>
+<p>These problems typically occur with Vulkan apps in systems that have:</p>
+<ol class="arabic simple">
+<li>A non-AMD CPU with in integrated non-AMD GPU</li>
+<li>A non-AMD discrete GPU</li>
+</ol>
+<p>Vulkan applications, by default, use GPU 0 which usually maps to the integrated GPU, or in some cases,
+the non-AMD discreete GPU. In both cases Vulkan apps will either fail to run, or RGP profiling will not work
+(no RGP overlay will be present in these cases).</p>
+<p>To avoid these issues:</p>
+<ol class="arabic simple">
+<li>Disable any non-AMD integrated GPU’s in the device manager</li>
+<li>Disable any non-AMD discrete GPU’s in the device manager, and/or physically remove from the system.</li>
+</ol>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, 2018, AMD Developer Tools.
+
+    </p>
+  </div> 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1.2.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,54 @@
+Radeon GPU Profiler
+-------------------
+
+The Radeon GPU Profiler (RGP) is a ground-breaking low-level optimization tool from AMD.  It provides detailed timing information on Radeon Graphics using custom, built-in, hardware thread-tracing, allowing the developer deep inspection of GPU workloads.
+
+This unique tool generates easy to understand visualizations of how your DirectX®12 and Vulkan® games interact with the GPU at the hardware level. Profiling a game is both a quick, and simple process using the Radeon Developer Panel and the public display driver.
+
+In order to use the latest features of RGP, it is strongly recommended that users update to the latest driver.
+
+Getting Started
+---------------
+
+1) Install the latest AMD Video/display driver.
+
+2) Unzip/Untar the download file. The directory contains the following:
+
+ * RadeonDeveloperService (RDS)
+ * RadeonDeveloperServiceCLI (RDS headless)
+ * RadeonDeveloperPanel (RDP)
+ * RadeonGPUProfiler (RGP)
+
+3) To gather a profile from a game run the Radeon Developer Panel and follow the instructions in the Help
+
+ * Help web pages exist in the "docs" sub directory
+ * Help web pages can be accessed from the Help button in the Developer Panel
+ * Help web pages can be accessed from the Welcome screen in the Radeon GPU Profiler, or from the help menu
+
+
+Supported ASICs
+---------------
+
+	- AMD RX Vega 64 and RX Vega 56
+	- AMD Radeon™ R9 Fury and Nano series
+	- AMD Radeon™ RX 400, RX 500 series
+	- AMD Radeon™ Tonga R9 285, R9 380
+
+
+Supported OS's and API's
+------------------------
+
+	- Windows10
+		- DirectX12
+		- Vulkan
+
+	- Windows7
+		- Vulkan
+		- User must install latest VC 2015 redistributables from https://www.microsoft.com/en-us/download/details.aspx?id=53840
+
+	- Ubuntu 16.04.3 LTS
+		- Vulkan
+	
+
+
+
