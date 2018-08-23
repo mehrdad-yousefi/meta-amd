@@ -7,23 +7,21 @@ DESCRIPTION = "The Radeon GPU Profiler (RGP) is a ground-breaking \
               This package merely deploys the remote profiling service \
               on the target so a host can collect and display profiling \
               data."
-HOMEPAGE = "https://github.com/GPUOpen-Tools/Radeon-GPUProfiler"
-BUGTRACKER = "https://github.com/GPUOpen-Tools/Radeon-GPUProfiler/issues"
 
 LICENSE = "AMD-Propriety"
-LIC_FILES_CHKSUM = "file://License.rtf;md5=5bd0909528eb8887c94f56227330fc8b"
+LIC_FILES_CHKSUM = "file://License.rtf;md5=5441ae9fb95849e3aacd0f330710f9fa"
 
 inherit systemd
 
 RDEPENDS_${PN} += "connman-wait-online"
 
-LINUX_RELEASE = "1.2.0.33"
-SRC_URI = "https://github.com/GPUOpen-Tools/Radeon-GPUProfiler/releases/download/V${PV}/RadeonGPUProfiler_${LINUX_RELEASE}.tgz \
+SRC_URI = "file://EnableSetClockMode.sh \
+           file://RemoveSharedMemory.sh \
+           file://License.rtf \
+           file://RadeonDeveloperServiceCLI \
            file://${BOOT_SERVICE}"
-SRC_URI[md5sum] = "298a635a259612f39bf83b0838d953e0"
 
-S = "${WORKDIR}/RadeonGPUProfiler_${LINUX_RELEASE}"
-
+S = "${WORKDIR}"
 BOOT_SERVICE = "rds-cli.service"
 SYSTEMD_SERVICE_${PN} = "${BOOT_SERVICE}"
 SYSTEMD_AUTO_ENABLE = "enable"
