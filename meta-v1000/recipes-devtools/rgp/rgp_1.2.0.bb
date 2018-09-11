@@ -11,7 +11,9 @@ DESCRIPTION = "The Radeon GPU Profiler (RGP) is a ground-breaking \
 LICENSE = "Proprietary"
 LIC_FILES_CHKSUM = "file://License.rtf;md5=5441ae9fb95849e3aacd0f330710f9fa"
 
-inherit systemd
+AMD_EULA_FILE = "${THISDIR}/files/License.rtf"
+
+inherit systemd amd-eula
 
 RDEPENDS_${PN} += "connman-wait-online"
 
