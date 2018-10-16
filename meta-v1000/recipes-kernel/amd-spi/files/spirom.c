@@ -33,8 +33,7 @@
 #include <linux/pci.h>
 #include <linux/delay.h>
 
-#include <asm/uaccess.h>
-
+#include <linux/uaccess.h>
 #include "spirom.h"
 
 #define SPIROM_VERSION	"0.2"
