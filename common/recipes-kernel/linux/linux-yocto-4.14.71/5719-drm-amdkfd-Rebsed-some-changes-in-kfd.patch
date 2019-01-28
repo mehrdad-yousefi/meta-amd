@@ -1,0 +1,333 @@
+From b565f8afba65401dfbef063eedebf8805fddc583 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Mon, 7 Jan 2019 17:38:51 +0530
+Subject: [PATCH 5719/5725] drm/amdkfd: Rebsed some changes in kfd
+
+Signed-off-by: Ravi Kumar <ravi1.kumar@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c         | 56 +++++++---------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c  |  4 --
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c   | 29 +++++++----
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c           | 26 ++++++++--
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c            | 22 +--------
+ .../gpu/drm/amd/amdkfd/kfd_device_queue_manager.h  |  1 +
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c   |  0
+ 7 files changed, 64 insertions(+), 74 deletions(-)
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdkfd/kfd_device.c
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index a311a9f..446b013 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -172,14 +172,7 @@ void amdgpu_amdkfd_device_init(struct amdgpu_device *adev)
+ 				&gpu_resources.doorbell_aperture_size,
+ 				&gpu_resources.doorbell_start_offset);
+ 
+-		if (adev->asic_type < CHIP_VEGA10) {
+-			kgd2kfd->device_init(adev->kfd, &gpu_resources);
+-			return;
+-		}
+-
+-		n = (adev->asic_type < CHIP_VEGA20) ? 2 : 8;
+-
+-		for (i = 0; i < n; i += 2) {
++		if (adev->asic_type >= CHIP_VEGA10) {
+ 			/* On SOC15 the BIF is involved in routing
+ 			 * doorbells using the low 12 bits of the
+ 			 * address. Communicate the assignments to
+@@ -187,31 +180,20 @@ void amdgpu_amdkfd_device_init(struct amdgpu_device *adev)
+ 			 * process in case of 64-bit doorbells so we
+ 			 * can use each doorbell assignment twice.
+ 			 */
+-			if (adev->asic_type == CHIP_VEGA10) {
+-				gpu_resources.sdma_doorbell[0][i] =
+-					AMDGPU_VEGA10_DOORBELL64_sDMA_ENGINE0 + (i >> 1);
+-				gpu_resources.sdma_doorbell[0][i+1] =
+-					AMDGPU_VEGA10_DOORBELL64_sDMA_ENGINE0 + 0x200 + (i >> 1);
+-				gpu_resources.sdma_doorbell[1][i] =
+-					AMDGPU_VEGA10_DOORBELL64_sDMA_ENGINE1 + (i >> 1);
+-				gpu_resources.sdma_doorbell[1][i+1] =
+-					AMDGPU_VEGA10_DOORBELL64_sDMA_ENGINE1 + 0x200 + (i >> 1);
+-			} else {
+-				gpu_resources.sdma_doorbell[0][i] =
+-					AMDGPU_DOORBELL64_sDMA_ENGINE0 + (i >> 1);
+-				gpu_resources.sdma_doorbell[0][i+1] =
+-					AMDGPU_DOORBELL64_sDMA_ENGINE0 + 0x200 + (i >> 1);
+-				gpu_resources.sdma_doorbell[1][i] =
+-					AMDGPU_DOORBELL64_sDMA_ENGINE1 + (i >> 1);
+-				gpu_resources.sdma_doorbell[1][i+1] =
+-					AMDGPU_DOORBELL64_sDMA_ENGINE1 + 0x200 + (i >> 1);
+-			}
+-		}
+-		/* Doorbells 0x0e0-0ff and 0x2e0-2ff are reserved for
+-		 * SDMA, IH and VCN. So don't use them for the CP.
+-		 */
+-		gpu_resources.reserved_doorbell_mask = 0x1e0;
+-		gpu_resources.reserved_doorbell_val  = 0x0e0;
++                         gpu_resources.sdma_doorbell[0][0] =
++                                 AMDGPU_DOORBELL64_sDMA_ENGINE0;
++                         gpu_resources.sdma_doorbell[0][1] =
++                                 AMDGPU_DOORBELL64_sDMA_ENGINE0 + 0x200;
++                         gpu_resources.sdma_doorbell[1][0] =
++                                 AMDGPU_DOORBELL64_sDMA_ENGINE1;
++                         gpu_resources.sdma_doorbell[1][1] =
++                                 AMDGPU_DOORBELL64_sDMA_ENGINE1 + 0x200;
++                         /* Doorbells 0x0f0-0ff and 0x2f0-2ff are reserved for
++                          * SDMA, IH and VCN. So don't use them for the CP.
++                          */
++                         gpu_resources.reserved_doorbell_mask = 0x1f0;
++                         gpu_resources.reserved_doorbell_val  = 0x0f0;
++                }
+ 
+ 		kgd2kfd->device_init(adev->kfd, &gpu_resources);
+ 	}
+@@ -567,11 +549,9 @@ int amdgpu_amdkfd_submit_ib(struct kgd_dev *kgd, enum kgd_engine_type engine,
+ void amdgpu_amdkfd_set_compute_idle(struct kgd_dev *kgd, bool idle)
+ {
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)kgd;
+-	if (adev->powerplay.pp_funcs &&
+-	    adev->powerplay.pp_funcs->switch_power_profile)
+-		amdgpu_dpm_switch_power_profile(adev,
+-						PP_SMC_POWER_PROFILE_COMPUTE,
+-						!idle);
++        amdgpu_dpm_switch_power_profile(adev,
++                                        PP_SMC_POWER_PROFILE_COMPUTE,
++                                        !idle);
+ }
+ 
+ bool amdgpu_amdkfd_is_kfd_vmid(struct amdgpu_device *adev,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+old mode 100644
+new mode 100755
+index 727d26d..c46d499
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+@@ -769,10 +769,6 @@ static int kgd_hqd_destroy(struct kgd_dev *kgd, void *mqd,
+ 	uint32_t temp;
+ 	struct v9_mqd *m = get_mqd(mqd);
+ 
+-#if 0
+-	unsigned long flags;
+-	int retry;
+-#endif
+ 	if (adev->in_gpu_reset)
+ 		return -EIO;
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 3b305b3..b9ee87a 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -433,6 +433,23 @@ static int vm_validate_pt_pd_bos(struct amdgpu_vm *vm)
+ 	return 0;
+ }
+ 
++static int sync_vm_fence(struct amdgpu_device *adev, struct amdgpu_sync *sync,
++			 struct dma_fence *f)
++{
++	int ret = amdgpu_sync_fence(adev, sync, f, false);
++
++	/* Sync objects can't handle multiple GPUs (contexts) updating
++	 * sync->last_vm_update. Fortunately we don't need it for
++	 * KFD's purposes, so we can just drop that fence.
++	 */
++	if (sync->last_vm_update) {
++		dma_fence_put(sync->last_vm_update);
++		sync->last_vm_update = NULL;
++	}
++
++	return ret;
++}
++
+ static int vm_update_pds(struct amdgpu_vm *vm, struct amdgpu_sync *sync)
+ {
+ 	struct amdgpu_bo *pd = vm->root.base.bo;
+@@ -443,7 +460,7 @@ static int vm_update_pds(struct amdgpu_vm *vm, struct amdgpu_sync *sync)
+ 	if (ret)
+ 		return ret;
+ 
+-	return amdgpu_sync_fence(NULL, sync, vm->last_update, false);
++	return sync_vm_fence(adev, sync, vm->last_update);
+ }
+ 
+ /* add_bo_to_vm - Add a BO to a VM
+@@ -847,7 +864,7 @@ static int unmap_bo_from_gpuvm(struct amdgpu_device *adev,
+ 	/* Add the eviction fence back */
+ 	amdgpu_bo_fence(pd, &vm->process_info->eviction_fence->base, true);
+ 
+-	amdgpu_sync_fence(NULL, sync, bo_va->last_pt_update, false);
++	sync_vm_fence(adev, sync, bo_va->last_pt_update);
+ 
+ 	return 0;
+ }
+@@ -872,7 +889,7 @@ static int update_gpuvm_pte(struct amdgpu_device *adev,
+ 		return ret;
+ 	}
+ 
+-	return amdgpu_sync_fence(NULL, sync, bo_va->last_pt_update, false);
++	return sync_vm_fence(adev, sync, bo_va->last_pt_update);
+ }
+ 
+ static int map_bo_to_gpuvm(struct amdgpu_device *adev,
+@@ -1201,12 +1218,8 @@ void amdgpu_amdkfd_gpuvm_release_process_vm(struct kgd_dev *kgd, void *vm)
+ uint64_t amdgpu_amdkfd_gpuvm_get_process_page_dir(void *vm)
+ {
+ 	struct amdgpu_vm *avm = (struct amdgpu_vm *)vm;
+-	struct amdgpu_bo *pd = avm->root.base.bo;
+-	struct amdgpu_device *adev = amdgpu_ttm_adev(pd->tbo.bdev);
+ 
+-	if (adev->asic_type < CHIP_VEGA10)
+-		return avm->pd_phys_addr >> AMDGPU_GPU_PAGE_SHIFT;
+-	return avm->pd_phys_addr;
++	return avm->pd_phys_addr >> AMDGPU_GPU_PAGE_SHIFT;
+ }
+ 
+ int amdgpu_amdkfd_gpuvm_alloc_memory_of_gpu(
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index d94727a..de5f930 100755
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -86,7 +86,6 @@ int kfd_chardev_init(void)
+ 
+ 	kfd_class->devnode = kfd_devnode;
+ 
+-	kfd_class->devnode = kfd_devnode;
+ 
+ 	kfd_device = device_create(kfd_class, NULL,
+ 					MKDEV(kfd_char_dev_major, 0),
+@@ -459,6 +458,9 @@ static int kfd_ioctl_set_cu_mask(struct file *filp, struct kfd_process *p,
+ 
+ 	mutex_unlock(&p->mutex);
+ 
++	if (retval)
++		kfree(properties.cu_mask);
++
+ 	return retval;
+ }
+ 
+@@ -560,6 +562,11 @@ static int kfd_ioctl_dbg_register(struct file *filep,
+ 	if (!dev)
+ 		return -EINVAL;
+ 
++	if (dev->device_info->asic_family == CHIP_CARRIZO) {
++		pr_debug("kfd_ioctl_dbg_register not supported on CZ\n");
++		return -EINVAL;
++	}
++
+ 	mutex_lock(&p->mutex);
+ 	mutex_lock(kfd_get_dbgmgr_mutex());
+ 
+@@ -606,6 +613,11 @@ static int kfd_ioctl_dbg_unregister(struct file *filep,
+ 	if (!dev || !dev->dbgmgr)
+ 		return -EINVAL;
+ 
++	if (dev->device_info->asic_family == CHIP_CARRIZO) {
++		pr_debug("kfd_ioctl_dbg_unregister not supported on CZ\n");
++		return -EINVAL;
++	}
++
+ 	mutex_lock(kfd_get_dbgmgr_mutex());
+ 
+ 	status = kfd_dbgmgr_unregister(dev->dbgmgr, p);
+@@ -646,6 +658,11 @@ static int kfd_ioctl_dbg_address_watch(struct file *filep,
+ 	if (!dev)
+ 		return -EINVAL;
+ 
++	if (dev->device_info->asic_family == CHIP_CARRIZO) {
++		pr_debug("kfd_ioctl_dbg_wave_control not supported on CZ\n");
++		return -EINVAL;
++	}
++
+ 	cmd_from_user = (void __user *) args->content_ptr;
+ 
+ 	/* Validate arguments */
+@@ -749,6 +766,11 @@ static int kfd_ioctl_dbg_wave_control(struct file *filep,
+ 	if (!dev)
+ 		return -EINVAL;
+ 
++	if (dev->device_info->asic_family == CHIP_CARRIZO) {
++		pr_debug("kfd_ioctl_dbg_wave_control not supported on CZ\n");
++		return -EINVAL;
++	}
++
+ 	/* input size must match the computed "compact" size */
+ 	if (args->buf_size_in_bytes != computed_buff_size) {
+ 		pr_debug("size mismatch, computed : actual %u : %u\n",
+@@ -1033,8 +1055,6 @@ static int kfd_ioctl_create_event(struct file *filp, struct kfd_process *p,
+ 		}
+ 	}
+ 
+-
+-
+ 	err = kfd_event_create(filp, p, args->event_type,
+ 				args->auto_reset != 0, args->node_id,
+ 				&args->event_id, &args->event_trigger_data,
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+old mode 100644
+new mode 100755
+index f78269d..1fb5c65
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -402,10 +402,6 @@ struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd,
+ 		return NULL;
+ 	}
+ 
+-	kfd = kzalloc(sizeof(*kfd), GFP_KERNEL);
+-	if (!kfd)
+-		return NULL;
+-
+ 	/* Allow BIF to recode atomics to PCIe 3.0 AtomicOps.
+ 	 * 32 and 64-bit requests are possible and must be
+ 	 * supported.
+@@ -419,27 +415,11 @@ struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd,
+ 			 pdev->vendor, pdev->device);
+ 		return NULL;
+ 	}
+-	
++
+ 	kfd = kzalloc(sizeof(*kfd), GFP_KERNEL);
+ 	if (!kfd)
+ 		return NULL;
+ 
+-	/* Allow BIF to recode atomics to PCIe 3.0 AtomicOps.
+-	* 32 and 64-bit requests are possible and must be
+-	* supported.
+-	*/
+-	ret = pci_enable_atomic_ops_to_root(pdev,
+-			PCI_EXP_DEVCAP2_ATOMIC_COMP32 |
+-			PCI_EXP_DEVCAP2_ATOMIC_COMP64);
+-	if (device_info->needs_pci_atomics && ret  < 0) {
+-		dev_info(kfd_device,
+-			"skipped device %x:%x, PCI rejects atomics",
+-			pdev->vendor, pdev->device);
+-		kfree(kfd);
+-		return NULL;
+-	} else if (!ret)
+-		kfd->pci_atomic_requested = true;
+-
+ 	kfd->kgd = kgd;
+ 	kfd->device_info = device_info;
+ 	kfd->pdev = pdev;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
+old mode 100644
+new mode 100755
+index cc152e7a..0765048
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
+@@ -33,6 +33,7 @@
+ 
+ #define KFD_UNMAP_LATENCY_MS			(4000)
+ #define QUEUE_PREEMPT_DEFAULT_TIMEOUT_MS (2 * KFD_UNMAP_LATENCY_MS + 1000)
++#define KFD_SDMA_QUEUES_PER_ENGINE		(2)
+ 
+ struct device_process_node {
+ 	struct qcm_process_device *qpd;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
+old mode 100644
+new mode 100755
+-- 
+2.7.4
+

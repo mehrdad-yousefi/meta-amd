@@ -1,0 +1,331 @@
+From e9bef44f9178019b2a951f1de4925e80e7da0569 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Tue, 18 Sep 2018 18:04:44 +0800
+Subject: [PATCH 5470/5725] drm/amd/powerplay: enable fan RPM and pwm settings
+ V2
+
+Manual fan RPM and pwm setting on vega20 are
+available now.
+
+V2: correct the register for fan speed setting and
+    avoid divide-by-zero
+
+Change-Id: Iad45a169d6984acc091c4efaf46973619fe43a29
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ .../amd/include/asic_reg/thm/thm_11_0_2_offset.h   |  12 ++
+ .../amd/include/asic_reg/thm/thm_11_0_2_sh_mask.h  |  10 ++
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c |  27 ++++
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c   | 151 ++++++++++++++++++++-
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h   |  11 +-
+ 5 files changed, 207 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_offset.h b/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_offset.h
+index 510ec3c..a9eb57a 100644
+--- a/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_offset.h
++++ b/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_offset.h
+@@ -26,6 +26,18 @@
+ #define mmCG_MULT_THERMAL_STATUS                                                                       0x005f
+ #define mmCG_MULT_THERMAL_STATUS_BASE_IDX                                                              0
+ 
++#define mmCG_FDO_CTRL0                                                                                 0x0067
++#define mmCG_FDO_CTRL0_BASE_IDX                                                                        0
++
++#define mmCG_FDO_CTRL1                                                                                 0x0068
++#define mmCG_FDO_CTRL1_BASE_IDX                                                                        0
++
++#define mmCG_FDO_CTRL2                                                                                 0x0069
++#define mmCG_FDO_CTRL2_BASE_IDX                                                                        0
++
++#define mmCG_TACH_CTRL                                                                                 0x006a
++#define mmCG_TACH_CTRL_BASE_IDX                                                                        0
++
+ #define mmTHM_THERMAL_INT_ENA                                                                          0x000a
+ #define mmTHM_THERMAL_INT_ENA_BASE_IDX                                                                 0
+ #define mmTHM_THERMAL_INT_CTRL                                                                         0x000b
+diff --git a/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_sh_mask.h b/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_sh_mask.h
+index f69533f..d130d92 100644
+--- a/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_sh_mask.h
++++ b/drivers/gpu/drm/amd/include/asic_reg/thm/thm_11_0_2_sh_mask.h
+@@ -28,6 +28,16 @@
+ #define CG_MULT_THERMAL_STATUS__CTF_TEMP__SHIFT                                                               0x9
+ #define CG_MULT_THERMAL_STATUS__ASIC_MAX_TEMP_MASK                                                            0x000001FFL
+ #define CG_MULT_THERMAL_STATUS__CTF_TEMP_MASK                                                                 0x0003FE00L
++#define CG_FDO_CTRL2__TMIN__SHIFT                                                                             0x0
++#define CG_FDO_CTRL2__TMIN_MASK                                                                               0x000000FFL
++#define CG_FDO_CTRL2__FDO_PWM_MODE__SHIFT                                                                     0xb
++#define CG_FDO_CTRL2__FDO_PWM_MODE_MASK                                                                       0x00003800L
++#define CG_FDO_CTRL1__FMAX_DUTY100__SHIFT                                                                     0x0
++#define CG_FDO_CTRL1__FMAX_DUTY100_MASK                                                                       0x000000FFL
++#define CG_FDO_CTRL0__FDO_STATIC_DUTY__SHIFT                                                                  0x0
++#define CG_FDO_CTRL0__FDO_STATIC_DUTY_MASK                                                                    0x000000FFL
++#define CG_TACH_CTRL__TARGET_PERIOD__SHIFT                                                                    0x3
++#define CG_TACH_CTRL__TARGET_PERIOD_MASK                                                                      0xFFFFFFF8L
+ 
+ //THM_THERMAL_INT_ENA
+ #define THM_THERMAL_INT_ENA__THERM_INTH_SET__SHIFT                                                            0x0
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 6ece7d7..ee38ed5 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -2289,6 +2289,25 @@ static uint32_t vega20_get_fan_control_mode(struct pp_hwmgr *hwmgr)
+ 		return AMD_FAN_CTRL_AUTO;
+ }
+ 
++static void vega20_set_fan_control_mode(struct pp_hwmgr *hwmgr, uint32_t mode)
++{
++	switch (mode) {
++	case AMD_FAN_CTRL_NONE:
++		vega20_fan_ctrl_set_fan_speed_percent(hwmgr, 100);
++		break;
++	case AMD_FAN_CTRL_MANUAL:
++		if (PP_CAP(PHM_PlatformCaps_MicrocodeFanControl))
++			vega20_fan_ctrl_stop_smc_fan_control(hwmgr);
++		break;
++	case AMD_FAN_CTRL_AUTO:
++		if (PP_CAP(PHM_PlatformCaps_MicrocodeFanControl))
++			vega20_fan_ctrl_start_smc_fan_control(hwmgr);
++		break;
++	default:
++		break;
++	}
++}
++
+ static int vega20_get_dal_power_level(struct pp_hwmgr *hwmgr,
+ 		struct amd_pp_simple_clock_info *info)
+ {
+@@ -3452,12 +3471,20 @@ static const struct pp_hwmgr_func vega20_hwmgr_funcs = {
+ 	.disable_smc_firmware_ctf =
+ 		vega20_thermal_disable_alert,
+ 	/* fan control related */
++	.get_fan_speed_percent =
++		vega20_fan_ctrl_get_fan_speed_percent,
++	.set_fan_speed_percent =
++		vega20_fan_ctrl_set_fan_speed_percent,
+ 	.get_fan_speed_info =
+ 		vega20_fan_ctrl_get_fan_speed_info,
+ 	.get_fan_speed_rpm =
+ 		vega20_fan_ctrl_get_fan_speed_rpm,
++	.set_fan_speed_rpm =
++		vega20_fan_ctrl_set_fan_speed_rpm,
+ 	.get_fan_control_mode =
+ 		vega20_get_fan_control_mode,
++	.set_fan_control_mode =
++		vega20_set_fan_control_mode,
+ 	/* smu memory related */
+ 	.notify_cac_buffer_info =
+ 		vega20_notify_cac_buffer_info,
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
+index 1c951a5..ede54e8 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
+@@ -29,6 +29,78 @@
+ #include "soc15_common.h"
+ #include "pp_debug.h"
+ 
++static int vega20_disable_fan_control_feature(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = hwmgr->backend;
++	int ret = 0;
++
++	if (data->smu_features[GNLD_FAN_CONTROL].supported) {
++		ret = vega20_enable_smc_features(
++				hwmgr, false,
++				data->smu_features[GNLD_FAN_CONTROL].
++				smu_feature_bitmap);
++		PP_ASSERT_WITH_CODE(!ret,
++				"Disable FAN CONTROL feature Failed!",
++				return ret);
++		data->smu_features[GNLD_FAN_CONTROL].enabled = false;
++	}
++
++	return ret;
++}
++
++int vega20_fan_ctrl_stop_smc_fan_control(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = hwmgr->backend;
++
++	if (data->smu_features[GNLD_FAN_CONTROL].supported)
++		return vega20_disable_fan_control_feature(hwmgr);
++
++	return 0;
++}
++
++static int vega20_enable_fan_control_feature(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = hwmgr->backend;
++	int ret = 0;
++
++	if (data->smu_features[GNLD_FAN_CONTROL].supported) {
++		ret = vega20_enable_smc_features(
++				hwmgr, true,
++				data->smu_features[GNLD_FAN_CONTROL].
++				smu_feature_bitmap);
++		PP_ASSERT_WITH_CODE(!ret,
++				"Enable FAN CONTROL feature Failed!",
++				return ret);
++		data->smu_features[GNLD_FAN_CONTROL].enabled = true;
++	}
++
++	return ret;
++}
++
++int vega20_fan_ctrl_start_smc_fan_control(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = hwmgr->backend;
++
++	if (data->smu_features[GNLD_FAN_CONTROL].supported)
++		return vega20_enable_fan_control_feature(hwmgr);
++
++	return 0;
++}
++
++static int vega20_fan_ctrl_set_static_mode(struct pp_hwmgr *hwmgr, uint32_t mode)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++
++	WREG32_SOC15(THM, 0, mmCG_FDO_CTRL2,
++			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
++				CG_FDO_CTRL2, TMIN, 0));
++	WREG32_SOC15(THM, 0, mmCG_FDO_CTRL2,
++			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
++				CG_FDO_CTRL2, FDO_PWM_MODE, mode));
++
++	return 0;
++}
++
+ static int vega20_get_current_rpm(struct pp_hwmgr *hwmgr, uint32_t *current_rpm)
+ {
+ 	int ret = 0;
+@@ -42,12 +114,62 @@ static int vega20_get_current_rpm(struct pp_hwmgr *hwmgr, uint32_t *current_rpm)
+ 	return 0;
+ }
+ 
++int vega20_fan_ctrl_get_fan_speed_percent(struct pp_hwmgr *hwmgr,
++		uint32_t *speed)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	PPTable_t *pp_table = &(data->smc_state_table.pp_table);
++	uint32_t current_rpm, percent = 0;
++	int ret = 0;
++
++	ret = vega20_get_current_rpm(hwmgr, &current_rpm);
++	if (ret)
++		return ret;
++
++	percent = current_rpm * 100 / pp_table->FanMaximumRpm;
++
++	*speed = percent > 100 ? 100 : percent;
++
++	return 0;
++}
++
++int vega20_fan_ctrl_set_fan_speed_percent(struct pp_hwmgr *hwmgr,
++		uint32_t speed)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++	uint32_t duty100;
++	uint32_t duty;
++	uint64_t tmp64;
++
++	if (speed > 100)
++		speed = 100;
++
++	if (PP_CAP(PHM_PlatformCaps_MicrocodeFanControl))
++		vega20_fan_ctrl_stop_smc_fan_control(hwmgr);
++
++	duty100 = REG_GET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL1),
++				    CG_FDO_CTRL1, FMAX_DUTY100);
++
++	if (duty100 == 0)
++		return -EINVAL;
++
++	tmp64 = (uint64_t)speed * duty100;
++	do_div(tmp64, 100);
++	duty = (uint32_t)tmp64;
++
++	WREG32_SOC15(THM, 0, mmCG_FDO_CTRL0,
++		REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL0),
++			CG_FDO_CTRL0, FDO_STATIC_DUTY, duty));
++
++	return vega20_fan_ctrl_set_static_mode(hwmgr, FDO_PWM_MODE_STATIC);
++}
++
+ int vega20_fan_ctrl_get_fan_speed_info(struct pp_hwmgr *hwmgr,
+ 		struct phm_fan_speed_info *fan_speed_info)
+ {
+ 	memset(fan_speed_info, 0, sizeof(*fan_speed_info));
+-	fan_speed_info->supports_percent_read = false;
+-	fan_speed_info->supports_percent_write = false;
++	fan_speed_info->supports_percent_read = true;
++	fan_speed_info->supports_percent_write = true;
+ 	fan_speed_info->supports_rpm_read = true;
+ 	fan_speed_info->supports_rpm_write = true;
+ 
+@@ -61,6 +183,31 @@ int vega20_fan_ctrl_get_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t *speed)
+ 	return vega20_get_current_rpm(hwmgr, speed);
+ }
+ 
++int vega20_fan_ctrl_set_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t speed)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++	uint32_t tach_period, crystal_clock_freq;
++	int result = 0;
++
++	if (!speed)
++		return -EINVAL;
++
++	if (PP_CAP(PHM_PlatformCaps_MicrocodeFanControl)) {
++		result = vega20_fan_ctrl_stop_smc_fan_control(hwmgr);
++		if (result)
++			return result;
++	}
++
++	crystal_clock_freq = amdgpu_asic_get_xclk((struct amdgpu_device *)hwmgr->adev);
++	tach_period = 60 * crystal_clock_freq * 10000 / (8 * speed);
++	WREG32_SOC15(THM, 0, mmCG_TACH_CTRL,
++			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_TACH_CTRL),
++				CG_TACH_CTRL, TARGET_PERIOD,
++				tach_period));
++
++	return vega20_fan_ctrl_set_static_mode(hwmgr, FDO_PWM_MODE_STATIC_RPM);
++}
++
+ /**
+ * Reads the remote temperature from the SIslands thermal controller.
+ *
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h
+index 2a6d49f..2d1769b 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h
+@@ -50,15 +50,22 @@ struct vega20_temperature {
+ #define FDO_PWM_MODE_STATIC_RPM 5
+ 
+ extern int vega20_thermal_get_temperature(struct pp_hwmgr *hwmgr);
+-extern int vega20_thermal_stop_thermal_controller(struct pp_hwmgr *hwmgr);
+ extern int vega20_fan_ctrl_get_fan_speed_info(struct pp_hwmgr *hwmgr,
+ 		struct phm_fan_speed_info *fan_speed_info);
+-extern int vega20_fan_ctrl_reset_fan_speed_to_default(struct pp_hwmgr *hwmgr);
+ extern int vega20_fan_ctrl_get_fan_speed_rpm(struct pp_hwmgr *hwmgr,
+ 		uint32_t *speed);
++extern int vega20_fan_ctrl_set_fan_speed_rpm(struct pp_hwmgr *hwmgr,
++		uint32_t speed);
++extern int vega20_fan_ctrl_get_fan_speed_percent(struct pp_hwmgr *hwmgr,
++		uint32_t *speed);
++extern int vega20_fan_ctrl_set_fan_speed_percent(struct pp_hwmgr *hwmgr,
++		uint32_t speed);
++extern int vega20_fan_ctrl_stop_smc_fan_control(struct pp_hwmgr *hwmgr);
++extern int vega20_fan_ctrl_start_smc_fan_control(struct pp_hwmgr *hwmgr);
+ extern int vega20_thermal_disable_alert(struct pp_hwmgr *hwmgr);
+ extern int vega20_start_thermal_controller(struct pp_hwmgr *hwmgr,
+ 				struct PP_TemperatureRange *range);
++extern int vega20_thermal_stop_thermal_controller(struct pp_hwmgr *hwmgr);
+ 
+ #endif
+ 
+-- 
+2.7.4
+

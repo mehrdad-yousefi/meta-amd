@@ -1,0 +1,33 @@
+From 0eda956b0f7650651fc3b6b1a2b1dddc6814e05c Mon Sep 17 00:00:00 2001
+From: Nikola Cornij <nikola.cornij@amd.com>
+Date: Mon, 7 May 2018 15:35:15 -0400
+Subject: [PATCH 4531/5725] drm/amd/display: Read DPCD link caps up to and
+ including DP_ADAPTER_CAP
+
+DP 1.4 compliance requires 16 bytes to be read when reading link caps,
+i.e. it requires DP_ADAPTER_CAP to be included. Included it for all DP
+versions because reading more than required won't fail.
+
+Signed-off-by: Nikola Cornij <nikola.cornij@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+index cb376cf..163c887 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+@@ -2278,7 +2278,7 @@ static void dp_wa_power_up_0010FA(struct dc_link *link, uint8_t *dpcd_data,
+ 
+ static bool retrieve_link_cap(struct dc_link *link)
+ {
+-	uint8_t dpcd_data[DP_TRAINING_AUX_RD_INTERVAL - DP_DPCD_REV + 1];
++	uint8_t dpcd_data[DP_ADAPTER_CAP - DP_DPCD_REV + 1];
+ 
+ 	union down_stream_port_count down_strm_port_count;
+ 	union edp_configuration_cap edp_config_cap;
+-- 
+2.7.4
+

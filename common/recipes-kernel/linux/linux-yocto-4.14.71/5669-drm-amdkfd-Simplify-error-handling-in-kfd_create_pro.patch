@@ -1,0 +1,54 @@
+From 7d50d2ad1878b9a7ff483323ff6c77ab7a732bb8 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 25 Apr 2018 18:23:39 -0400
+Subject: [PATCH 5669/5725] drm/amdkfd: Simplify error handling in
+ kfd_create_process_device_data
+
+Call init_doorbell_bitmap early to avoid excessive cleanup on failure.
+
+Change-Id: I59667a6313b0fb8192761a3287461f0a3d438928
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 17 ++++++-----------
+ 1 file changed, 6 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index b80018e..13fd54a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -677,6 +677,12 @@ struct kfd_process_device *kfd_create_process_device_data(struct kfd_dev *dev,
+ 	if (!pdd)
+ 		return NULL;
+ 
++	if (init_doorbell_bitmap(&pdd->qpd, dev)) {
++		pr_err("Failed to init doorbell for process\n");
++		kfree(pdd);
++		return NULL;
++	}
++
+ 	pdd->dev = dev;
+ 	INIT_LIST_HEAD(&pdd->qpd.queues_list);
+ 	INIT_LIST_HEAD(&pdd->qpd.priv_queue_list);
+@@ -690,19 +696,8 @@ struct kfd_process_device *kfd_create_process_device_data(struct kfd_dev *dev,
+ 
+ 	/* Init idr used for memory handle translation */
+ 	idr_init(&pdd->alloc_idr);
+-	if (init_doorbell_bitmap(&pdd->qpd, dev)) {
+-		pr_err("Failed to init doorbell for process\n");
+-		goto err_create_pdd;
+-	}
+ 
+ 	return pdd;
+-
+-err_create_pdd:
+-	kfree(pdd->qpd.doorbell_bitmap);
+-	idr_destroy(&pdd->alloc_idr);
+-	list_del(&pdd->per_device_list);
+-	kfree(pdd);
+-	return NULL;
+ }
+ 
+ /**
+-- 
+2.7.4
+

@@ -1,0 +1,37 @@
+From 298fa1bac2cdac7abdf0aa29cdf98b4068d43ce7 Mon Sep 17 00:00:00 2001
+From: Philip Yang <Philip.Yang@amd.com>
+Date: Wed, 29 Aug 2018 10:53:23 -0400
+Subject: [PATCH 5237/5725] drm/amdgpu: remove redundant memset
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+kvmalloc_array uses __GFP_ZERO flag ensures that the returned address
+is zeroed already, memset it to zero again afterwards is unnecessary,
+and in this case buggy because we only clear the first entry.
+
+Change-Id: I45ec0934143e2eab62b4d6c6aa8cbd7b998ee30a
+Signed-off-by: Philip Yang <Philip.Yang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index d23eeb3..b50e18f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -507,7 +507,6 @@ static int amdgpu_vm_alloc_levels(struct amdgpu_device *adev,
+ 						   GFP_KERNEL | __GFP_ZERO);
+ 		if (!parent->entries)
+ 			return -ENOMEM;
+-		memset(parent->entries, 0 , sizeof(struct amdgpu_vm_pt));
+ 	}
+ 
+ 	from = saddr >> shift;
+-- 
+2.7.4
+

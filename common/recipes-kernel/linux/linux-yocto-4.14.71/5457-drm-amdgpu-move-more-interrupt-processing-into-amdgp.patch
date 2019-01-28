@@ -1,0 +1,144 @@
+From c3669eccc5527c52c079c987d09c103c0b2613eb Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 17 Sep 2018 15:18:37 +0200
+Subject: [PATCH 5457/5725] drm/amdgpu: move more interrupt processing into
+ amdgpu_irq.c
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add a callback to amdgpu_ih_process to remove most of the IV logic.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c  | 24 +++++-------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h  |  4 +++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c | 31 ++++++++++++++++++++++++++++++-
+ 3 files changed, 38 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c
+index 15fb0f9..8af67f6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c
+@@ -24,7 +24,6 @@
+ #include <drm/drmP.h>
+ #include "amdgpu.h"
+ #include "amdgpu_ih.h"
+-#include "amdgpu_amdkfd.h"
+ 
+ /**
+  * amdgpu_ih_ring_init - initialize the IH state
+@@ -129,9 +128,10 @@ void amdgpu_ih_ring_fini(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih)
+  * Interrupt hander (VI), walk the IH ring.
+  * Returns irq process return code.
+  */
+-int amdgpu_ih_process(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih)
++int amdgpu_ih_process(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih,
++		      void (*callback)(struct amdgpu_device *adev,
++				       struct amdgpu_ih_ring *ih))
+ {
+-	struct amdgpu_iv_entry entry;
+ 	u32 wptr;
+ 
+ 	if (!ih->enabled || adev->shutdown)
+@@ -150,24 +150,10 @@ int amdgpu_ih_process(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih)
+ 	rmb();
+ 
+ 	while (ih->rptr != wptr) {
+-		u32 ring_index = ih->rptr >> 2;
+-
+-		/* Prescreening of high-frequency interrupts */
+-		if (!amdgpu_ih_prescreen_iv(adev)) {
+-			ih->rptr &= ih->ptr_mask;
+-			continue;
+-		}
+-
+-		/* Before dispatching irq to IP blocks, send it to amdkfd */
+-		amdgpu_amdkfd_interrupt(adev,
+-					(const void *) &ih->ring[ring_index]);
+-
+-		entry.iv_entry = (const uint32_t *)&ih->ring[ring_index];
+-		amdgpu_ih_decode_iv(adev, &entry);
++		callback(adev, ih);
+ 		ih->rptr &= ih->ptr_mask;
+-
+-		amdgpu_irq_dispatch(adev, &entry);
+ 	}
++
+ 	amdgpu_ih_set_rptr(adev);
+ 	atomic_set(&ih->lock, 0);
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
+index 3e55f98..fd2bbaa 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
+@@ -85,6 +85,8 @@ struct amdgpu_ih_funcs {
+ int amdgpu_ih_ring_init(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih,
+ 			unsigned ring_size, bool use_bus_addr);
+ void amdgpu_ih_ring_fini(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih);
+-int amdgpu_ih_process(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih);
++int amdgpu_ih_process(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih,
++		      void (*callback)(struct amdgpu_device *adev,
++				       struct amdgpu_ih_ring *ih));
+ 
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c
+index ba004fe..d15410b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c
+@@ -51,6 +51,7 @@
+ #include "atom.h"
+ #include "amdgpu_connectors.h"
+ #include "amdgpu_trace.h"
++#include "amdgpu_amdkfd.h"
+ 
+ #include <linux/pm_runtime.h>
+ 
+@@ -147,6 +148,34 @@ void amdgpu_irq_disable_all(struct amdgpu_device *adev)
+ }
+ 
+ /**
++ * amdgpu_irq_callback - callback from the IH ring
++ *
++ * @adev: amdgpu device pointer
++ * @ih: amdgpu ih ring
++ *
++ * Callback from IH ring processing to handle the entry at the current position
++ * and advance the read pointer.
++ */
++static void amdgpu_irq_callback(struct amdgpu_device *adev,
++				struct amdgpu_ih_ring *ih)
++{
++	u32 ring_index = ih->rptr >> 2;
++	struct amdgpu_iv_entry entry;
++
++	/* Prescreening of high-frequency interrupts */
++	if (!amdgpu_ih_prescreen_iv(adev))
++		return;
++
++	/* Before dispatching irq to IP blocks, send it to amdkfd */
++	amdgpu_amdkfd_interrupt(adev, (const void *) &ih->ring[ring_index]);
++
++	entry.iv_entry = (const uint32_t *)&ih->ring[ring_index];
++	amdgpu_ih_decode_iv(adev, &entry);
++
++	amdgpu_irq_dispatch(adev, &entry);
++}
++
++/**
+  * amdgpu_irq_handler - IRQ handler
+  *
+  * @irq: IRQ number (unused)
+@@ -163,7 +192,7 @@ irqreturn_t amdgpu_irq_handler(int irq, void *arg)
+ 	struct amdgpu_device *adev = dev->dev_private;
+ 	irqreturn_t ret;
+ 
+-	ret = amdgpu_ih_process(adev, &adev->irq.ih);
++	ret = amdgpu_ih_process(adev, &adev->irq.ih, amdgpu_irq_callback);
+ 	if (ret == IRQ_HANDLED)
+ 		pm_runtime_mark_last_busy(dev->dev);
+ 	return ret;
+-- 
+2.7.4
+

@@ -1,0 +1,49 @@
+From c47bbfb389df61f0f5b4fff8bab7ae261c0d77c3 Mon Sep 17 00:00:00 2001
+From: Lan Xiao <Lan.Xiao@amd.com>
+Date: Wed, 11 Jul 2018 22:32:51 -0400
+Subject: [PATCH 5695/5725] drm/amdkfd: fix zero reading of VMID and PASID for
+ Hawaii
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Upon VM Fault, the VMID and PASID written by HW are zeros in
+Hawaii. Instead of reading from ih_ring_entry, read directly
+from the registers. This workaround fix the soft hang issues
+caused by mishandled VM Fault in Hawaii.
+
+Signed-off-by: Lan Xiao <Lan.Xiao@amd.com>
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index 5b0738f..daa35c5 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -716,13 +716,18 @@ void kgd2kfd_interrupt(struct kfd_dev *kfd, const void *ih_ring_entry)
+ 	if (!kfd->init_complete)
+ 		return;
+ 
++	if (kfd->device_info->ih_ring_entry_size > sizeof(patched_ihre)) {
++		dev_err_once(kfd_device, "Ring entry too small\n");
++		return;
++	}
++
+ 	spin_lock(&kfd->interrupt_lock);
+ 
+ 	if (kfd->interrupts_active
+ 	    && interrupt_is_wanted(kfd, ih_ring_entry,
+ 				   patched_ihre, &is_patched)
+ 	    && enqueue_ih_ring_entry(kfd,
+-				     is_patched ? patched_ihre : ih_ring_entry))
++				   is_patched ? patched_ihre : ih_ring_entry))
+ 		queue_work(kfd->ih_wq, &kfd->interrupt_work);
+ 
+ 	spin_unlock(&kfd->interrupt_lock);
+-- 
+2.7.4
+

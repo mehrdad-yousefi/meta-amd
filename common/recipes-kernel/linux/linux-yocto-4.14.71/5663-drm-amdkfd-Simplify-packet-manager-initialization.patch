@@ -1,0 +1,117 @@
+From ec949130a270007e1ed2ebbd91b40134fbce8352 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Tue, 24 Apr 2018 18:05:50 -0400
+Subject: [PATCH 5663/5725] drm/amdkfd: Simplify packet manager initialization
+
+Assign the function tables directly instead of doing it in a one-line
+function. Also making the tables const while I'm at it.
+
+Change-Id: If03fe1f89fc5badf15f3e9dd356b44601152bd7b
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c | 8 +-------
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c | 7 +------
+ drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c  | 4 ++--
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h            | 9 ++++-----
+ 4 files changed, 8 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
+index c6d5a33..6724b1a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
+@@ -323,7 +323,7 @@ static int pm_release_mem_v9(uint64_t gpu_addr, uint32_t *buffer)
+ 	return 0;
+ }
+ 
+-static struct packet_manager_funcs kfd_v9_pm_funcs = {
++const struct packet_manager_funcs kfd_v9_pm_funcs = {
+ 	.map_process		= pm_map_process_v9,
+ 	.runlist		= pm_runlist_v9,
+ 	.set_resources		= pm_set_resources_vi,
+@@ -339,9 +339,3 @@ static struct packet_manager_funcs kfd_v9_pm_funcs = {
+ 	.query_status_size	= sizeof(struct pm4_mes_query_status),
+ 	.release_mem_size	= sizeof(struct pm4_mec_release_mem)
+ };
+-
+-void kfd_pm_func_init_v9(struct packet_manager *pm)
+-{
+-	pm->pmf = &kfd_v9_pm_funcs;
+-}
+-
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
+index a1a2e7b..357478f 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
+@@ -358,7 +358,7 @@ static int pm_release_mem_vi(uint64_t gpu_addr, uint32_t *buffer)
+ 	return 0;
+ }
+ 
+-static struct packet_manager_funcs kfd_vi_pm_funcs = {
++const struct packet_manager_funcs kfd_vi_pm_funcs = {
+ 	.map_process		= pm_map_process_vi,
+ 	.runlist		= pm_runlist_vi,
+ 	.set_resources		= pm_set_resources_vi,
+@@ -374,8 +374,3 @@ static struct packet_manager_funcs kfd_vi_pm_funcs = {
+ 	.query_status_size	= sizeof(struct pm4_mes_query_status),
+ 	.release_mem_size	= sizeof(struct pm4_mec_release_mem)
+ };
+-
+-void kfd_pm_func_init_vi(struct packet_manager *pm)
+-{
+-	pm->pmf = &kfd_vi_pm_funcs;
+-}
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+index 699352b..bc6e854 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+@@ -237,11 +237,11 @@ int pm_init(struct packet_manager *pm, struct device_queue_manager *dqm)
+ 	case CHIP_FIJI:
+ 	case CHIP_POLARIS10:
+ 	case CHIP_POLARIS11:
+-		kfd_pm_func_init_vi(pm);
++		pm->pmf = &kfd_vi_pm_funcs;
+ 		break;
+ 	case CHIP_VEGA10:
+ 	case CHIP_RAVEN:
+-		kfd_pm_func_init_v9(pm);
++		pm->pmf = &kfd_v9_pm_funcs;
+ 		break;
+ 	default:
+ 		BUG();
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 52740ae..8513abf 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -991,7 +991,7 @@ struct packet_manager {
+ 	struct kfd_mem_obj *ib_buffer_obj;
+ 	unsigned int ib_size_bytes;
+ 
+-	struct packet_manager_funcs *pmf;
++	const struct packet_manager_funcs *pmf;
+ };
+ 
+ struct packet_manager_funcs {
+@@ -1023,6 +1023,9 @@ struct packet_manager_funcs {
+ 	int release_mem_size;
+ };
+ 
++extern const struct packet_manager_funcs kfd_vi_pm_funcs;
++extern const struct packet_manager_funcs kfd_v9_pm_funcs;
++
+ int pm_init(struct packet_manager *pm, struct device_queue_manager *dqm);
+ void pm_uninit(struct packet_manager *pm);
+ int pm_send_set_resources(struct packet_manager *pm,
+@@ -1043,10 +1046,6 @@ unsigned int pm_build_pm4_header(unsigned int opcode, size_t packet_size);
+ int pm_set_resources_vi(struct packet_manager *pm, uint32_t *buffer,
+ 				struct scheduling_resources *res);
+ 
+-void kfd_pm_func_init_vi(struct packet_manager *pm);
+-void kfd_pm_func_init_v9(struct packet_manager *pm);
+-
+-
+ uint64_t kfd_get_number_elems(struct kfd_dev *kfd);
+ 
+ /* Events */
+-- 
+2.7.4
+

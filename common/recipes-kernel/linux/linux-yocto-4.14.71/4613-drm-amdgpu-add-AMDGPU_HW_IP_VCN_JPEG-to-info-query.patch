@@ -1,0 +1,60 @@
+From cd9a83bbc761e3a67d7f3daebd616286cdc89ec9 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Tue, 1 May 2018 14:58:25 -0400
+Subject: [PATCH 4613/5725] drm/amdgpu: add AMDGPU_HW_IP_VCN_JPEG to info query
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add AMDGPU_HW_IP_VCN_JPEG to info query
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c | 7 +++++++
+ include/uapi/drm/amdgpu_drm.h           | 3 ++-
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index a39919c..a1a53c6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -397,6 +397,12 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 			ib_start_alignment = AMDGPU_GPU_PAGE_SIZE;
+ 			ib_size_alignment = 1;
+ 			break;
++		case AMDGPU_HW_IP_VCN_JPEG:
++			type = AMD_IP_BLOCK_TYPE_VCN;
++			ring_mask = adev->vcn.ring_jpeg.ready ? 1 : 0;
++			ib_start_alignment = AMDGPU_GPU_PAGE_SIZE;
++			ib_size_alignment = 16;
++			break;
+ 		default:
+ 			return -EINVAL;
+ 		}
+@@ -441,6 +447,7 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 			break;
+ 		case AMDGPU_HW_IP_VCN_DEC:
+ 		case AMDGPU_HW_IP_VCN_ENC:
++		case AMDGPU_HW_IP_VCN_JPEG:
+ 			type = AMD_IP_BLOCK_TYPE_VCN;
+ 			break;
+ 		default:
+diff --git a/include/uapi/drm/amdgpu_drm.h b/include/uapi/drm/amdgpu_drm.h
+index ad3e1f2..f12f57a 100644
+--- a/include/uapi/drm/amdgpu_drm.h
++++ b/include/uapi/drm/amdgpu_drm.h
+@@ -550,7 +550,8 @@ struct drm_amdgpu_gem_va {
+ #define AMDGPU_HW_IP_UVD_ENC      5
+ #define AMDGPU_HW_IP_VCN_DEC      6
+ #define AMDGPU_HW_IP_VCN_ENC      7
+-#define AMDGPU_HW_IP_NUM          8
++#define AMDGPU_HW_IP_VCN_JPEG     8
++#define AMDGPU_HW_IP_NUM          9
+ 
+ #define AMDGPU_HW_IP_INSTANCE_MAX_COUNT 1
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,96 @@
+From af1e7bb6a6e39fb16ca3c1280c72945de913cb2e Mon Sep 17 00:00:00 2001
+From: christian koenig <christian.koenig@amd.com>
+Date: Thu, 19 Apr 2018 15:01:12 +0200
+Subject: [PATCH 4510/5725] drm/amdgpu: move VM BOs on LRU again
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Move all BOs belonging to a VM on the LRU with every submission.
+
+Change-Id: I3cf9aa8aad9f0c7de66c5f0639a2e7518b507318
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 28 +++++++++++++++++++++++-----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h |  3 +++
+ 2 files changed, 26 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 7ddbfe3..e2f2892 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -251,6 +251,19 @@ int amdgpu_vm_validate_pt_bos(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 		}
+ 	}
+ 
++	spin_lock(&glob->lru_lock);
++	list_for_each_entry(bo_base, &vm->idle, vm_status) {
++		struct amdgpu_bo *bo = bo_base->bo;
++
++		if (!bo->parent)
++			continue;
++
++		ttm_bo_move_to_lru_tail(&bo->tbo);
++		if (bo->shadow)
++			ttm_bo_move_to_lru_tail(&bo->shadow->tbo);
++	}
++	spin_unlock(&glob->lru_lock);
++
+ 	return r;
+ }
+ 
+@@ -966,7 +979,7 @@ int amdgpu_vm_update_directories(struct amdgpu_device *adev,
+ 					   struct amdgpu_vm_bo_base,
+ 					   vm_status);
+ 		bo_base->moved = false;
+-		list_del_init(&bo_base->vm_status);
++		list_move(&bo_base->vm_status, &vm->idle);
+ 
+ 		bo = bo_base->bo->parent;
+ 		if (!bo)
+@@ -1601,10 +1614,14 @@ int amdgpu_vm_bo_update(struct amdgpu_device *adev,
+ 	 * the evicted list so that it gets validated again on the
+ 	 * next command submission.
+ 	 */
+-	if (bo && bo->tbo.resv == vm->root.base.bo->tbo.resv &&
+-	    !(bo->preferred_domains &
+-	    amdgpu_mem_type_to_domain(bo->tbo.mem.mem_type)))
+-		list_add_tail(&bo_va->base.vm_status, &vm->evicted);
++	if (bo && bo->tbo.resv == vm->root.base.bo->tbo.resv) {
++		uint32_t mem_type = bo->tbo.mem.mem_type;
++
++		if (!(bo->preferred_domains & amdgpu_mem_type_to_domain(mem_type)))
++			list_add_tail(&bo_va->base.vm_status, &vm->evicted);
++		else
++			list_add(&bo_va->base.vm_status, &vm->idle);
++	}
+ 
+ 	list_splice_init(&bo_va->invalids, &bo_va->valids);
+ 	bo_va->cleared = clear;
+@@ -2423,6 +2440,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	INIT_LIST_HEAD(&vm->relocated);
+ 	spin_lock_init(&vm->moved_lock);
+ 	INIT_LIST_HEAD(&vm->moved);
++	INIT_LIST_HEAD(&vm->idle);
+ 	INIT_LIST_HEAD(&vm->freed);
+ 
+ 	/* create scheduler entity for page table updates */
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 7a4c967..617d84b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -181,6 +181,9 @@ struct amdgpu_vm {
+ 	struct list_head	moved;
+ 	spinlock_t              moved_lock;
+ 
++	/* All BOs of this VM not currently in the state machine */
++	struct list_head        idle;
++
+ 	/* BO mappings freed, but not yet updated in the PT */
+ 	struct list_head	freed;
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,45 @@
+From 112a7d8730c140ad4fd8c8f726e22e344806e51f Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Mon, 6 Aug 2018 20:14:51 +0800
+Subject: [PATCH 5092/5725] drm/amdgpu: move missed gfxoff entry into
+ amdgpu_gfx header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Move missed gfxoff entry to amdgpu_gfx.h.
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h     | 1 -
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h | 1 +
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 27042b2..ece78da 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -1299,7 +1299,6 @@ void amdgpu_device_program_register_sequence(struct amdgpu_device *adev,
+ 					     const u32 array_size);
+ 
+ bool amdgpu_device_is_px(struct drm_device *dev);
+-void amdgpu_gfx_off_ctrl(struct amdgpu_device *adev, bool enable);
+ /* atpx handler */
+ #if defined(CONFIG_VGA_SWITCHEROO)
+ void amdgpu_register_atpx_handler(void);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
+index 4e3d147..53e9e2a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
+@@ -356,5 +356,6 @@ void amdgpu_gfx_bit_to_queue(struct amdgpu_device *adev, int bit,
+ 			     int *mec, int *pipe, int *queue);
+ bool amdgpu_gfx_is_mec_queue_enabled(struct amdgpu_device *adev, int mec,
+ 				     int pipe, int queue);
++void amdgpu_gfx_off_ctrl(struct amdgpu_device *adev, bool enable);
+ 
+ #endif
+-- 
+2.7.4
+

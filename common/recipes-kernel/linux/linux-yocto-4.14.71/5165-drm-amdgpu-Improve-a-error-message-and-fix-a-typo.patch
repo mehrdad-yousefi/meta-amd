@@ -1,0 +1,41 @@
+From 2acdfe12470a66a1f5b6524d787303f3564f2017 Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Thu, 5 Jul 2018 14:16:08 -0400
+Subject: [PATCH 5165/5725] drm/amdgpu: Improve a error message and fix a typo
+
+Change-Id: Ibeb387a098b5cb885ef554c4bcd0c23434bc3e4c
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+index c36a1ce..d2702b0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+@@ -63,7 +63,7 @@ enum {
+ enum {
+ 	ADDRESS_WATCH_REG_CNTL_ATC_BIT = 0x10000000UL,
+ 	ADDRESS_WATCH_REG_CNTL_DEFAULT_MASK = 0x00FFFFFF,
+-	ADDRESS_WATCH_REG_ADDLOW_MASK_EXTENTION = 0x03000000,
++	ADDRESS_WATCH_REG_ADDLOW_MASK_EXTENSION = 0x03000000,
+ 	/* extend the mask to 26 bits in order to match the low address field */
+ 	ADDRESS_WATCH_REG_ADDLOW_SHIFT = 6,
+ 	ADDRESS_WATCH_REG_ADDHIGH_MASK = 0xFFFF
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 4c0f2a3..59e1f44 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1515,7 +1515,7 @@ int amdgpu_amdkfd_gpuvm_map_memory_to_gpu(
+ 			ret = map_bo_to_gpuvm(adev, entry, ctx.sync,
+ 					      is_invalid_userptr);
+ 			if (ret) {
+-				pr_err("Failed to map radeon bo to gpuvm\n");
++				pr_err("Failed to map bo to gpuvm\n");
+ 				goto map_bo_to_gpuvm_failed;
+ 			}
+ 
+-- 
+2.7.4
+

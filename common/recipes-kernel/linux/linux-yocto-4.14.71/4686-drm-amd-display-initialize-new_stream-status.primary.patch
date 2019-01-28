@@ -1,0 +1,39 @@
+From d8f99be8e6e7b3676cfc70e338907c55cd7785a4 Mon Sep 17 00:00:00 2001
+From: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+Date: Wed, 26 Sep 2018 16:45:15 +0530
+Subject: [PATCH 4686/5725] drm/amd/display: initialize
+ new_stream->status.primary_otg_inst
+
+[Why]
+primary_otg_inst is used in enable_timing_multisync() function, but
+this variable is not initialized in the code leaving it to default
+value of 0. Due to this, In function enable_timing_multisync() master
+is programmed as the first display. But if first display is not master,
+then it results in incorrect hardware programming and the displays having
+incorrect hardware programming blanks.
+
+[how]
+In resour_map_pool_resources() function, also initialize
+stream->status.primary_otg_inst
+
+Signed-off-by: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index b65aa6e..07e2c28 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1927,6 +1927,8 @@ enum dc_status resource_map_pool_resources(
+ 	if (pipe_ctx->stream && dc_is_embedded_signal(pipe_ctx->stream->signal))
+ 		pipe_ctx->stream_res.abm = pool->abm;
+ 
++	stream->status.primary_otg_inst =  pipe_ctx->stream_res.tg->inst;
++
+ 	for (i = 0; i < context->stream_count; i++)
+ 		if (context->streams[i] == stream) {
+ 			context->stream_status[i].primary_otg_inst = pipe_ctx->stream_res.tg->inst;
+-- 
+2.7.4
+

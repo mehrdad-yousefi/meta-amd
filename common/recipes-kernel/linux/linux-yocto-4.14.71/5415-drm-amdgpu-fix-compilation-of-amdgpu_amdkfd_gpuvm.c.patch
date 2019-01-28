@@ -1,0 +1,38 @@
+From 0b8a75965c6a2351ba4e07a74e7268833bffea5c Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 13 Sep 2018 14:07:01 -0500
+Subject: [PATCH 5415/5725] drm/amdgpu: fix compilation of
+ amdgpu_amdkfd_gpuvm.c
+
+Trivial.
+
+Fixes: "drm/amdgpu: remove amdgpu_bo_list_entry.robj"
+
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 1390136..c3446ef 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -681,7 +681,6 @@ static int reserve_bo_and_vm(struct kgd_mem *mem,
+ 	if (!ctx->vm_pd)
+ 		return -ENOMEM;
+ 
+-	ctx->kfd_bo.robj = bo;
+ 	ctx->kfd_bo.priority = 0;
+ 	ctx->kfd_bo.tv.bo = &bo->tbo;
+ 	ctx->kfd_bo.tv.shared = true;
+@@ -746,7 +745,6 @@ static int reserve_bo_and_cond_vms(struct kgd_mem *mem,
+ 			return -ENOMEM;
+ 	}
+ 
+-	ctx->kfd_bo.robj = bo;
+ 	ctx->kfd_bo.priority = 0;
+ 	ctx->kfd_bo.tv.bo = &bo->tbo;
+ 	ctx->kfd_bo.tv.shared = true;
+-- 
+2.7.4
+

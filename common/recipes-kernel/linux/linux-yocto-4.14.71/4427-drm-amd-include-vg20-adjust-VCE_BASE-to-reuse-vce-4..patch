@@ -1,0 +1,35 @@
+From dc1eddcea6f1d72e73e9f7536e8c3319556e163e Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Tue, 17 Apr 2018 16:25:58 -0400
+Subject: [PATCH 4427/5725] drm/amd/include/vg20: adjust VCE_BASE to reuse vce
+ 4.0 header files
+
+Vega20 uses vce 4.1 engine, all the registers have the
+same absolute offset with vce 4.0. By adjusting vega20
+VCE_BASE, vce 4.1 can reuse vce 4.0 header files.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/vega20_ip_offset.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/include/vega20_ip_offset.h b/drivers/gpu/drm/amd/include/vega20_ip_offset.h
+index 97db93c..2a2a9cc 100644
+--- a/drivers/gpu/drm/amd/include/vega20_ip_offset.h
++++ b/drivers/gpu/drm/amd/include/vega20_ip_offset.h
+@@ -144,7 +144,8 @@ static const struct IP_BASE UVD_BASE            ={ { { { 0x00007800, 0x00007E00,
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } } } };
+-static const struct IP_BASE VCE_BASE            ={ { { { 0x00008800, 0, 0, 0, 0, 0 } },
++/* Adjust VCE_BASE to make vce_4_1 use vce_4_0 offset header files*/
++static const struct IP_BASE VCE_BASE            ={ { { { 0x00007E00/* 0x00008800 */, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+-- 
+2.7.4
+

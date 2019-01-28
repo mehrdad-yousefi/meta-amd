@@ -1,0 +1,31 @@
+From 035fdd06aab7f46ed36857bd5327d86e4aa496b9 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Thu, 28 Jun 2018 11:31:13 -0400
+Subject: [PATCH 4940/5725] drm/amd/display: update dml to match DV dml
+
+DV updated their dml with an option to use max vstartup,
+this updates dc dml with the same option
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h b/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h
+index c43d68b..cbafce6 100644
+--- a/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h
++++ b/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h
+@@ -305,6 +305,7 @@ struct _vcs_dpi_display_pipe_dest_params_st {
+ 	unsigned char otg_inst;
+ 	unsigned char odm_split_cnt;
+ 	unsigned char odm_combine;
++	unsigned char use_maximum_vstartup;
+ };
+ 
+ struct _vcs_dpi_display_pipe_params_st {
+-- 
+2.7.4
+

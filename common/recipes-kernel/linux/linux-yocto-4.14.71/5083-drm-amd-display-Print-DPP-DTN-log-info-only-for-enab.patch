@@ -1,0 +1,84 @@
+From 42397214d13d16c1767fc01c3bc534ed93bce7d5 Mon Sep 17 00:00:00 2001
+From: Nikola Cornij <nikola.cornij@amd.com>
+Date: Thu, 19 Jul 2018 14:03:14 -0400
+Subject: [PATCH 5083/5725] drm/amd/display: Print DPP DTN log info only for
+ enabled pipes
+
+[why]
+There is currently a dependency on the order in which tests are executed.
+This is because the non-relevant state info is being printed, which results
+in the output based on the state from the previous test.
+
+[how]
+Print DPP DTN log only if the pipe is enabled.
+In addition to the affected per-submission DTN golden logs, included in this
+change is also DTN golden log update for pre-submission tests.
+The other DTN golden logs affected by this change will be updated upon
+nightly test run (which will generate the updated DTN logs).
+
+Signed-off-by: Nikola Cornij <nikola.cornij@amd.com>
+Reviewed-by: Nikola Cornij <Nikola.Cornij@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c          | 2 ++
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c | 7 +++++--
+ drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h               | 1 +
+ 3 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+index bf8b68f..1d64255 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+@@ -103,6 +103,8 @@ void dpp_read_state(struct dpp *dpp_base,
+ {
+ 	struct dcn10_dpp *dpp = TO_DCN10_DPP(dpp_base);
+ 
++	REG_GET(DPP_CONTROL,
++			DPP_CLOCK_ENABLE, &s->is_enabled);
+ 	REG_GET(CM_IGAM_CONTROL,
+ 			CM_IGAM_LUT_MODE, &s->igam_lut_mode);
+ 	REG_GET(CM_IGAM_CONTROL,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index ba4856f..82fb1f9 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -88,7 +88,7 @@ static void log_mpc_crc(struct dc *dc)
+ void dcn10_log_hubbub_state(struct dc *dc)
+ {
+ 	struct dc_context *dc_ctx = dc->ctx;
+-	struct dcn_hubbub_wm wm;
++	struct dcn_hubbub_wm wm = {0};
+ 	int i;
+ 
+ 	hubbub1_wm_read_state(dc->res_pool->hubbub, &wm);
+@@ -244,10 +244,13 @@ void dcn10_log_hw_state(struct dc *dc)
+ 			"C31 C32   C33 C34\n");
+ 	for (i = 0; i < pool->pipe_count; i++) {
+ 		struct dpp *dpp = pool->dpps[i];
+-		struct dcn_dpp_state s;
++		struct dcn_dpp_state s = {0};
+ 
+ 		dpp->funcs->dpp_read_state(dpp, &s);
+ 
++		if (!s.is_enabled)
++			continue;
++
+ 		DTN_INFO("[%2d]:  %11xh  %-11s  %-11s  %-11s"
+ 				"%8x    %08xh %08xh %08xh %08xh %08xh %08xh",
+ 				dpp->inst,
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h b/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h
+index 74ad94b..80a480b 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h
+@@ -45,6 +45,7 @@ struct dpp_grph_csc_adjustment {
+ };
+ 
+ struct dcn_dpp_state {
++	uint32_t is_enabled;
+ 	uint32_t igam_lut_mode;
+ 	uint32_t igam_input_format;
+ 	uint32_t dgam_lut_mode;
+-- 
+2.7.4
+

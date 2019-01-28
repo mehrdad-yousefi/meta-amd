@@ -1,0 +1,44 @@
+From 15825749712c2b0a7f34709a2d7c1f1cd6cdfeaf Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Wed, 19 Sep 2018 19:07:19 +0800
+Subject: [PATCH 5472/5725] drm/amdgpu: change Raven always on CUs to 4
+
+For Vega10 and Vega20, the always on CUs are 12.
+For Raven, it's 4.
+
+Change-Id: I0b864d77f65d72697e65e21be5dc2c1930ed8d53
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 2c4e595..920f84e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -985,8 +985,10 @@ static void gfx_v9_0_init_lbpw(struct amdgpu_device *adev)
+ 	data |= 0x00C00000;
+ 	WREG32_SOC15(GC, 0, mmRLC_GPM_GENERAL_7, data);
+ 
+-	/* set RLC_LB_ALWAYS_ACTIVE_CU_MASK = 0xFFF */
+-	WREG32_SOC15(GC, 0, mmRLC_LB_ALWAYS_ACTIVE_CU_MASK, 0xFFF);
++	/*
++	 * RLC_LB_ALWAYS_ACTIVE_CU_MASK = 0xF (4 CUs AON for Raven),
++	 * programmed in gfx_v9_0_init_always_on_cu_mask()
++	 */
+ 
+ 	/* set RLC_LB_CNTL = 0x8000_0095, 31 bit is reserved,
+ 	 * but used for RLC_LB_CNTL configuration */
+@@ -995,6 +997,8 @@ static void gfx_v9_0_init_lbpw(struct amdgpu_device *adev)
+ 	data |= REG_SET_FIELD(data, RLC_LB_CNTL, RESERVED, 0x80000);
+ 	WREG32_SOC15(GC, 0, mmRLC_LB_CNTL, data);
+ 	mutex_unlock(&adev->grbm_idx_mutex);
++
++	gfx_v9_0_init_always_on_cu_mask(adev);
+ }
+ 
+ static void gfx_v9_4_init_lbpw(struct amdgpu_device *adev)
+-- 
+2.7.4
+

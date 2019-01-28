@@ -1,0 +1,45 @@
+From b0cf79f58e8bc41d475f23edca5f9c70ccb13c59 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Mon, 7 Jan 2019 15:29:04 +0530
+Subject: [PATCH] Fix compilation error for kfd
+
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/Makefile      | 2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/Makefile b/drivers/gpu/drm/amd/amdkfd/Makefile
+index df92ebb..1828087 100644
+--- a/drivers/gpu/drm/amd/amdkfd/Makefile
++++ b/drivers/gpu/drm/amd/amdkfd/Makefile
+@@ -57,7 +57,7 @@ AMDKFD_FILES   := $(AMDKFD_PATH)/kfd_module.o \
+ 		$(AMDKFD_PATH)/kfd_crat.o \
+                 $(AMDKFD_PATH)/kfd_ipc.o \
+ 		$(AMDKFD_PATH)/kfd_trace.o \
+-		$(AMDKFD_PATH)//kfd_peerdirect.o
++		$(AMDKFD_PATH)/kfd_peerdirect.o
+ 
+ ifneq ($(CONFIG_AMD_IOMMU_V2),)
+ AMDKFD_FILES += $(AMDKFD_PATH)/kfd_iommu.o
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index 69815c3..4ea0fbd 100755
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -732,11 +732,11 @@ int kfd_process_device_init_vm(struct kfd_process_device *pdd,
+ 
+ 	if (drm_file)
+ 		ret = dev->kfd2kgd->acquire_process_vm(
+-			dev->kgd, drm_file,
++			dev->kgd, drm_file,p->pasid,
+ 			&pdd->vm, &p->kgd_process_info, &p->ef);
+ 	else
+ 		ret = dev->kfd2kgd->create_process_vm(
+-			dev->kgd, &pdd->vm, &p->kgd_process_info, &p->ef);
++			dev->kgd, p->pasid, &pdd->vm, &p->kgd_process_info, &p->ef);
+ 	if (ret) {
+ 		pr_err("Failed to create process VM object\n");
+ 		return ret;
+-- 
+2.7.4
+

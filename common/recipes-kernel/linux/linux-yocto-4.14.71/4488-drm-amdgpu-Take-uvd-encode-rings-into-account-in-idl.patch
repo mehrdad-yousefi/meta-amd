@@ -1,0 +1,42 @@
+From a275abdf042926fbaac0084ac64a723af8243864 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 17 May 2018 12:45:52 -0500
+Subject: [PATCH 4488/5725] drm/amdgpu: Take uvd encode rings into account in
+ idle work (v2)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Take the encode rings into account in the idle work handler.
+
+v2: fix typo: s/num_uvd_inst/num_enc_rings/
+
+Reviewed-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index ee80a90..aadc494 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -1148,10 +1148,13 @@ static void amdgpu_uvd_idle_work_handler(struct work_struct *work)
+ {
+ 	struct amdgpu_device *adev =
+ 		container_of(work, struct amdgpu_device, uvd.inst->idle_work.work);
+-	unsigned fences = 0, i;
++	unsigned fences = 0, i, j;
+ 
+ 	for (i = 0; i < adev->uvd.num_uvd_inst; ++i) {
+ 		fences += amdgpu_fence_count_emitted(&adev->uvd.inst[i].ring);
++		for (j = 0; j < adev->uvd.num_enc_rings; ++j) {
++			fences += amdgpu_fence_count_emitted(&adev->uvd.inst[i].ring_enc[j]);
++		}
+ 	}
+ 
+ 	if (fences == 0) {
+-- 
+2.7.4
+

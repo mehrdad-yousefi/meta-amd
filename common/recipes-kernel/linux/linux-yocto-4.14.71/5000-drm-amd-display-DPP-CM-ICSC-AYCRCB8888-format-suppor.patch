@@ -1,0 +1,55 @@
+From 277a7c3dd97647f4ef25d704d795ffff4cd986c0 Mon Sep 17 00:00:00 2001
+From: vikrant mhaske <vikrant.mhaske@amd.com>
+Date: Thu, 12 Jul 2018 16:04:43 +0800
+Subject: [PATCH 5000/5725] drm/amd/display: DPP CM ICSC AYCRCB8888 format
+ support
+
+[why]
+Diags has POR to run the video workload using AYCRCB8888 through DCN;
+capture it through DWB and send it to VCN hardware to encode
+
+[how]
+added the code to support this format so that DPP ICSC will be able to
+convert it from YUV444 to internal RGB and DWB OCSC will be able to
+convert from internal RGB to YUV420
+
+Signed-off-by: vikrant mhaske <vikrant.mhaske@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc_hw_types.h      | 2 +-
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c | 4 ++++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_hw_types.h b/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
+index e9c1ec5..bbc384f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
+@@ -192,7 +192,7 @@ enum surface_pixel_format {
+ 	/*swaped & float*/
+ 	SURFACE_PIXEL_FORMAT_GRPH_ABGR16161616F,
+ 	/*grow graphics here if necessary */
+-
++	SURFACE_PIXEL_FORMAT_VIDEO_AYCrCb8888,
+ 	SURFACE_PIXEL_FORMAT_VIDEO_BEGIN,
+ 	SURFACE_PIXEL_FORMAT_VIDEO_420_YCbCr =
+ 		SURFACE_PIXEL_FORMAT_VIDEO_BEGIN,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+index 332354c..2138cd3 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+@@ -294,6 +294,10 @@ void hubp1_program_pixel_format(
+ 		REG_UPDATE(DCSURF_SURFACE_CONFIG,
+ 				SURFACE_PIXEL_FORMAT, 66);
+ 		break;
++	case SURFACE_PIXEL_FORMAT_VIDEO_AYCrCb8888:
++		REG_UPDATE(DCSURF_SURFACE_CONFIG,
++				SURFACE_PIXEL_FORMAT, 12);
++		break;
+ 	default:
+ 		BREAK_TO_DEBUGGER();
+ 		break;
+-- 
+2.7.4
+

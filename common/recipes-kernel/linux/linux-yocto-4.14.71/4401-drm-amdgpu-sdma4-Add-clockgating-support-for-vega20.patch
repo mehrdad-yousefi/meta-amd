@@ -1,0 +1,29 @@
+From f98e072bf9562c36ce1950231bfee27c636603a5 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Tue, 23 Jan 2018 11:16:16 +0800
+Subject: [PATCH 4401/5725] drm/amdgpu/sdma4: Add clockgating support for
+ vega20
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+index b1114e5..0b076d4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+@@ -1552,6 +1552,7 @@ static int sdma_v4_0_set_clockgating_state(void *handle,
+ 	switch (adev->asic_type) {
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+ 		sdma_v4_0_update_medium_grain_clock_gating(adev,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+-- 
+2.7.4
+

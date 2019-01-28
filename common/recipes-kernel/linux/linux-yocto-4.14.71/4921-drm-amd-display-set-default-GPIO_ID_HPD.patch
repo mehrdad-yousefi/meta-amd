@@ -1,0 +1,28 @@
+From 87243c523fd40b98506955ca8680e5f0a2477c38 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Thu, 21 Jun 2018 21:32:36 -0400
+Subject: [PATCH 4921/5725] drm/amd/display: set default GPIO_ID_HPD
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c b/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c
+index 80038e0..f06d05a 100644
+--- a/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c
++++ b/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c
+@@ -374,6 +374,7 @@ struct gpio *dal_gpio_create_irq(
+ 	case GPIO_ID_GPIO_PAD:
+ 	break;
+ 	default:
++		id = GPIO_ID_HPD;
+ 		ASSERT_CRITICAL(false);
+ 		return NULL;
+ 	}
+-- 
+2.7.4
+

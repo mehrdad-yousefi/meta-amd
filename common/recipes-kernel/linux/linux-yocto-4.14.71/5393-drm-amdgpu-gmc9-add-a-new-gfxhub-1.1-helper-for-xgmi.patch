@@ -1,0 +1,162 @@
+From 9d5a19c33b9d29bed81b9c735ff61fdb73074219 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 19 Jun 2018 17:03:27 -0500
+Subject: [PATCH 5393/5725] drm/amdgpu/gmc9: add a new gfxhub 1.1 helper for
+ xgmi
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Used to populate the xgmi info on vega20.
+
+v2: PF_MAX_REGION is val - 1 (Ray)
+
+Acked-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Slava Abramov <slava.abramov@amd.com>
+Reviewed-by :Shaoyun liu <Shaoyun.liu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by :Shaoyun liu <Shaoyun.liu@amd.com>
+Change-Id: Ia7b7f112880e69cdbcf73a8abf04cd6ef303940c
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/Makefile      |  2 +-
+ drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c | 50 ++++++++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.h | 29 ++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c    |  7 +++++
+ 4 files changed, 87 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.h
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/Makefile b/drivers/gpu/drm/amd/amdgpu/Makefile
+index 0e9fe5e..8c34388 100644
+--- a/drivers/gpu/drm/amd/amdgpu/Makefile
++++ b/drivers/gpu/drm/amd/amdgpu/Makefile
+@@ -73,7 +73,7 @@ amdgpu-y += \
+ amdgpu-y += \
+ 	gmc_v7_0.o \
+ 	gmc_v8_0.o \
+-	gfxhub_v1_0.o mmhub_v1_0.o gmc_v9_0.o
++	gfxhub_v1_0.o mmhub_v1_0.o gmc_v9_0.o gfxhub_v1_1.o
+ 
+ # add IH block
+ amdgpu-y += \
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c
+new file mode 100644
+index 0000000..d4170cb
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c
+@@ -0,0 +1,50 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++#include "amdgpu.h"
++#include "gfxhub_v1_1.h"
++
++#include "gc/gc_9_2_1_offset.h"
++#include "gc/gc_9_2_1_sh_mask.h"
++
++#include "soc15_common.h"
++
++int gfxhub_v1_1_get_xgmi_info(struct amdgpu_device *adev)
++{
++	u32 xgmi_lfb_cntl = RREG32_SOC15(GC, 0, mmMC_VM_XGMI_LFB_CNTL);
++	u32 max_region =
++		REG_GET_FIELD(xgmi_lfb_cntl, MC_VM_XGMI_LFB_CNTL, PF_MAX_REGION);
++
++	/* PF_MAX_REGION=0 means xgmi is disabled */
++	if (max_region) {
++		adev->gmc.xgmi.num_physical_nodes = max_region + 1;
++		if (adev->gmc.xgmi.num_physical_nodes > 4)
++			return -EINVAL;
++
++		adev->gmc.xgmi.physical_node_id =
++			REG_GET_FIELD(xgmi_lfb_cntl, MC_VM_XGMI_LFB_CNTL, PF_LFB_REGION);
++		if (adev->gmc.xgmi.physical_node_id > 3)
++			return -EINVAL;
++	}
++
++	return 0;
++}
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.h b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.h
+new file mode 100644
+index 0000000..d753cf2
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.h
+@@ -0,0 +1,29 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#ifndef __GFXHUB_V1_1_H__
++#define __GFXHUB_V1_1_H__
++
++int gfxhub_v1_1_get_xgmi_info(struct amdgpu_device *adev);
++
++#endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index b5d849b..de699ea 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -42,6 +42,7 @@
+ 
+ #include "gfxhub_v1_0.h"
+ #include "mmhub_v1_0.h"
++#include "gfxhub_v1_1.h"
+ 
+ #include "ivsrcid/vmc/irqsrcs_vmc_1_0.h"
+ 
+@@ -984,6 +985,12 @@ static int gmc_v9_0_sw_init(void *handle)
+ 		printk(KERN_WARNING "amdgpu: No coherent DMA available.\n");
+ 	}
+ 
++	if (adev->asic_type == CHIP_VEGA20) {
++		r = gfxhub_v1_1_get_xgmi_info(adev);
++		if (r)
++			return r;
++	}
++
+ 	r = gmc_v9_0_mc_init(adev);
+ 	if (r)
+ 		return r;
+-- 
+2.7.4
+

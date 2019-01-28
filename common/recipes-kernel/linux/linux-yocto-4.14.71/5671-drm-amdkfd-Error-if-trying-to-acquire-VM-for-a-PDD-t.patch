@@ -1,0 +1,37 @@
+From ddaefc39a8a975b84b43dad9875fc7ce4ce3f208 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Thu, 26 Apr 2018 15:22:46 -0400
+Subject: [PATCH 5671/5725] drm/amdkfd: Error if trying to acquire VM for a PDD
+ twice
+
+Return an error in kfd_process_device_init_vm is an attempt is made
+to acquire a VM for a PDD that already has a VM. This could happen
+if kfd_ioctl_acquire_vm is called multiple times for the same device
+and process, or if it is called too late, after the process has
+already been bound to the device by another ioctl.
+
+Returning an error here can help detect potential future problems in
+user mode code instead of silently masking them.
+
+Change-Id: I55e46e2654e4d761ae4b43c194bd9a7f1dd3eefa
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index 182bf1c..3ecaad5 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -719,7 +719,7 @@ int kfd_process_device_init_vm(struct kfd_process_device *pdd,
+ 	int ret;
+ 
+ 	if (pdd->vm)
+-		return 0;
++		return drm_file ? -EBUSY : 0;
+ 
+ 	p = pdd->process;
+ 	dev = pdd->dev;
+-- 
+2.7.4
+

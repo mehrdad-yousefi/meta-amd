@@ -1,0 +1,37 @@
+From 640f3fccc447cf0f5797e5ca837af0042723e76b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 24 Aug 2018 09:40:10 +0200
+Subject: [PATCH 5236/5725] drm/amdgpu: use the smaller hole for GART
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Instead of the larger one use the smaller hole in the MC address
+space for the GART mappings.
+
+Change-Id: Ibb5d15772105b5fc52010825f85badc7abd4d12c
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+index 8269197..265ec68 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+@@ -132,7 +132,8 @@ void amdgpu_gmc_gart_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc)
+ 		mc->gart_size = max(size_bf, size_af);
+ 	}
+ 
+-	if (size_bf > size_af)
++	if ((size_bf >= mc->gart_size && size_bf < size_af) ||
++	    (size_af < mc->gart_size))
+ 		mc->gart_start = 0;
+ 	else
+ 		mc->gart_start = ALIGN(mc->vram_end + 1, 0x100000000ULL);
+-- 
+2.7.4
+

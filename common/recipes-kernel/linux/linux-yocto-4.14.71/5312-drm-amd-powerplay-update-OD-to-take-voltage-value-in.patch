@@ -1,0 +1,327 @@
+From e3ea525573a45e8b50a72da6845864f84169eedb Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 13 Sep 2018 16:14:33 +0800
+Subject: [PATCH 5312/5725] drm/amd/powerplay: update OD to take voltage value
+ instead of offset
+
+With the latest SMC fw, we are able to get the voltage value for
+specific frequency point. So, we update the OD relates to take
+absolute voltage instead of offset.
+
+Change-Id: I4ac8518f518cf3d70e59b16e3ea2102cd63c52d6
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c             |  12 +--
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 112 +++++++++++++++------
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h |   4 +
+ .../gpu/drm/amd/powerplay/inc/smu11_driver_if.h    |   6 +-
+ drivers/gpu/drm/amd/powerplay/inc/vega20_ppsmc.h   |   3 +-
+ 5 files changed, 96 insertions(+), 41 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index e63b0c2..9c5036f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -502,7 +502,7 @@ static ssize_t amdgpu_set_pp_table(struct device *dev,
+  *
+  * - maximum memory clock labeled OD_MCLK
+  *
+- * - three <frequency, voltage offset> points labeled OD_VDDC_CURVE.
++ * - three <frequency, voltage> points labeled OD_VDDC_CURVE.
+  *   They can be used to calibrate the sclk voltage curve.
+  *
+  * - a list of valid ranges for sclk, mclk, and voltage curve points
+@@ -519,11 +519,11 @@ static ssize_t amdgpu_set_pp_table(struct device *dev,
+  *   "m 1 800" will update maximum mclk to be 800Mhz.
+  *
+  *   For sclk voltage curve, enter the new values by writing a
+- *   string that contains "vc point clock voff" to the file. The
+- *   points are indexed by 0, 1 and 2. E.g., "vc 0 300 10" will
+- *   update point1 with clock set as 300Mhz and voltage increased
+- *   by 10mV. "vc 2 1000 -10" will update point3 with clock set
+- *   as 1000Mhz and voltage drop by 10mV.
++ *   string that contains "vc point clock voltage" to the file. The
++ *   points are indexed by 0, 1 and 2. E.g., "vc 0 300 600" will
++ *   update point1 with clock set as 300Mhz and voltage as
++ *   600mV. "vc 2 1000 1000" will update point3 with clock set
++ *   as 1000Mhz and voltage 1000mV.
+  *
+  * - When you have edited all of the states as needed, write "c" (commit)
+  *   to the file to commit your changes
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index afc61b5..4ab7288 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -1001,6 +1001,26 @@ static int vega20_od8_set_feature_id(
+ 	return 0;
+ }
+ 
++static int vega20_od8_get_gfx_clock_base_voltage(
++		struct pp_hwmgr *hwmgr,
++		uint32_t *voltage,
++		uint32_t freq)
++{
++	int ret = 0;
++
++	ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_GetAVFSVoltageByDpm,
++			((AVFS_CURVE << 24) | (OD8_HOTCURVE_TEMPERATURE << 16) | freq));
++	PP_ASSERT_WITH_CODE(!ret,
++			"[GetBaseVoltage] failed to get GFXCLK AVFS voltage from SMU!",
++			return ret);
++
++	vega20_read_arg_from_smc(hwmgr, voltage);
++	*voltage = *voltage / VOLTAGE_SCALE;
++
++	return 0;
++}
++
+ static int vega20_od8_initialize_default_settings(
+ 		struct pp_hwmgr *hwmgr)
+ {
+@@ -1036,18 +1056,41 @@ static int vega20_od8_initialize_default_settings(
+ 	}
+ 
+ 	if (od8_settings->overdrive8_capabilities & OD8_GFXCLK_CURVE) {
++		od_table->GfxclkFreq1 = od_table->GfxclkFmin;
+ 		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_FREQ1].default_value =
+ 			od_table->GfxclkFreq1;
+-		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE1].default_value =
+-			od_table->GfxclkOffsetVolt1;
+-		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_FREQ2].default_value =
+-			od_table->GfxclkFreq2;
+-		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE2].default_value =
+-			od_table->GfxclkOffsetVolt2;
++
++		od_table->GfxclkFreq3 = od_table->GfxclkFmax;
+ 		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_FREQ3].default_value =
+ 			od_table->GfxclkFreq3;
+-		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE3].default_value =
+-			od_table->GfxclkOffsetVolt3;
++
++		od_table->GfxclkFreq2 = (od_table->GfxclkFreq1 + od_table->GfxclkFreq3) / 2;
++		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_FREQ2].default_value =
++			od_table->GfxclkFreq2;
++
++		PP_ASSERT_WITH_CODE(!vega20_od8_get_gfx_clock_base_voltage(hwmgr,
++				   &(od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE1].default_value),
++				     od_table->GfxclkFreq1),
++				"[PhwVega20_OD8_InitializeDefaultSettings] Failed to get Base clock voltage from SMU!",
++				od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE1].default_value = 0);
++		od_table->GfxclkVolt1 = od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE1].default_value
++			* VOLTAGE_SCALE;
++
++		PP_ASSERT_WITH_CODE(!vega20_od8_get_gfx_clock_base_voltage(hwmgr,
++				   &(od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE2].default_value),
++				     od_table->GfxclkFreq2),
++				"[PhwVega20_OD8_InitializeDefaultSettings] Failed to get Base clock voltage from SMU!",
++				od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE2].default_value = 0);
++		od_table->GfxclkVolt2 = od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE2].default_value
++			* VOLTAGE_SCALE;
++
++		PP_ASSERT_WITH_CODE(!vega20_od8_get_gfx_clock_base_voltage(hwmgr,
++				   &(od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE3].default_value),
++				     od_table->GfxclkFreq3),
++				"[PhwVega20_OD8_InitializeDefaultSettings] Failed to get Base clock voltage from SMU!",
++				od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE3].default_value = 0);
++		od_table->GfxclkVolt3 = od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_VOLTAGE3].default_value
++			* VOLTAGE_SCALE;
+ 	} else {
+ 		od8_settings->od8_settings_array[OD8_SETTING_GFXCLK_FREQ1].default_value =
+ 			0;
+@@ -1086,7 +1129,7 @@ static int vega20_od8_initialize_default_settings(
+ 
+ 	if (od8_settings->overdrive8_capabilities & OD8_FAN_SPEED_MIN)
+ 		od8_settings->od8_settings_array[OD8_SETTING_FAN_MIN_SPEED].default_value =
+-			od_table->FanMinimumPwm;
++			od_table->FanMinimumPwm * data->smc_state_table.pp_table.FanMaximumRpm / 100;
+ 	else
+ 		od8_settings->od8_settings_array[OD8_SETTING_FAN_MIN_SPEED].default_value =
+ 			0;
+@@ -1123,6 +1166,11 @@ static int vega20_od8_initialize_default_settings(
+ 		}
+ 	}
+ 
++	ret = vega20_copy_table_to_smc(hwmgr, (uint8_t *)od_table, TABLE_OVERDRIVE);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to import over drive table!",
++			return ret);
++
+ 	return 0;
+ }
+ 
+@@ -1150,19 +1198,19 @@ static int vega20_od8_set_settings(
+ 		od_table.GfxclkFreq1 = (uint16_t)value;
+ 		break;
+ 	case OD8_SETTING_GFXCLK_VOLTAGE1:
+-		od_table.GfxclkOffsetVolt1 = (uint16_t)value;
++		od_table.GfxclkVolt1 = (uint16_t)value;
+ 		break;
+ 	case OD8_SETTING_GFXCLK_FREQ2:
+ 		od_table.GfxclkFreq2 = (uint16_t)value;
+ 		break;
+ 	case OD8_SETTING_GFXCLK_VOLTAGE2:
+-		od_table.GfxclkOffsetVolt2 = (uint16_t)value;
++		od_table.GfxclkVolt2 = (uint16_t)value;
+ 		break;
+ 	case OD8_SETTING_GFXCLK_FREQ3:
+ 		od_table.GfxclkFreq3 = (uint16_t)value;
+ 		break;
+ 	case OD8_SETTING_GFXCLK_VOLTAGE3:
+-		od_table.GfxclkOffsetVolt3 = (uint16_t)value;
++		od_table.GfxclkVolt3 = (uint16_t)value;
+ 		break;
+ 	case OD8_SETTING_UCLK_FMAX:
+ 		od_table.UclkFmax = (uint16_t)value;
+@@ -2364,6 +2412,7 @@ static int vega20_odn_edit_dpm_table(struct pp_hwmgr *hwmgr,
+ 			&(data->smc_state_table.overdrive_table);
+ 	struct pp_clock_levels_with_latency clocks;
+ 	int32_t input_index, input_clk, input_vol, i;
++	int od8_id;
+ 	int ret;
+ 
+ 	PP_ASSERT_WITH_CODE(input, "NULL user input for clock and voltage",
+@@ -2480,37 +2529,38 @@ static int vega20_odn_edit_dpm_table(struct pp_hwmgr *hwmgr,
+ 				return -EINVAL;
+ 			}
+ 
+-			if (input_clk < od8_settings[OD8_SETTING_GFXCLK_FMIN].min_value ||
+-			    input_clk > od8_settings[OD8_SETTING_GFXCLK_FMAX].max_value) {
++			od8_id = OD8_SETTING_GFXCLK_FREQ1 + 2 * input_index;
++			if (input_clk < od8_settings[od8_id].min_value ||
++			    input_clk > od8_settings[od8_id].max_value) {
+ 				pr_info("clock freq %d is not within allowed range [%d - %d]\n",
+ 					input_clk,
+-					od8_settings[OD8_SETTING_GFXCLK_FMIN].min_value,
+-					od8_settings[OD8_SETTING_GFXCLK_FMAX].max_value);
++					od8_settings[od8_id].min_value,
++					od8_settings[od8_id].max_value);
+ 				return -EINVAL;
+ 			}
+ 
+-			/* TODO: suppose voltage1/2/3 has the same min/max value */
+-			if (input_vol < od8_settings[OD8_SETTING_GFXCLK_VOLTAGE1].min_value ||
+-			    input_vol > od8_settings[OD8_SETTING_GFXCLK_VOLTAGE1].max_value) {
+-				pr_info("clock voltage offset %d is not within allowed range [%d - %d]\n",
++			od8_id = OD8_SETTING_GFXCLK_VOLTAGE1 + 2 * input_index;
++			if (input_vol < od8_settings[od8_id].min_value ||
++			    input_vol > od8_settings[od8_id].max_value) {
++				pr_info("clock voltage %d is not within allowed range [%d - %d]\n",
+ 					input_vol,
+-					od8_settings[OD8_SETTING_GFXCLK_VOLTAGE1].min_value,
+-					od8_settings[OD8_SETTING_GFXCLK_VOLTAGE1].max_value);
++					od8_settings[od8_id].min_value,
++					od8_settings[od8_id].max_value);
+ 				return -EINVAL;
+ 			}
+ 
+ 			switch (input_index) {
+ 			case 0:
+ 				od_table->GfxclkFreq1 = input_clk;
+-				od_table->GfxclkOffsetVolt1 = input_vol;
++				od_table->GfxclkVolt1 = input_vol * VOLTAGE_SCALE;
+ 				break;
+ 			case 1:
+ 				od_table->GfxclkFreq2 = input_clk;
+-				od_table->GfxclkOffsetVolt2 = input_vol;
++				od_table->GfxclkVolt2 = input_vol * VOLTAGE_SCALE;
+ 				break;
+ 			case 2:
+ 				od_table->GfxclkFreq3 = input_clk;
+-				od_table->GfxclkOffsetVolt3 = input_vol;
++				od_table->GfxclkVolt3 = input_vol * VOLTAGE_SCALE;
+ 				break;
+ 			}
+ 		}
+@@ -2623,13 +2673,13 @@ static int vega20_print_clock_levels(struct pp_hwmgr *hwmgr,
+ 			size = sprintf(buf, "%s:\n", "OD_VDDC_CURVE");
+ 			size += sprintf(buf + size, "0: %10uMhz %10dmV\n",
+ 				od_table->GfxclkFreq1,
+-				od_table->GfxclkOffsetVolt1);
++				od_table->GfxclkVolt1 / VOLTAGE_SCALE);
+ 			size += sprintf(buf + size, "1: %10uMhz %10dmV\n",
+ 				od_table->GfxclkFreq2,
+-				od_table->GfxclkOffsetVolt2);
++				od_table->GfxclkVolt2 / VOLTAGE_SCALE);
+ 			size += sprintf(buf + size, "2: %10uMhz %10dmV\n",
+ 				od_table->GfxclkFreq3,
+-				od_table->GfxclkOffsetVolt3);
++				od_table->GfxclkVolt3 / VOLTAGE_SCALE);
+ 		}
+ 
+ 		break;
+@@ -2664,19 +2714,19 @@ static int vega20_print_clock_levels(struct pp_hwmgr *hwmgr,
+ 			size += sprintf(buf + size, "VDDC_CURVE_SCLK[0]: %7uMhz %10uMhz\n",
+ 				od8_settings[OD8_SETTING_GFXCLK_FREQ1].min_value,
+ 				od8_settings[OD8_SETTING_GFXCLK_FREQ1].max_value);
+-			size += sprintf(buf + size, "VDDC_CURVE_VOFF[0]: %7dmV %11dmV\n",
++			size += sprintf(buf + size, "VDDC_CURVE_VOLT[0]: %7dmV %11dmV\n",
+ 				od8_settings[OD8_SETTING_GFXCLK_VOLTAGE1].min_value,
+ 				od8_settings[OD8_SETTING_GFXCLK_VOLTAGE1].max_value);
+ 			size += sprintf(buf + size, "VDDC_CURVE_SCLK[1]: %7uMhz %10uMhz\n",
+ 				od8_settings[OD8_SETTING_GFXCLK_FREQ2].min_value,
+ 				od8_settings[OD8_SETTING_GFXCLK_FREQ2].max_value);
+-			size += sprintf(buf + size, "VDDC_CURVE_VOFF[1]: %7dmV %11dmV\n",
++			size += sprintf(buf + size, "VDDC_CURVE_VOLT[1]: %7dmV %11dmV\n",
+ 				od8_settings[OD8_SETTING_GFXCLK_VOLTAGE2].min_value,
+ 				od8_settings[OD8_SETTING_GFXCLK_VOLTAGE2].max_value);
+ 			size += sprintf(buf + size, "VDDC_CURVE_SCLK[2]: %7uMhz %10uMhz\n",
+ 				od8_settings[OD8_SETTING_GFXCLK_FREQ3].min_value,
+ 				od8_settings[OD8_SETTING_GFXCLK_FREQ3].max_value);
+-			size += sprintf(buf + size, "VDDC_CURVE_VOFF[2]: %7dmV %11dmV\n",
++			size += sprintf(buf + size, "VDDC_CURVE_VOLT[2]: %7dmV %11dmV\n",
+ 				od8_settings[OD8_SETTING_GFXCLK_VOLTAGE3].min_value,
+ 				od8_settings[OD8_SETTING_GFXCLK_VOLTAGE3].max_value);
+ 		}
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
+index 72e4f2a..b71a5f2 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
+@@ -38,6 +38,10 @@
+ #define VG20_PSUEDO_NUM_DCEFCLK_DPM_LEVELS  8
+ #define VG20_PSUEDO_NUM_UCLK_DPM_LEVELS     4
+ 
++//OverDriver8 macro defs
++#define AVFS_CURVE 0
++#define OD8_HOTCURVE_TEMPERATURE 85
++
+ typedef uint32_t PP_Clock;
+ 
+ enum {
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+index 59e621e..71191de 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+@@ -569,11 +569,11 @@ typedef struct {
+   uint16_t      GfxclkFmin;
+   uint16_t      GfxclkFmax;
+   uint16_t      GfxclkFreq1;
+-  int16_t      GfxclkOffsetVolt1;
++  uint16_t      GfxclkVolt1;
+   uint16_t      GfxclkFreq2;
+-  int16_t      GfxclkOffsetVolt2;
++  uint16_t      GfxclkVolt2;
+   uint16_t      GfxclkFreq3;
+-  int16_t      GfxclkOffsetVolt3;
++  uint16_t      GfxclkVolt3;
+   uint16_t      UclkFmax;
+   int16_t       OverDrivePct;
+   uint16_t      FanMaximumRpm;
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/vega20_ppsmc.h b/drivers/gpu/drm/amd/powerplay/inc/vega20_ppsmc.h
+index 165429f..45d64a8 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/vega20_ppsmc.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/vega20_ppsmc.h
+@@ -117,7 +117,8 @@
+ #define PPSMC_MSG_PrepareMp1ForReset             0x59
+ #define PPSMC_MSG_PrepareMp1ForShutdown          0x5A
+ #define PPSMC_MSG_SetMGpuFanBoostLimitRpm        0x5D
+-#define PPSMC_Message_Count                      0x5E
++#define PPSMC_MSG_GetAVFSVoltageByDpm            0x5F
++#define PPSMC_Message_Count                      0x60
+ 
+ typedef uint32_t PPSMC_Result;
+ typedef uint32_t PPSMC_Msg;
+-- 
+2.7.4
+

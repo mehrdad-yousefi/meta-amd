@@ -1,0 +1,34 @@
+From 512e3dd42ad819e22c6f372baba293ce2a586c64 Mon Sep 17 00:00:00 2001
+From: Kalyan Alle <kalyan.alle@amd.com>
+Date: Mon, 16 Apr 2018 12:17:57 +0530
+Subject: [PATCH 4199/5725] drm/amdgpu: Code Indentation change in the function
+
+amdgpu_device_ip_late_init
+ MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Code indentation modified, space replaced by tab to clear
+warnings while doing git am
+
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 1bf1219..6b221cc5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1819,7 +1819,7 @@ static int amdgpu_device_ip_late_init(struct amdgpu_device *adev)
+ 	}
+ 
+ 	queue_delayed_work(system_wq, &adev->late_init_work,
+-			   msecs_to_jiffies(AMDGPU_RESUME_MS));
++				msecs_to_jiffies(AMDGPU_RESUME_MS));
+ 
+ 	amdgpu_device_fill_reset_magic(adev);
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,35 @@
+From b1c81e03a897481d30aa7e100555523e42a38e28 Mon Sep 17 00:00:00 2001
+From: Indrajit Das <indrajit-kumar.das@amd.com>
+Date: Tue, 4 Dec 2018 13:42:13 +0530
+Subject: [PATCH 5723/5725] drm/amdgpu/vcn:Fixed S3 hung issue
+
+Provided by James Zhu
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 0d80b44..3f17116 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -48,6 +48,8 @@ static void vcn_v1_0_set_enc_ring_funcs(struct amdgpu_device *adev);
+ static void vcn_v1_0_set_jpeg_ring_funcs(struct amdgpu_device *adev);
+ static void vcn_v1_0_set_irq_funcs(struct amdgpu_device *adev);
+ static void vcn_v1_0_jpeg_ring_set_patch_ring(struct amdgpu_ring *ring, uint32_t ptr);
++static int vcn_v1_0_set_powergating_state(void *handle,
++					  enum amd_powergating_state state);
+ 
+ /**
+  * vcn_v1_0_early_init - set function pointers
+@@ -222,7 +224,7 @@ static int vcn_v1_0_hw_fini(void *handle)
+ 	struct amdgpu_ring *ring = &adev->vcn.ring_dec;
+ 
+ 	if (RREG32_SOC15(VCN, 0, mmUVD_STATUS))
+-		vcn_v1_0_stop(adev);
++		vcn_v1_0_set_powergating_state(adev, AMD_PG_STATE_GATE);
+ 
+ 	ring->ready = false;
+ 
+-- 
+2.7.4
+

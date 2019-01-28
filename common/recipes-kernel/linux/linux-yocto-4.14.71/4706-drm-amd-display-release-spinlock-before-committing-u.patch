@@ -1,0 +1,60 @@
+From 90c87d89b78bf28254b57772e03c5f24c9ee63f6 Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Tue, 26 Jun 2018 09:32:39 +0530
+Subject: [PATCH 4706/5725] drm/amd/display: release spinlock before committing
+ updates to stream
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Currently, amdgpu_do_flip() spinlocks crtc->dev->event_lock and
+releases it only after committing updates to the stream.
+
+dc_commit_updates_for_stream() should be moved out of
+spinlock for the below reasons:
+
+1. event_lock is supposed to protect access to acrct->pflip_status _only_
+2. dc_commit_updates_for_stream() has potential sleep's
+   and also its not appropriate to be  in an atomic state
+   for such long sequences of code.
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Suggested-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Cc: stable@vger.kernel.org
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 017fd80..0543cb1 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -4256,10 +4256,11 @@ static void amdgpu_dm_do_flip(struct drm_crtc *crtc,
+ 	if (acrtc->base.state->event)
+ 		prepare_flip_isr(acrtc);
+ 
++	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
++
+ 	surface_updates->surface = dc_stream_get_status(acrtc_state->stream)->plane_states[0];
+ 	surface_updates->flip_addr = &addr;
+ 
+-
+ 	dc_commit_updates_for_stream(adev->dm.dc,
+ 					     surface_updates,
+ 					     1,
+@@ -4272,9 +4273,6 @@ static void amdgpu_dm_do_flip(struct drm_crtc *crtc,
+ 			 __func__,
+ 			 addr.address.grph.addr.high_part,
+ 			 addr.address.grph.addr.low_part);
+-
+-
+-	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
+ }
+ 
+ /*
+-- 
+2.7.4
+

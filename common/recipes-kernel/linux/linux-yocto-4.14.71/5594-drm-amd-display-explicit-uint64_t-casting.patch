@@ -1,0 +1,31 @@
+From 898aa860e82e25e9ea481a0d5b7efd9e13273590 Mon Sep 17 00:00:00 2001
+From: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Date: Thu, 4 Oct 2018 12:11:28 -0400
+Subject: [PATCH 5594/5725] drm/amd/display: explicit uint64_t casting
+
+explicitly cast uint64_t in div64_u64_rem()
+
+Signed-off-by: vikrant mhaske <vikrant.mhaske@amd.com>
+Signed-off-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/inc/bw_fixed.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/bw_fixed.h b/drivers/gpu/drm/amd/display/dc/inc/bw_fixed.h
+index 39ee8eba3..d1656c9 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/bw_fixed.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/bw_fixed.h
+@@ -126,7 +126,7 @@ static inline struct bw_fixed bw_div(const struct bw_fixed arg1, const struct bw
+ static inline struct bw_fixed bw_mod(const struct bw_fixed arg1, const struct bw_fixed arg2)
+ {
+ 	struct bw_fixed res;
+-	div64_u64_rem(arg1.value, arg2.value, &res.value);
++	div64_u64_rem(arg1.value, arg2.value, (uint64_t *)&res.value);
+ 	return res;
+ }
+ 
+-- 
+2.7.4
+

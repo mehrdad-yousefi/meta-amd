@@ -1,0 +1,33 @@
+From 9780cb36039355a6e502849c838534c66cfcc21e Mon Sep 17 00:00:00 2001
+From: Prike Liang <Prike.Liang@amd.com>
+Date: Fri, 16 Nov 2018 14:05:34 +0800
+Subject: [PATCH 5602/5725] Revert "drm/amdgpu: add amdgpu_gmc_get_pde_for_bo
+ helper v2"
+
+This reverts commit d278082be7312ae62cd54cb1a984027171726ab5.
+
+For the jira SWDEV-167318
+
+Change-Id: I4a18fd3a159dacba793a57dc0f5fd2c45cefbb9b
+Signed-off-by: Prike Liang <Prike.Liang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index f70687d..94b28af 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1496,6 +1496,9 @@ uint64_t amdgpu_ttm_tt_pde_flags(struct ttm_tt *ttm, struct ttm_mem_reg *mem)
+ 			flags |= AMDGPU_PTE_SNOOPED;
+ 	}
+ 
++	if (mem && mem->mem_type == AMDGPU_PL_DGMA_IMPORT)
++		flags |= AMDGPU_PTE_SYSTEM;
++
+ 	return flags;
+ }
+ 
+-- 
+2.7.4
+

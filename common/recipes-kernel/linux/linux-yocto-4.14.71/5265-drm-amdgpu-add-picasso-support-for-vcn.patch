@@ -1,0 +1,43 @@
+From b27b14207abd8f6776a76e10891c3bb75be0bda2 Mon Sep 17 00:00:00 2001
+From: Likun Gao <Likun.Gao@amd.com>
+Date: Tue, 10 Jul 2018 20:17:13 +0800
+Subject: [PATCH 5265/5725] drm/amdgpu: add picasso support for vcn
+
+Add vcn support for picasso.
+
+Signed-off-by: Likun Gao <Likun.Gao@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 461f7dc..0102e7e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -42,8 +42,10 @@
+ 
+ /* Firmware Names */
+ #define FIRMWARE_RAVEN		"amdgpu/raven_vcn.bin"
++#define FIRMWARE_PICASSO	"amdgpu/picasso_vcn.bin"
+ 
+ MODULE_FIRMWARE(FIRMWARE_RAVEN);
++MODULE_FIRMWARE(FIRMWARE_PICASSO);
+ 
+ static void amdgpu_vcn_idle_work_handler(struct work_struct *work);
+ 
+@@ -61,6 +63,9 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
+ 	case CHIP_RAVEN:
+ 		fw_name = FIRMWARE_RAVEN;
+ 		break;
++	case CHIP_PICASSO:
++		fw_name = FIRMWARE_PICASSO;
++		break;
+ 	default:
+ 		return -EINVAL;
+ 	}
+-- 
+2.7.4
+

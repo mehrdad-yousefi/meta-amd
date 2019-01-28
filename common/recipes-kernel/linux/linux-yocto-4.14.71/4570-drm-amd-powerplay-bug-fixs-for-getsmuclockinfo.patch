@@ -1,0 +1,41 @@
+From 6d299cd3423fe835d8536db71ced1a2b0b5348a2 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 28 May 2018 08:55:09 +0800
+Subject: [PATCH 4570/5725] drm/amd/powerplay: bug fixs for getsmuclockinfo
+
+The .syspll_id and .dfsdid are not initialzed correctly. And
+le32_to_cpu transfer is needed on the output.
+
+Change-Id: I491e70b276554f38e1a296970892347474814e75
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c
+index c97b0e5..5325661 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c
+@@ -496,7 +496,9 @@ int pp_atomfwctrl_get_clk_information_by_clkid(struct pp_hwmgr *hwmgr, BIOS_CLKI
+ 	uint32_t ix;
+ 
+ 	parameters.clk_id = id;
++	parameters.syspll_id = 0;
+ 	parameters.command = GET_SMU_CLOCK_INFO_V3_1_GET_CLOCK_FREQ;
++	parameters.dfsdid = 0;
+ 
+ 	ix = GetIndexIntoMasterCmdTable(getsmuclockinfo);
+ 
+@@ -505,7 +507,7 @@ int pp_atomfwctrl_get_clk_information_by_clkid(struct pp_hwmgr *hwmgr, BIOS_CLKI
+ 		return -EINVAL;
+ 
+ 	output = (struct atom_get_smu_clock_info_output_parameters_v3_1 *)&parameters;
+-	*frequency = output->atom_smu_outputclkfreq.smu_clock_freq_hz / 10000;
++	*frequency = le32_to_cpu(output->atom_smu_outputclkfreq.smu_clock_freq_hz) / 10000;
+ 
+ 	return 0;
+ }
+-- 
+2.7.4
+

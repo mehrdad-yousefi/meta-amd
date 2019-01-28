@@ -1,0 +1,32 @@
+From d86e145a81a071d807a91a8c346dcde8da849a05 Mon Sep 17 00:00:00 2001
+From: Tom St Denis <tom.stdenis@amd.com>
+Date: Mon, 17 Sep 2018 14:07:00 -0400
+Subject: [PATCH 5307/5725] drm/amd/amdgpu: Avoid fault when allocating an
+ empty buffer object
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Tom St Denis <tom.stdenis@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index d96c9a9..18b87454 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -375,7 +375,8 @@ int amdgpu_bo_create_kernel(struct amdgpu_device *adev,
+ 	if (r)
+ 		return r;
+ 
+-	amdgpu_bo_unreserve(*bo_ptr);
++	if (*bo_ptr)
++		amdgpu_bo_unreserve(*bo_ptr);
+ 
+ 	return 0;
+ }
+-- 
+2.7.4
+

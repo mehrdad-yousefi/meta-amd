@@ -1,0 +1,92 @@
+From 46b4b03858758ee548926f59948e937c2bf4f82e Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Mon, 16 Apr 2018 12:17:57 +0530
+Subject: [PATCH 4522/5725] drm/amdgpu: defer test IBs on the rings at boot
+ (V3)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+amdgpu_ib_ring_tests() runs test IB's on rings at boot
+contributes to ~500 ms of amdgpu driver's boot time.
+
+This patch defers it and ensures that its executed
+in amdgpu_info_ioctl() if it wasn't scheduled.
+
+V2: Use queue_delayed_work() & flush_delayed_work().
+V3: removed usage of separate wq, ensure ib tests is
+    run before enabling clockgating.
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 17 ++++++-----------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c    |  3 +++
+ 2 files changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 0e416d1..d02f2fa 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1758,6 +1758,10 @@ static int amdgpu_device_ip_late_set_cg_state(struct amdgpu_device *adev)
+ 	if (amdgpu_emu_mode == 1)
+ 		return 0;
+ 
++	r = amdgpu_ib_ring_tests(adev);
++	if (r)
++		DRM_ERROR("ib ring test failed (%d).\n", r);
++
+ 	for (i = 0; i < adev->num_ip_blocks; i++) {
+ 		if (!adev->ip_blocks[i].status.valid)
+ 			continue;
+@@ -1821,8 +1825,8 @@ static int amdgpu_device_ip_late_init(struct amdgpu_device *adev)
+ 		}
+ 	}
+ 
+-	mod_delayed_work(system_wq, &adev->late_init_work,
+-			msecs_to_jiffies(AMDGPU_RESUME_MS));
++	queue_delayed_work(system_wq, &adev->late_init_work,
++			   msecs_to_jiffies(AMDGPU_RESUME_MS));
+ 
+ 	amdgpu_device_fill_reset_magic(adev);
+ 
+@@ -2497,10 +2501,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
+ 		goto failed;
+ 	}
+ 
+-	r = amdgpu_ib_ring_tests(adev);
+-	if (r)
+-		DRM_ERROR("ib ring test failed (%d).\n", r);
+-
+ 	if (amdgpu_sriov_vf(adev))
+ 		amdgpu_virt_init_data_exchange(adev);
+ 
+@@ -2766,11 +2766,6 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ 
+ 	amdgpu_fence_driver_resume(adev);
+ 
+-	if (resume) {
+-		r = amdgpu_ib_ring_tests(adev);
+-		if (r)
+-			DRM_ERROR("ib ring test failed (%d).\n", r);
+-	}
+ 
+ 	r = amdgpu_device_ip_late_init(adev);
+ 	if (r)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 9de27ce..86087c1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -289,6 +289,9 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 	if (!info->return_size || !info->return_pointer)
+ 		return -EINVAL;
+ 
++	/* Ensure IB tests are run on ring */
++	flush_delayed_work(&adev->late_init_work);
++
+ 	switch (info->query) {
+ 	case AMDGPU_INFO_VIRTUAL_RANGE: {
+ 		struct drm_amdgpu_virtual_range range_info;
+-- 
+2.7.4
+

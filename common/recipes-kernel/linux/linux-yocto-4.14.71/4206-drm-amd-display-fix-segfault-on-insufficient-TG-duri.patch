@@ -1,0 +1,29 @@
+From a0f68e9ed71f14e26b1811ebd9a360e7b282895d Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Thu, 29 Mar 2018 16:39:10 -0400
+Subject: [PATCH 4206/5725] drm/amd/display: fix segfault on insufficient TG
+ during validation
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 81c6de7..7f79258 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1699,7 +1699,7 @@ enum dc_status resource_map_pool_resources(
+ 		pipe_idx = acquire_first_split_pipe(&context->res_ctx, pool, stream);
+ #endif
+ 
+-	if (pipe_idx < 0)
++	if (pipe_idx < 0 || context->res_ctx.pipe_ctx[pipe_idx].stream_res.tg == NULL)
+ 		return DC_NO_CONTROLLER_RESOURCE;
+ 
+ 	pipe_ctx = &context->res_ctx.pipe_ctx[pipe_idx];
+-- 
+2.7.4
+

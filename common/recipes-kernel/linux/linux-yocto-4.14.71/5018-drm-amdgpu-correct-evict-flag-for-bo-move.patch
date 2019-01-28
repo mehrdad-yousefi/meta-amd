@@ -1,0 +1,43 @@
+From 6fb15be88fbb87bd3a565f14fba821a54b2fd0e9 Mon Sep 17 00:00:00 2001
+From: Junwei Zhang <Jerry.Zhang@amd.com>
+Date: Thu, 26 Jul 2018 18:00:13 +0800
+Subject: [PATCH 5018/5725] drm/amdgpu: correct evict flag for bo move
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+pass the evict flag instead of hard code
+
+Signed-off-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index a164c52..38493d4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -600,7 +600,7 @@ static int amdgpu_move_vram_ram(struct ttm_buffer_object *bo, bool evict,
+         }
+ 
+ 	/* blit VRAM to GTT */
+-	r = amdgpu_move_blit(bo, true, ctx->no_wait_gpu, &tmp_mem, old_mem);
++	r = amdgpu_move_blit(bo, evict, ctx->no_wait_gpu, &tmp_mem, old_mem);
+         if (unlikely(r)) {
+                 goto out_cleanup;
+         }
+@@ -652,7 +652,7 @@ static int amdgpu_move_ram_vram(struct ttm_buffer_object *bo, bool evict,
+         }
+ 	
+ 	/* copy to VRAM */
+-	r = amdgpu_move_blit(bo, true, ctx->no_wait_gpu, new_mem, old_mem);
++	r = amdgpu_move_blit(bo, evict, ctx->no_wait_gpu, new_mem, old_mem);
+         if (unlikely(r)) {
+                 goto out_cleanup;
+         }
+-- 
+2.7.4
+

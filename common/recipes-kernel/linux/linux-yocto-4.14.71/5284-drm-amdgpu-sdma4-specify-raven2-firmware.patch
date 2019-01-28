@@ -1,0 +1,41 @@
+From 4e855b4f80aaa72ecc0477991170cc36e73244aa Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Thu, 4 Jan 2018 18:05:35 +0800
+Subject: [PATCH 5284/5725] drm/amdgpu/sdma4: specify raven2 firmware.
+
+use raven2 sdma firmware.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+index f9bfc71..7aa1c47 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+@@ -49,6 +49,7 @@ MODULE_FIRMWARE("amdgpu/vega20_sdma.bin");
+ MODULE_FIRMWARE("amdgpu/vega20_sdma1.bin");
+ MODULE_FIRMWARE("amdgpu/raven_sdma.bin");
+ MODULE_FIRMWARE("amdgpu/picasso_sdma.bin");
++MODULE_FIRMWARE("amdgpu/raven2_sdma.bin");
+ 
+ #define SDMA0_POWER_CNTL__ON_OFF_CONDITION_HOLD_TIME_MASK  0x000000F8L
+ #define SDMA0_POWER_CNTL__ON_OFF_STATUS_DURATION_TIME_MASK 0xFC000000L
+@@ -269,7 +270,10 @@ static int sdma_v4_0_init_microcode(struct amdgpu_device *adev)
+ 		chip_name = "vega20";
+ 		break;
+ 	case CHIP_RAVEN:
+-		chip_name = "raven";
++		if (adev->rev_id >= 8)
++			chip_name = "raven2";
++		else
++			chip_name = "raven";
+ 		break;
+ 	case CHIP_PICASSO:
+ 		chip_name = "picasso";
+-- 
+2.7.4
+

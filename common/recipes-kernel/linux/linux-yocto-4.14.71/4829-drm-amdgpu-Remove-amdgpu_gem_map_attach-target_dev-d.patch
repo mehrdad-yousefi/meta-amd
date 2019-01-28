@@ -1,0 +1,35 @@
+From c6c49b8cb6842f82a263818f26655ca6d74107ab Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Fri, 29 Jun 2018 11:27:11 +0200
+Subject: [PATCH 4829/5725] drm/amdgpu: Remove amdgpu_gem_map_attach target_dev
+ documentation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The parameter was removed.
+
+Fixes: a19741e5e5a9 "dma_buf: remove device parameter from attach
+                     callback v2"
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+index 37bd4f3..8a7a56f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+@@ -194,7 +194,6 @@ amdgpu_gem_prime_import_sg_table(struct drm_device *dev,
+ /**
+  * amdgpu_gem_map_attach - &dma_buf_ops.attach implementation
+  * @dma_buf: shared DMA buffer
+- * @target_dev: target device
+  * @attach: DMA-buf attachment
+  *
+  * Makes sure that the shared DMA buffer can be accessed by the target device.
+-- 
+2.7.4
+

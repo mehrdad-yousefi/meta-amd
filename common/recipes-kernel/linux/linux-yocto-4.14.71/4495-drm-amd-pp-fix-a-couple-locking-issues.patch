@@ -1,0 +1,34 @@
+From 6ba18f1f2c89ea3c28f1b503c85e9200af59f9ab Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 18 May 2018 14:59:46 +0800
+Subject: [PATCH 4495/5725] drm/amd/pp: fix a couple locking issues
+
+We should return unlock on the error path
+
+Change-Id: Ia1014864dfa03baeb39975568fa2259df942964c
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_powertune.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_powertune.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_powertune.c
+index c3ac84f..c952845 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_powertune.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_powertune.c
+@@ -954,9 +954,9 @@ int smu7_enable_didt_config(struct pp_hwmgr *hwmgr)
+ 				PP_ASSERT_WITH_CODE((result == 0), "DIDT Config failed.", goto error);
+ 			} else if (hwmgr->chip_id == CHIP_VEGAM) {
+ 				result = smu7_program_pt_config_registers(hwmgr, GCCACConfig_VegaM);
+-				PP_ASSERT_WITH_CODE((result == 0), "DIDT Config failed.", return result);
++				PP_ASSERT_WITH_CODE((result == 0), "DIDT Config failed.", goto error);
+ 				result = smu7_program_pt_config_registers(hwmgr, DIDTConfig_VegaM);
+-				PP_ASSERT_WITH_CODE((result == 0), "DIDT Config failed.", return result);
++				PP_ASSERT_WITH_CODE((result == 0), "DIDT Config failed.", goto error);
+ 			}
+ 		}
+ 		cgs_write_register(hwmgr->device, mmGRBM_GFX_INDEX, value2);
+-- 
+2.7.4
+

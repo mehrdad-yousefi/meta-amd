@@ -1,0 +1,115 @@
+From 75400fc9632182396de89bc1ce9fad5557dab0d2 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 19 Jul 2018 13:49:07 +0800
+Subject: [PATCH 5058/5725] drm/amd/pp: Add ACP PG support in SMU
+
+when ACP block not enabled, we power off
+acp block to save power.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c    | 18 ++++++++++++++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu8_hwmgr.c | 21 ++++++++++++++++++++-
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h        |  1 +
+ 3 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 6ef06a4..2bdef16 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -1192,6 +1192,21 @@ static int pp_dpm_powergate_gfx(void *handle, bool gate)
+ 	return hwmgr->hwmgr_func->powergate_gfx(hwmgr, gate);
+ }
+ 
++static void pp_dpm_powergate_acp(void *handle, bool gate)
++{
++	struct pp_hwmgr *hwmgr = handle;
++
++	if (!hwmgr || !hwmgr->pm_en)
++		return;
++
++	if (hwmgr->hwmgr_func->powergate_acp == NULL) {
++		pr_info("%s was not implemented.\n", __func__);
++		return;
++	}
++
++	hwmgr->hwmgr_func->powergate_acp(hwmgr, gate);
++}
++
+ static int pp_set_powergating_by_smu(void *handle,
+ 				uint32_t block_type, bool gate)
+ {
+@@ -1211,6 +1226,9 @@ static int pp_set_powergating_by_smu(void *handle,
+ 	case AMD_IP_BLOCK_TYPE_GFX:
+ 		ret = pp_dpm_powergate_gfx(handle, gate);
+ 		break;
++	case AMD_IP_BLOCK_TYPE_ACP:
++		pp_dpm_powergate_acp(handle, gate);
++		break;
+ 	default:
+ 		break;
+ 	}
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu8_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu8_hwmgr.c
+index 0adfc53..b863704 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu8_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu8_hwmgr.c
+@@ -664,8 +664,13 @@ static void smu8_init_power_gate_state(struct pp_hwmgr *hwmgr)
+ 	data->uvd_power_gated = false;
+ 	data->vce_power_gated = false;
+ 	data->samu_power_gated = false;
++#ifdef CONFIG_DRM_AMD_ACP
+ 	data->acp_power_gated = false;
+-	data->pgacpinit = true;
++#else
++	smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerOFF);
++	data->acp_power_gated = true;
++#endif
++
+ }
+ 
+ static void smu8_init_sclk_threshold(struct pp_hwmgr *hwmgr)
+@@ -1886,6 +1891,19 @@ static int smu8_enable_disable_vce_dpm(struct pp_hwmgr *hwmgr, bool enable)
+ }
+ 
+ 
++static void smu8_dpm_powergate_acp(struct pp_hwmgr *hwmgr, bool bgate)
++{
++	struct smu8_hwmgr *data = hwmgr->backend;
++
++	if (data->acp_power_gated == bgate)
++		return;
++
++	if (bgate)
++		smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerOFF);
++	else
++		smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerON);
++}
++
+ static void smu8_dpm_powergate_uvd(struct pp_hwmgr *hwmgr, bool bgate)
+ {
+ 	struct smu8_hwmgr *data = hwmgr->backend;
+@@ -1951,6 +1969,7 @@ static const struct pp_hwmgr_func smu8_hwmgr_funcs = {
+ 	.powerdown_uvd = smu8_dpm_powerdown_uvd,
+ 	.powergate_uvd = smu8_dpm_powergate_uvd,
+ 	.powergate_vce = smu8_dpm_powergate_vce,
++	.powergate_acp = smu8_dpm_powergate_acp,
+ 	.get_mclk = smu8_dpm_get_mclk,
+ 	.get_sclk = smu8_dpm_get_sclk,
+ 	.patch_boot_state = smu8_dpm_patch_boot_state,
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index d3d9626..7e58a0d 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -247,6 +247,7 @@ struct pp_hwmgr_func {
+ 	int (*powerdown_uvd)(struct pp_hwmgr *hwmgr);
+ 	void (*powergate_vce)(struct pp_hwmgr *hwmgr, bool bgate);
+ 	void (*powergate_uvd)(struct pp_hwmgr *hwmgr, bool bgate);
++	void (*powergate_acp)(struct pp_hwmgr *hwmgr, bool bgate);
+ 	uint32_t (*get_mclk)(struct pp_hwmgr *hwmgr, bool low);
+ 	uint32_t (*get_sclk)(struct pp_hwmgr *hwmgr, bool low);
+ 	int (*power_state_set)(struct pp_hwmgr *hwmgr,
+-- 
+2.7.4
+

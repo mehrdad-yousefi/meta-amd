@@ -1,0 +1,86 @@
+From c371c240620adfb591862c8b0e8f001270e14d4a Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Wed, 30 May 2018 10:04:25 +0800
+Subject: [PATCH 4568/5725] drm/amdgpu: To get gds, gws and oa from adev->gds
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+As now enabled per vm bo feature, the user mode driver won't supply the
+bo_list generally, for this case, the gdb_base, gds_size, gws_base, gws_size and
+oa_base, oa_size won't be set.
+
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 38 ++++++++++++++++++++--------------
+ 1 file changed, 23 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 9aa47bd..8ea1f81 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -522,6 +522,9 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
+ 	struct amdgpu_bo_list_entry *e;
+ 	struct list_head duplicates;
+ 	unsigned i, tries = 10;
++	struct amdgpu_bo *gds;
++	struct amdgpu_bo *gws;
++	struct amdgpu_bo *oa;
+ 	int r;
+ 
+ 	INIT_LIST_HEAD(&p->validated);
+@@ -653,10 +656,11 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
+ 
+ 	amdgpu_cs_report_moved_bytes(p->adev, p->bytes_moved,
+ 				     p->bytes_moved_vis);
++
+ 	if (p->bo_list) {
+-		struct amdgpu_bo *gds = p->bo_list->gds_obj;
+-		struct amdgpu_bo *gws = p->bo_list->gws_obj;
+-		struct amdgpu_bo *oa = p->bo_list->oa_obj;
++		gds = p->bo_list->gds_obj;
++		gws = p->bo_list->gws_obj;
++		oa = p->bo_list->oa_obj;
+ 		struct amdgpu_vm *vm = &fpriv->vm;
+ 		unsigned i;
+ 
+@@ -665,19 +669,23 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
+ 
+ 			p->bo_list->array[i].bo_va = amdgpu_vm_bo_find(vm, bo);
+ 		}
++	} else {
++		gds = p->adev->gds.gds_gfx_bo;
++		gws = p->adev->gds.gws_gfx_bo;
++		oa = p->adev->gds.oa_gfx_bo;
++	}
+ 
+-		if (gds) {
+-			p->job->gds_base = amdgpu_bo_gpu_offset(gds);
+-			p->job->gds_size = amdgpu_bo_size(gds);
+-		}
+-		if (gws) {
+-			p->job->gws_base = amdgpu_bo_gpu_offset(gws);
+-			p->job->gws_size = amdgpu_bo_size(gws);
+-		}
+-		if (oa) {
+-			p->job->oa_base = amdgpu_bo_gpu_offset(oa);
+-			p->job->oa_size = amdgpu_bo_size(oa);
+-		}
++	if (gds) {
++		p->job->gds_base = amdgpu_bo_gpu_offset(gds);
++		p->job->gds_size = amdgpu_bo_size(gds);
++	}
++	if (gws) {
++		p->job->gws_base = amdgpu_bo_gpu_offset(gws);
++		p->job->gws_size = amdgpu_bo_size(gws);
++	}
++	if (oa) {
++		p->job->oa_base = amdgpu_bo_gpu_offset(oa);
++		p->job->oa_size = amdgpu_bo_size(oa);
+ 	}
+ 
+ 	if (!r && p->uf_entry.robj) {
+-- 
+2.7.4
+

@@ -1,0 +1,57 @@
+From eb01badc256c148523f81097a6c4f53d75592107 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 17 Sep 2018 15:05:54 +0800
+Subject: [PATCH 5468/5725] drm/amd/powerplay: correct the hwmon interface ppt
+ limit output
+
+The ppt limit read out by hwmon interface is always 0.
+Correct this hwmon interface output.
+
+Change-Id: I2c537cacda04034201120b9c1ea82d113d99ced8
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c  | 8 ++++++++
+ drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h | 6 ++++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 2a554f9..2926313 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -1544,6 +1544,14 @@ static int vega20_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
+ 			"[EnableDPMTasks] Failed to populate umdpstate clocks!",
+ 			return result);
+ 
++	result = smum_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_GetPptLimit,
++			POWER_SOURCE_AC << 16);
++	PP_ASSERT_WITH_CODE(!result,
++			"[GetPptLimit] get default PPT limit failed!",
++			return result);
++	hwmgr->power_limit =
++		hwmgr->default_power_limit = smum_get_argument(hwmgr);
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+index 71191de..a002021 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+@@ -269,6 +269,12 @@ typedef enum {
+ } PPCLK_e;
+ 
+ typedef enum {
++  POWER_SOURCE_AC,
++  POWER_SOURCE_DC,
++  POWER_SOURCE_COUNT,
++} POWER_SOURCE_e;
++
++typedef enum {
+   VOLTAGE_MODE_AVFS = 0,
+   VOLTAGE_MODE_AVFS_SS,
+   VOLTAGE_MODE_SS,
+-- 
+2.7.4
+

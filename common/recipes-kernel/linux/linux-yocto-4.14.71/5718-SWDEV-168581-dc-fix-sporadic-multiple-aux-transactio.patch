@@ -1,0 +1,183 @@
+From 3e75670f11974edd5bab83b6978f98e1235f8f67 Mon Sep 17 00:00:00 2001
+From: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+Date: Thu, 1 Nov 2018 23:58:30 +0530
+Subject: [PATCH 5718/5725] SWDEV-168581 - dc: fix sporadic multiple aux
+ transaction failure
+
+[why]
+When there are multiple aux transaction in parallel, it is sometime
+sporadically the aux transaction starts to continuously fail. The
+aux transaction was failing because the busy bit for the given gpio
+pin was always set. The busy bit was alway set because the
+programming sequence to read, modify and write busy bit was not
+atomic. Due to which when multiple threads are trying to modify the
+busy bits for their gpio pins in the same integer variable sometimes
+the busy bits integer variable is written with old data causing
+failure.
+
+[how]
+Instead of using individual bits to track gpio pins and grouping
+them to integers, one byte will be allcoated for each gpio pin.
+Now whenever a gpio pin needs to be set to mark being used, only
+writing a value of one to that byte is sufficient, other bytes
+are not impacted. Also no need to have atomicity with bytes unlike
+with bits.
+
+Change-Id: I0dfe561dcb1349e0f98ba1afc899f99120bbd5b7
+Signed-off-by: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c | 61 ++++++----------------
+ drivers/gpu/drm/amd/display/dc/gpio/gpio_service.h |  7 ++-
+ 2 files changed, 19 insertions(+), 49 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c b/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c
+index f06d05a..c9fcebc 100644
+--- a/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c
++++ b/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.c
+@@ -56,7 +56,6 @@ struct gpio_service *dal_gpio_service_create(
+ 	struct dc_context *ctx)
+ {
+ 	struct gpio_service *service;
+-
+ 	uint32_t index_of_id;
+ 
+ 	service = kzalloc(sizeof(struct gpio_service), GFP_KERNEL);
+@@ -78,43 +77,32 @@ struct gpio_service *dal_gpio_service_create(
+ 		goto failure_1;
+ 	}
+ 
+-	/* allocate and initialize business storage */
++	/* allocate and initialize busyness storage */
+ 	{
+-		const uint32_t bits_per_uint = sizeof(uint32_t) << 3;
+-
+ 		index_of_id = 0;
+ 		service->ctx = ctx;
+ 
+ 		do {
+ 			uint32_t number_of_bits =
+ 				service->factory.number_of_pins[index_of_id];
++			uint32_t i = 0;
+ 
+-			uint32_t number_of_uints =
+-				(number_of_bits + bits_per_uint - 1) /
+-				bits_per_uint;
+-
+-			uint32_t *slot;
+-
+-			if (number_of_bits) {
+-				uint32_t index_of_uint = 0;
++			if (number_of_bits)  {
++				service->busyness[index_of_id] =
++					kzalloc(number_of_bits * sizeof(char),
++						GFP_KERNEL);
+ 
+-				slot = kzalloc(number_of_uints * sizeof(uint32_t),
+-					       GFP_KERNEL);
+-
+-				if (!slot) {
++				if (!service->busyness[index_of_id]) {
+ 					BREAK_TO_DEBUGGER();
+ 					goto failure_2;
+ 				}
+ 
+ 				do {
+-					slot[index_of_uint] = 0;
+-
+-					++index_of_uint;
+-				} while (index_of_uint < number_of_uints);
++					service->busyness[index_of_id][i] = 0;
++					++i;
++				} while (i < number_of_bits);
+ 			} else
+-				slot = NULL;
+-
+-			service->busyness[index_of_id] = slot;
++				service->busyness[index_of_id] = NULL;
+ 
+ 			++index_of_id;
+ 		} while (index_of_id < GPIO_ID_COUNT);
+@@ -124,13 +112,8 @@ struct gpio_service *dal_gpio_service_create(
+ 
+ failure_2:
+ 	while (index_of_id) {
+-		uint32_t *slot;
+-
+ 		--index_of_id;
+-
+-		slot = service->busyness[index_of_id];
+-
+-		kfree(slot);
++		kfree(service->busyness[index_of_id]);
+ 	}
+ 
+ failure_1:
+@@ -168,9 +151,7 @@ void dal_gpio_service_destroy(
+ 		uint32_t index_of_id = 0;
+ 
+ 		do {
+-			uint32_t *slot = (*ptr)->busyness[index_of_id];
+-
+-			kfree(slot);
++			kfree((*ptr)->busyness[index_of_id]);
+ 
+ 			++index_of_id;
+ 		} while (index_of_id < GPIO_ID_COUNT);
+@@ -191,11 +172,7 @@ static bool is_pin_busy(
+ 	enum gpio_id id,
+ 	uint32_t en)
+ {
+-	const uint32_t bits_per_uint = sizeof(uint32_t) << 3;
+-
+-	const uint32_t *slot = service->busyness[id] + (en / bits_per_uint);
+-
+-	return 0 != (*slot & (1 << (en % bits_per_uint)));
++	return service->busyness[id][en];
+ }
+ 
+ static void set_pin_busy(
+@@ -203,10 +180,7 @@ static void set_pin_busy(
+ 	enum gpio_id id,
+ 	uint32_t en)
+ {
+-	const uint32_t bits_per_uint = sizeof(uint32_t) << 3;
+-
+-	service->busyness[id][en / bits_per_uint] |=
+-		(1 << (en % bits_per_uint));
++	service->busyness[id][en] = true;
+ }
+ 
+ static void set_pin_free(
+@@ -214,10 +188,7 @@ static void set_pin_free(
+ 	enum gpio_id id,
+ 	uint32_t en)
+ {
+-	const uint32_t bits_per_uint = sizeof(uint32_t) << 3;
+-
+-	service->busyness[id][en / bits_per_uint] &=
+-		~(1 << (en % bits_per_uint));
++	service->busyness[id][en] = false;
+ }
+ 
+ enum gpio_result dal_gpio_service_open(
+diff --git a/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.h b/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.h
+index c7f3081..1d501a4 100644
+--- a/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.h
++++ b/drivers/gpu/drm/amd/display/dc/gpio/gpio_service.h
+@@ -36,10 +36,9 @@ struct gpio_service {
+ 	/*
+ 	 * @brief
+ 	 * Business storage.
+-	 * For each member of 'enum gpio_id',
+-	 * store array of bits (packed into uint32_t slots),
+-	 * index individual bit by 'en' value */
+-	uint32_t *busyness[GPIO_ID_COUNT];
++	 * one byte For each member of 'enum gpio_id'
++	 */
++	char *busyness[GPIO_ID_COUNT];
+ };
+ 
+ enum gpio_result dal_gpio_service_open(
+-- 
+2.7.4
+

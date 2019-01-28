@@ -1,0 +1,40 @@
+From 59450a5f8f42e140d9e9c4256d443114b1a46de1 Mon Sep 17 00:00:00 2001
+From: Eric Bernstein <eric.bernstein@amd.com>
+Date: Mon, 18 Jun 2018 15:45:07 -0400
+Subject: [PATCH 4904/5725] drm/amd/display: Add Azalia registers to HW
+ sequencer
+
+Signed-off-by: Eric Bernstein <eric.bernstein@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h b/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h
+index 0574078..f091d87 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h
+@@ -275,6 +275,8 @@ struct dce_hwseq_registers {
+ 	uint32_t MC_VM_SYSTEM_APERTURE_DEFAULT_ADDR_LSB;
+ 	uint32_t MC_VM_SYSTEM_APERTURE_LOW_ADDR;
+ 	uint32_t MC_VM_SYSTEM_APERTURE_HIGH_ADDR;
++	uint32_t AZALIA_AUDIO_DTO;
++	uint32_t AZALIA_CONTROLLER_CLOCK_GATING;
+ };
+  /* set field name */
+ #define HWS_SF(blk_name, reg_name, field_name, post_fix)\
+@@ -500,7 +502,8 @@ struct dce_hwseq_registers {
+ 	type D1VGA_MODE_ENABLE; \
+ 	type D2VGA_MODE_ENABLE; \
+ 	type D3VGA_MODE_ENABLE; \
+-	type D4VGA_MODE_ENABLE;
++	type D4VGA_MODE_ENABLE; \
++	type AZALIA_AUDIO_DTO_MODULE;
+ 
+ struct dce_hwseq_shift {
+ 	HWSEQ_REG_FIELD_LIST(uint8_t)
+-- 
+2.7.4
+

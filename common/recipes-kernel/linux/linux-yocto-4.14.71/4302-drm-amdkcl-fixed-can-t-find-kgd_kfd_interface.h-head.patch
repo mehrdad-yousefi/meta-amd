@@ -1,0 +1,32 @@
+From def66e36a43f695e911b19bcca8798e9276cba17 Mon Sep 17 00:00:00 2001
+From: Kevin Wang <Kevin1.Wang@amd.com>
+Date: Wed, 9 May 2018 10:12:21 +0800
+Subject: [PATCH 4302/5725] drm/amdkcl: fixed can't find kgd_kfd_interface.h
+ header error
+
+Change-Id: Ic38c5e605ba98183f4efaf68e0523dfa8aa22d8c
+Signed-off-by: Kevin Wang <Kevin1.Wang@amd.com>
+Reviewed-by: Le Ma <Le.Ma@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/Makefile | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/Makefile b/drivers/gpu/drm/amd/amdkfd/Makefile
+index 66f1921..4804f9c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/Makefile
++++ b/drivers/gpu/drm/amd/amdkfd/Makefile
+@@ -23,8 +23,9 @@
+ # Makefile for Heterogenous System Architecture support for AMD GPU devices
+ #
+ 
+-ccflags-y := -Idrivers/gpu/drm/amd/include/  \
+-		-Idrivers/gpu/drm/amd/include/asic_reg
++FULL_AMD_PATH=$(src)/..
++ccflags-y := -I$(FULL_AMD_PATH)/include  \
++		-I$(FULL_AMD_PATH)/include/asic_reg
+ 
+ amdkfd-y	:= kfd_module.o kfd_device.o kfd_chardev.o kfd_topology.o \
+ 		kfd_pasid.o kfd_doorbell.o kfd_flat_memory.o \
+-- 
+2.7.4
+

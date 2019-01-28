@@ -1,0 +1,35 @@
+From fb342b9a640952577d8272e644ee5aa0d5119a38 Mon Sep 17 00:00:00 2001
+From: Luc Van Oostenryck <luc.vanoostenryck@gmail.com>
+Date: Tue, 24 Apr 2018 15:15:34 +0200
+Subject: [PATCH 4263/5725] drm/amdgpu: fix amdgpu_atpx_get_client_id()'s
+ return type
+
+The method struct vga_switcheroo_handler::get_client_id() is defined
+as returning an 'enum vga_switcheroo_client_id' but the implementation
+in this driver, amdgpu_atpx_get_client_id(), returns an 'int'.
+
+Fix this by returning 'enum vga_switcheroo_client_id' in this driver too.
+
+Change-Id: I715369ee7579a72692872688df25f364e93847e9
+Signed-off-by: Luc Van Oostenryck <luc.vanoostenryck@gmail.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
+index 6021dc4..d5186b9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
+@@ -550,7 +550,7 @@ static int amdgpu_atpx_init(void)
+  * look up whether we are the integrated or discrete GPU (all asics).
+  * Returns the client id.
+  */
+-static int amdgpu_atpx_get_client_id(struct pci_dev *pdev)
++static enum vga_switcheroo_client_id amdgpu_atpx_get_client_id(struct pci_dev *pdev)
+ {
+ 	if (amdgpu_atpx_priv.dhandle == ACPI_HANDLE(&pdev->dev))
+ 		return VGA_SWITCHEROO_IGD;
+-- 
+2.7.4
+

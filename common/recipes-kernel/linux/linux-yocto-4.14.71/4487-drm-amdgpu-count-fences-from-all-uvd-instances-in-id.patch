@@ -1,0 +1,39 @@
+From 9a88796fd12958ccb4fa811dad3eaf8ffc9461cf Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 17 May 2018 12:33:34 -0500
+Subject: [PATCH 4487/5725] drm/amdgpu: count fences from all uvd instances in
+ idle handler
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Current multi-UVD hardware uses a single clock and power source
+so handle all instances in the idle handler.
+
+Reviewed-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index d347d63..ee80a90 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -1148,7 +1148,11 @@ static void amdgpu_uvd_idle_work_handler(struct work_struct *work)
+ {
+ 	struct amdgpu_device *adev =
+ 		container_of(work, struct amdgpu_device, uvd.inst->idle_work.work);
+-	unsigned fences = amdgpu_fence_count_emitted(&adev->uvd.inst->ring);
++	unsigned fences = 0, i;
++
++	for (i = 0; i < adev->uvd.num_uvd_inst; ++i) {
++		fences += amdgpu_fence_count_emitted(&adev->uvd.inst[i].ring);
++	}
+ 
+ 	if (fences == 0) {
+ 		if (adev->pm.dpm_enabled) {
+-- 
+2.7.4
+

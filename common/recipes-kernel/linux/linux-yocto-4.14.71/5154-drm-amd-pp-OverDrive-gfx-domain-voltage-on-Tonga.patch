@@ -1,0 +1,36 @@
+From 9c3b3fc4f5041996fbb02fc29779e667182d3db7 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Mon, 13 Aug 2018 18:37:39 +0800
+Subject: [PATCH 5154/5725] drm/amd/pp: OverDrive gfx domain voltage on Tonga
+
+Also ajust the gfx domain voltage on Tonga when user overdriver
+the voltage.
+
+For Tonga, Driver do not update user's setting to voltage table
+in smu, we only pick up a minimum value from voltage table that
+not less than the user's setting.
+
+v2: fix a typo
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index 15e110f..263a781 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -4857,6 +4857,7 @@ static int smu7_odn_edit_dpm_table(struct pp_hwmgr *hwmgr,
+ 			podn_vdd_dep_in_backend->entries[input_level].clk = input_clk;
+ 			podn_dpm_table_in_backend->entries[input_level].vddc = input_vol;
+ 			podn_vdd_dep_in_backend->entries[input_level].vddc = input_vol;
++			podn_vdd_dep_in_backend->entries[input_level].vddgfx = input_vol;
+ 		} else {
+ 			return -EINVAL;
+ 		}
+-- 
+2.7.4
+

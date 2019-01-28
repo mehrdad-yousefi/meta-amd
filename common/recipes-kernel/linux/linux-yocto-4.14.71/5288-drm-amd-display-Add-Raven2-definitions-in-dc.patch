@@ -1,0 +1,249 @@
+From 484263d0bd7913eef9c02d0aee39ccb4038e2f8a Mon Sep 17 00:00:00 2001
+From: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Date: Mon, 22 Jan 2018 16:12:27 -0500
+Subject: [PATCH 5288/5725] drm/amd/display: Add Raven2 definitions in dc
+
+Add Raven2 definitions in the dc code
+
+Signed-off-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ .../amd/display/dc/bios/command_table_helper2.c    |  5 +++
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c  |  7 +++++
+ .../gpu/drm/amd/display/dc/dce/dce_clock_source.c  |  7 +++++
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_resource.c  | 36 +++++++++++++++++++++-
+ drivers/gpu/drm/amd/display/dc/gpio/hw_factory.c   |  5 +++
+ drivers/gpu/drm/amd/display/dc/gpio/hw_translate.c |  5 +++
+ drivers/gpu/drm/amd/display/dc/i2caux/i2caux.c     |  4 +++
+ drivers/gpu/drm/amd/display/include/dal_asic_id.h  |  7 +++++
+ drivers/gpu/drm/amd/display/include/dal_types.h    |  3 ++
+ 9 files changed, 78 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/bios/command_table_helper2.c b/drivers/gpu/drm/amd/display/dc/bios/command_table_helper2.c
+index 770ff89..b8aad13 100644
+--- a/drivers/gpu/drm/amd/display/dc/bios/command_table_helper2.c
++++ b/drivers/gpu/drm/amd/display/dc/bios/command_table_helper2.c
+@@ -61,6 +61,11 @@ bool dal_bios_parser_init_cmd_tbl_helper2(
+ 		return true;
+ #endif
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	case DCN_VERSION_1_01:
++		*h = dal_cmd_tbl_helper_dce112_get_table2();
++		return true;
++#endif
+ 	case DCE_VERSION_12_0:
+ 		*h = dal_cmd_tbl_helper_dce112_get_table2();
+ 		return true;
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 3462ec1..8c6695a 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -88,6 +88,10 @@ enum dce_version resource_parse_asic_id(struct hw_asic_id asic_id)
+ #ifdef CONFIG_X86
+ 	case FAMILY_RV:
+ 		dc_version = DCN_VERSION_1_0;
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++		if (ASICREV_IS_RAVEN2(asic_id.hw_internal_rev))
++			dc_version = DCN_VERSION_1_01;
++#endif
+ 		break;
+ #endif
+ 	default:
+@@ -138,6 +142,9 @@ struct resource_pool *dc_create_resource_pool(
+ 
+ #ifdef CONFIG_X86
+ 	case DCN_VERSION_1_0:
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	case DCN_VERSION_1_01:
++#endif
+ 		res_pool = dcn10_create_resource_pool(
+ 				num_virtual_links, dc);
+ 		break;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+index 217fab4..8e0a00b 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+@@ -601,6 +601,9 @@ static uint32_t dce110_get_pix_clk_dividers(
+ 	case DCN_VERSION_1_0:
+ #endif
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	case DCN_VERSION_1_01:
++#endif
+ 		dce112_get_pix_clk_dividers_helper(clk_src,
+ 				pll_settings, pix_clk_params);
+ 		break;
+@@ -991,6 +994,10 @@ static bool dce110_program_pix_clk(
+ 	case DCN_VERSION_1_0:
+ #endif
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	case DCN_VERSION_1_01:
++#endif
++
+ 		if (clock_source->id != CLOCK_SOURCE_ID_DP_DTO) {
+ 			bp_pc_params.flags.SET_GENLOCK_REF_DIV_SRC =
+ 							pll_settings->use_external_clk;
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index 28ebad8..2cc4719 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -152,7 +152,10 @@ enum dcn10_clk_src_array_id {
+ 	DCN10_CLK_SRC_PLL1,
+ 	DCN10_CLK_SRC_PLL2,
+ 	DCN10_CLK_SRC_PLL3,
+-	DCN10_CLK_SRC_TOTAL
++	DCN10_CLK_SRC_TOTAL,
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	DCN101_CLK_SRC_TOTAL = DCN10_CLK_SRC_PLL3
++#endif
+ };
+ 
+ /* begin *********************
+@@ -1162,6 +1165,10 @@ static bool construct(
+ 	/* max pipe num for ASIC before check pipe fuses */
+ 	pool->base.pipe_count = pool->base.res_cap->num_timing_generator;
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	if (dc->ctx->dce_version == DCN_VERSION_1_01)
++		pool->base.pipe_count = 3;
++#endif
+ 	dc->caps.max_video_width = 3840;
+ 	dc->caps.max_downscale_ratio = 200;
+ 	dc->caps.i2c_speed_in_khz = 100;
+@@ -1193,13 +1200,28 @@ static bool construct(
+ 			dcn10_clock_source_create(ctx, ctx->dc_bios,
+ 				CLOCK_SOURCE_COMBO_PHY_PLL2,
+ 				&clk_src_regs[2], false);
++
++#ifdef CONFIG_DRM_AMD_DC_DCN1_01
++	if (dc->ctx->dce_version == DCN_VERSION_1_0) {
++		pool->base.clock_sources[DCN10_CLK_SRC_PLL3] =
++				dcn10_clock_source_create(ctx, ctx->dc_bios,
++					CLOCK_SOURCE_COMBO_PHY_PLL3,
++					&clk_src_regs[3], false);
++	}
++#else
+ 	pool->base.clock_sources[DCN10_CLK_SRC_PLL3] =
+ 			dcn10_clock_source_create(ctx, ctx->dc_bios,
+ 				CLOCK_SOURCE_COMBO_PHY_PLL3,
+ 				&clk_src_regs[3], false);
++#endif
+ 
+ 	pool->base.clk_src_count = DCN10_CLK_SRC_TOTAL;
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	if (dc->ctx->dce_version == DCN_VERSION_1_01)
++		pool->base.clk_src_count = DCN101_CLK_SRC_TOTAL;
++#endif
++
+ 	pool->base.dp_clock_source =
+ 			dcn10_clock_source_create(ctx, ctx->dc_bios,
+ 				CLOCK_SOURCE_ID_DP_DTO,
+@@ -1245,6 +1267,18 @@ static bool construct(
+ 	memcpy(dc->dcn_ip, &dcn10_ip_defaults, sizeof(dcn10_ip_defaults));
+ 	memcpy(dc->dcn_soc, &dcn10_soc_defaults, sizeof(dcn10_soc_defaults));
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	if (dc->ctx->dce_version == DCN_VERSION_1_01) {
++		struct dcn_soc_bounding_box *dcn_soc = dc->dcn_soc;
++		struct dcn_ip_params *dcn_ip = dc->dcn_ip;
++		struct display_mode_lib *dml = &dc->dml;
++
++		dml->ip.max_num_dpp = 3;
++		/* TODO how to handle 23.84? */
++		dcn_soc->dram_clock_change_latency = 23;
++		dcn_ip->max_num_dpp = 3;
++	}
++#endif
+ 	if (ASICREV_IS_RV1_F0(dc->ctx->asic_id.hw_internal_rev)) {
+ 		dc->dcn_soc->urgent_latency = 3;
+ 		dc->debug.disable_dmcu = true;
+diff --git a/drivers/gpu/drm/amd/display/dc/gpio/hw_factory.c b/drivers/gpu/drm/amd/display/dc/gpio/hw_factory.c
+index 83df779..875c0f3 100644
+--- a/drivers/gpu/drm/amd/display/dc/gpio/hw_factory.c
++++ b/drivers/gpu/drm/amd/display/dc/gpio/hw_factory.c
+@@ -86,6 +86,11 @@ bool dal_hw_factory_init(
+ 		dal_hw_factory_dcn10_init(factory);
+ 		return true;
+ #endif
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	case DCN_VERSION_1_01:
++		dal_hw_factory_dcn10_init(factory);
++		return true;
++#endif
+ 
+ 	default:
+ 		ASSERT_CRITICAL(false);
+diff --git a/drivers/gpu/drm/amd/display/dc/gpio/hw_translate.c b/drivers/gpu/drm/amd/display/dc/gpio/hw_translate.c
+index e754131..f67ce5a 100644
+--- a/drivers/gpu/drm/amd/display/dc/gpio/hw_translate.c
++++ b/drivers/gpu/drm/amd/display/dc/gpio/hw_translate.c
+@@ -83,6 +83,11 @@ bool dal_hw_translate_init(
+ 		dal_hw_translate_dcn10_init(translate);
+ 		return true;
+ #endif
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	case DCN_VERSION_1_01:
++		dal_hw_translate_dcn10_init(translate);
++		return true;
++#endif
+ 
+ 	default:
+ 		BREAK_TO_DEBUGGER();
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/i2caux.c b/drivers/gpu/drm/amd/display/dc/i2caux/i2caux.c
+index f7ed355..c3f20fc 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/i2caux.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/i2caux.c
+@@ -96,6 +96,10 @@ struct i2caux *dal_i2caux_create(
+ 		return dal_i2caux_dcn10_create(ctx);
+ #endif
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	case DCN_VERSION_1_01:
++		return dal_i2caux_dcn10_create(ctx);
++#endif
+ 	default:
+ 		BREAK_TO_DEBUGGER();
+ 		return NULL;
+diff --git a/drivers/gpu/drm/amd/display/include/dal_asic_id.h b/drivers/gpu/drm/amd/display/include/dal_asic_id.h
+index 25029ed..4f501dd 100644
+--- a/drivers/gpu/drm/amd/display/include/dal_asic_id.h
++++ b/drivers/gpu/drm/amd/display/include/dal_asic_id.h
+@@ -131,8 +131,15 @@
+ #define INTERNAL_REV_RAVEN_A0             0x00    /* First spin of Raven */
+ #define RAVEN_A0 0x01
+ #define RAVEN_B0 0x21
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++/* DCN1_01 */
++#define RAVEN2_A0 0x81
++#endif
+ #define RAVEN_UNKNOWN 0xFF
+ 
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++#define ASICREV_IS_RAVEN2(eChipRev) ((eChipRev >= RAVEN2_A0) && (eChipRev < 0xF0))
++#endif /* DCN1_01 */
+ #define ASIC_REV_IS_RAVEN(eChipRev) ((eChipRev >= RAVEN_A0) && eChipRev < RAVEN_UNKNOWN)
+ #define RAVEN1_F0 0xF0
+ #define ASICREV_IS_RV1_F0(eChipRev) ((eChipRev >= RAVEN1_F0) && (eChipRev < RAVEN_UNKNOWN))
+diff --git a/drivers/gpu/drm/amd/display/include/dal_types.h b/drivers/gpu/drm/amd/display/include/dal_types.h
+index 840142b..8962713 100644
+--- a/drivers/gpu/drm/amd/display/include/dal_types.h
++++ b/drivers/gpu/drm/amd/display/include/dal_types.h
+@@ -44,6 +44,9 @@ enum dce_version {
+ 	DCE_VERSION_12_0,
+ 	DCE_VERSION_MAX,
+ 	DCN_VERSION_1_0,
++#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
++	DCN_VERSION_1_01,
++#endif /* DCN1_01 */
+ 	DCN_VERSION_MAX
+ };
+ 
+-- 
+2.7.4
+

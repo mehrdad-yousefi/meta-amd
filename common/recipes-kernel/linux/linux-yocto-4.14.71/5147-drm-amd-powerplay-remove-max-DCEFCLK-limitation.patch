@@ -1,0 +1,32 @@
+From ac2225cf56167652605623a2f6992fef7060a678 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 30 Jul 2018 14:01:00 +0800
+Subject: [PATCH 5147/5725] drm/amd/powerplay: remove max DCEFCLK limitation
+
+The latest SMU fw removes the limitation that required
+UCLK >= DCEFCLK.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 1170f23..d7c4334 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -1356,9 +1356,6 @@ static int vega20_init_max_sustainable_clocks(struct pp_hwmgr *hwmgr)
+ 	if (max_sustainable_clocks->soc_clock < max_sustainable_clocks->uclock)
+ 		max_sustainable_clocks->uclock = max_sustainable_clocks->soc_clock;
+ 
+-	if (max_sustainable_clocks->uclock < max_sustainable_clocks->dcef_clock)
+-		max_sustainable_clocks->dcef_clock = max_sustainable_clocks->uclock;
+-
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

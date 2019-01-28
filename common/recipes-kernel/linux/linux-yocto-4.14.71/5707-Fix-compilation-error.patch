@@ -1,0 +1,54 @@
+From c4a7ff25c5a2c7a0b37a53f8866db83b94704947 Mon Sep 17 00:00:00 2001
+From: Pavan Kumar Ramayanam <pavan.ramayanam@amd.com>
+Date: Thu, 1 Nov 2018 14:04:34 +0530
+Subject: [PATCH 5707/5725] Fix compilation error
+
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c | 16 ++++++++++++++++
+ drivers/gpu/drm/amd/amdkfd/Makefile     |  3 ++-
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 7753af9..795d306 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -648,6 +648,22 @@ MODULE_PARM_DESC(noretry,
+ module_param(halt_if_hws_hang, int, 0644);
+ MODULE_PARM_DESC(halt_if_hws_hang, "Halt if HWS hang is detected (0 = off (default), 1 = on)");
+ 
++/**
++ * DOC: priv_cp_queues (int)
++ * Enable privileged mode for CP queues. Default value: 0 (off)
++ */
++int priv_cp_queues;
++module_param(priv_cp_queues, int, 0644);
++MODULE_PARM_DESC(priv_cp_queues, "Enable privileged mode for CP queues (0 = off (default), 1 = on)");
++
++/**
++ * DOC: keep_udle_process_evicted (bool)
++ * Keep an evicted process evicted if it is idle. Default value: false (off)
++ */
++bool keep_idle_process_evicted;
++module_param(keep_idle_process_evicted, bool, 0444);
++MODULE_PARM_DESC(keep_idle_process_evicted, "Restore evicted process only if queues are active (N = off(default), Y = on)");
++
+ static const struct pci_device_id pciidlist[] = {
+ #ifdef  CONFIG_DRM_AMDGPU_SI
+ 	{0x1002, 0x6780, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CHIP_TAHITI},
+diff --git a/drivers/gpu/drm/amd/amdkfd/Makefile b/drivers/gpu/drm/amd/amdkfd/Makefile
+index 911e67d..9ef632a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/Makefile
++++ b/drivers/gpu/drm/amd/amdkfd/Makefile
+@@ -54,7 +54,8 @@ AMDKFD_FILES   := $(AMDKFD_PATH)/kfd_module.o \
+                 $(AMDKFD_PATH)/kfd_dbgmgr.o \
+                 $(AMDKFD_PATH)/kfd_flat_memory.o \
+ 		$(AMDKFD_PATH)/kfd_rdma.o \
+-		$(AMDKFD_PATH)/kfd_crat.o
++		$(AMDKFD_PATH)/kfd_crat.o \
++                $(AMDKFD_PATH)/kfd_ipc.o 
+ 
+ ifneq ($(CONFIG_AMD_IOMMU_V2),)
+ AMDKFD_FILES += $(AMDKFD_PATH)/kfd_iommu.o
+-- 
+2.7.4
+

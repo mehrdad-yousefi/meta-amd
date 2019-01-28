@@ -1,0 +1,47 @@
+From e06f7a05fe35ab7f40a2ca6a456f9f20c6aec389 Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Tue, 12 Jun 2018 15:07:37 +0800
+Subject: [PATCH 4695/5725] drm/amd/powerplay: Set higher SCLK&MCLK frequency
+ than dpm7 in OD (v2)
+
+Fix the issue that SCLK&MCLK can't be set higher than dpm7 when
+OD is enabled in SMU7.
+
+v2: fix warning (Alex)
+
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Acked-by: Rex Zhu<rezhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index e8285f1..4f1e7d6 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -3812,7 +3812,7 @@ static int smu7_trim_dpm_states(struct pp_hwmgr *hwmgr,
+ static int smu7_generate_dpm_level_enable_mask(
+ 		struct pp_hwmgr *hwmgr, const void *input)
+ {
+-	int result;
++	int result = 0;
+ 	const struct phm_set_power_state_input *states =
+ 			(const struct phm_set_power_state_input *)input;
+ 	struct smu7_hwmgr *data = (struct smu7_hwmgr *)(hwmgr->backend);
+@@ -3820,7 +3820,10 @@ static int smu7_generate_dpm_level_enable_mask(
+ 			cast_const_phw_smu7_power_state(states->pnew_state);
+ 
+ 
+-	result = smu7_trim_dpm_states(hwmgr, smu7_ps);
++	/*skip the trim if od is enabled*/
++	if (!hwmgr->od_enabled)
++		result = smu7_trim_dpm_states(hwmgr, smu7_ps);
++
+ 	if (result)
+ 		return result;
+ 
+-- 
+2.7.4
+

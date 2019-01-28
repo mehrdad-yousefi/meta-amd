@@ -1,0 +1,47 @@
+From 15b840ee15fc8eb706ed9201b89afc12d6b9c614 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Mon, 30 Apr 2018 10:04:42 -0400
+Subject: [PATCH 4368/5725] drm/amdgpu: Switch to interruptable wait to recover
+ from ring hang.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+v2:
+Use dma_fence_wait instead of dma_fence_wait_timeout(...,MAX_SCHEDULE_TIMEOUT)
+Avoid printing error message for ERESTARTSYS
+
+Originally-by: David Panariti <David.Panariti@amd.com>
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+
+Change-Id: I11ceb0cb9229dd3b6347cf89b8dec74b14ddf1da
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+index bdeec74..eb82bbf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+@@ -438,9 +438,11 @@ int amdgpu_ctx_wait_prev_fence(struct amdgpu_ctx *ctx, unsigned ring_id)
+ 
+ 	if (other) {
+ 		signed long r;
+-		r = dma_fence_wait_timeout(other, false, MAX_SCHEDULE_TIMEOUT);
++		r = dma_fence_wait(other, true);
+ 		if (r < 0) {
+-			DRM_ERROR("Error (%ld) waiting for fence!\n", r);
++			if (r != -ERESTARTSYS)
++				DRM_ERROR("Error (%ld) waiting for fence!\n", r);
++
+ 			return r;
+ 		}
+ 	}
+-- 
+2.7.4
+

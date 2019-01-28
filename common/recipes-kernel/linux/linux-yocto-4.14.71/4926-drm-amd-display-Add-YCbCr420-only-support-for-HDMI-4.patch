@@ -1,0 +1,53 @@
+From 85217e9dc63056667627919b38a28b82b622601c Mon Sep 17 00:00:00 2001
+From: "Jerry (Fangzhi) Zuo" <Jerry.Zuo@amd.com>
+Date: Fri, 22 Jun 2018 17:12:47 -0400
+Subject: [PATCH 4926/5725] drm/amd/display: Add YCbCr420 only support for HDMI
+ 4K@60
+
+[Why]
+Some monitors mark 4K@60 capable HDMI port only have 300MHz TMDS
+maximum, but the edid includes 4K@60 mode in cea extension block.
+
+[How]
+To enable 4K@60, need to limit BW by allowing YCbCr420 ONLY mode.
+Add YCbCr420 only support for monitors that do not fully support
+HDMI2.0, e.g., ASUS PA328. The YCbCr420 only support applies to
+DCN, DCE112 or higher.
+
+Signed-off-by: Jerry (Fangzhi) Zuo <Jerry.Zuo@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 1d7504a..d52d004 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3829,7 +3829,6 @@ void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
+ 	aconnector->base.stereo_allowed = false;
+ 	aconnector->base.dpms = DRM_MODE_DPMS_OFF;
+ 	aconnector->hpd.hpd = AMDGPU_HPD_NONE; /* not used */
+-
+ 	mutex_init(&aconnector->hpd_lock);
+ 
+ 	/* configure support HPD hot plug connector_>polled default value is 0
+@@ -3838,9 +3837,13 @@ void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
+ 	switch (connector_type) {
+ 	case DRM_MODE_CONNECTOR_HDMIA:
+ 		aconnector->base.polled = DRM_CONNECTOR_POLL_HPD;
++		aconnector->base.ycbcr_420_allowed =
++			link->link_enc->features.ycbcr420_supported ? true : false;
+ 		break;
+ 	case DRM_MODE_CONNECTOR_DisplayPort:
+ 		aconnector->base.polled = DRM_CONNECTOR_POLL_HPD;
++		aconnector->base.ycbcr_420_allowed =
++			link->link_enc->features.ycbcr420_supported ? true : false;
+ 		break;
+ 	case DRM_MODE_CONNECTOR_DVID:
+ 		aconnector->base.polled = DRM_CONNECTOR_POLL_HPD;
+-- 
+2.7.4
+

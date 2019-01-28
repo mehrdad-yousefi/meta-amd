@@ -1,0 +1,85 @@
+From 5fba7085f47f5cbb0b753d3e7874bc86ec1fc38e Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 11 Jul 2018 22:32:45 -0400
+Subject: [PATCH 5694/5725] drm/amdkfd: Stop using GFP_NOIO explicitly
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This is no longer needed with the memalloc_nofs_save/restore in
+dqm_lock/unlock.
+
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c          | 2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c | 2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c  | 4 ++--
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c  | 2 +-
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index fc7eb66..5b0738f 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -895,7 +895,7 @@ int kfd_gtt_sa_allocate(struct kfd_dev *kfd, unsigned int size,
+ 	if (size > kfd->gtt_sa_num_of_chunks * kfd->gtt_sa_chunk_size)
+ 		return -ENOMEM;
+ 
+-	*mem_obj = kzalloc(sizeof(struct kfd_mem_obj), GFP_NOIO);
++	*mem_obj = kzalloc(sizeof(struct kfd_mem_obj), GFP_KERNEL);
+ 	if (!(*mem_obj))
+ 		return -ENOMEM;
+ 
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
+index 2441834..6611c7a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
+@@ -501,7 +501,7 @@ struct mqd_manager *mqd_manager_init_cik(enum KFD_MQD_TYPE type,
+ 	if (WARN_ON(type >= KFD_MQD_TYPE_MAX))
+ 		return NULL;
+ 
+-	mqd = kzalloc(sizeof(*mqd), GFP_NOIO);
++	mqd = kzalloc(sizeof(*mqd), GFP_KERNEL);
+ 	if (!mqd)
+ 		return NULL;
+ 
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+index dcd24c4..ea1d01d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+@@ -150,7 +150,7 @@ static int init_mqd(struct mqd_manager *mm, void **mqd,
+ 	 * instead of sub-allocation function.
+ 	 */
+ 	if (kfd->cwsr_enabled && (q->type == KFD_QUEUE_TYPE_COMPUTE)) {
+-		*mqd_mem_obj = kzalloc(sizeof(struct kfd_mem_obj), GFP_NOIO);
++		*mqd_mem_obj = kzalloc(sizeof(struct kfd_mem_obj), GFP_KERNEL);
+ 		if (!*mqd_mem_obj)
+ 			return -ENOMEM;
+ 		retval = kfd->kfd2kgd->init_gtt_mem_allocation(kfd->kgd,
+@@ -516,7 +516,7 @@ struct mqd_manager *mqd_manager_init_v9(enum KFD_MQD_TYPE type,
+ 	if (WARN_ON(type >= KFD_MQD_TYPE_MAX))
+ 		return NULL;
+ 
+-	mqd = kzalloc(sizeof(*mqd), GFP_NOIO);
++	mqd = kzalloc(sizeof(*mqd), GFP_KERNEL);
+ 	if (!mqd)
+ 		return NULL;
+ 
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
+index 246fe6c..9b1eca7 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
+@@ -521,7 +521,7 @@ struct mqd_manager *mqd_manager_init_vi(enum KFD_MQD_TYPE type,
+ 	if (WARN_ON(type >= KFD_MQD_TYPE_MAX))
+ 		return NULL;
+ 
+-	mqd = kzalloc(sizeof(*mqd), GFP_NOIO);
++	mqd = kzalloc(sizeof(*mqd), GFP_KERNEL);
+ 	if (!mqd)
+ 		return NULL;
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,60 @@
+From c8043b0c90e040339473e167a9ae71f6c58583aa Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Mon, 30 Jul 2018 14:41:01 -0400
+Subject: [PATCH 5105/5725] drm/amd/display: Add dprefclk value to dce_dccg
+
+This allows us to avoid any vbios bugs when initializing clocks
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c | 4 +++-
+ drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h | 1 +
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+index 51ceb99..d52dead 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+@@ -196,7 +196,7 @@ static int dce12_get_dp_ref_freq_khz(struct dccg *clk)
+ {
+ 	struct dce_dccg *clk_dce = TO_DCE_CLOCKS(clk);
+ 
+-	return dccg_adjust_dp_ref_freq_for_ss(clk_dce, 600000);
++	return dccg_adjust_dp_ref_freq_for_ss(clk_dce, clk_dce->dprefclk_khz);
+ }
+ 
+ static enum dm_pp_clocks_state dce_get_required_clocks_state(
+@@ -876,6 +876,7 @@ struct dccg *dce120_dccg_create(struct dc_context *ctx)
+ 	dce_dccg_construct(
+ 		clk_dce, ctx, NULL, NULL, NULL);
+ 
++	clk_dce->dprefclk_khz = 600000;
+ 	clk_dce->base.funcs = &dce120_funcs;
+ 
+ 	return &clk_dce->base;
+@@ -903,6 +904,7 @@ struct dccg *dcn1_dccg_create(struct dc_context *ctx)
+ 	clk_dce->dprefclk_ss_divider = 1000;
+ 	clk_dce->ss_on_dprefclk = false;
+ 
++	clk_dce->dprefclk_khz = 600000;
+ 	if (bp->integrated_info)
+ 		clk_dce->dentist_vco_freq_khz = bp->integrated_info->dentist_vco_freq;
+ 	if (clk_dce->dentist_vco_freq_khz == 0) {
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h
+index 8be68eb..9179173 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h
+@@ -90,6 +90,7 @@ struct dce_dccg {
+ 	int dprefclk_ss_percentage;
+ 	/* DPREFCLK SS percentage Divider (100 or 1000) */
+ 	int dprefclk_ss_divider;
++	int dprefclk_khz;
+ };
+ 
+ 
+-- 
+2.7.4
+

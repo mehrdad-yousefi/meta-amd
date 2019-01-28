@@ -1,0 +1,440 @@
+From adcc6ab72c857d9a1f55110e61ea72daa13dc4d0 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Fri, 28 Sep 2018 16:19:08 +0800
+Subject: [PATCH 5572/5725] drm/amd/powerplay: added I2C controller
+ configuration
+
+PPTABLE structure is stretched to add I2C controller
+configuration. Hold on the PPTABLE_V20_SMU_VERSION bump
+until the VBIOS is ready.
+
+Change-Id: I079154b36e4bddba9fa40ce3abc6517ad9e9b5f1
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Feifei Xu <Feifei.Xu@amd.com>
+---
+ drivers/gpu/drm/amd/include/atomfirmware.h         |  88 +++++++++++++++++
+ .../amd/powerplay/hwmgr/vega20_processpptables.c   |  94 +++++++++++-------
+ .../gpu/drm/amd/powerplay/inc/smu11_driver_if.h    | 108 +++++++++++++++------
+ 3 files changed, 227 insertions(+), 63 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/atomfirmware.h b/drivers/gpu/drm/amd/include/atomfirmware.h
+index 8ae7adb..d2e7c0f 100644
+--- a/drivers/gpu/drm/amd/include/atomfirmware.h
++++ b/drivers/gpu/drm/amd/include/atomfirmware.h
+@@ -1532,6 +1532,94 @@ struct atom_smc_dpm_info_v4_3
+   uint32_t boardreserved[10];
+ };
+ 
++struct smudpm_i2ccontrollerconfig_t {
++  uint32_t  enabled;
++  uint32_t  slaveaddress;
++  uint32_t  controllerport;
++  uint32_t  controllername;
++  uint32_t  thermalthrottler;
++  uint32_t  i2cprotocol;
++  uint32_t  i2cspeed;
++};
++
++struct atom_smc_dpm_info_v4_4
++{
++  struct   atom_common_table_header  table_header;
++  uint32_t  i2c_padding[3];
++
++  uint16_t maxvoltagestepgfx;
++  uint16_t maxvoltagestepsoc;
++
++  uint8_t  vddgfxvrmapping;
++  uint8_t  vddsocvrmapping;
++  uint8_t  vddmem0vrmapping;
++  uint8_t  vddmem1vrmapping;
++
++  uint8_t  gfxulvphasesheddingmask;
++  uint8_t  soculvphasesheddingmask;
++  uint8_t  externalsensorpresent;
++  uint8_t  padding8_v;
++
++  uint16_t gfxmaxcurrent;
++  uint8_t  gfxoffset;
++  uint8_t  padding_telemetrygfx;
++
++  uint16_t socmaxcurrent;
++  uint8_t  socoffset;
++  uint8_t  padding_telemetrysoc;
++
++  uint16_t mem0maxcurrent;
++  uint8_t  mem0offset;
++  uint8_t  padding_telemetrymem0;
++
++  uint16_t mem1maxcurrent;
++  uint8_t  mem1offset;
++  uint8_t  padding_telemetrymem1;
++
++
++  uint8_t  acdcgpio;
++  uint8_t  acdcpolarity;
++  uint8_t  vr0hotgpio;
++  uint8_t  vr0hotpolarity;
++
++  uint8_t  vr1hotgpio;
++  uint8_t  vr1hotpolarity;
++  uint8_t  padding1;
++  uint8_t  padding2;
++
++
++  uint8_t  ledpin0;
++  uint8_t  ledpin1;
++  uint8_t  ledpin2;
++  uint8_t  padding8_4;
++
++
++  uint8_t  pllgfxclkspreadenabled;
++  uint8_t  pllgfxclkspreadpercent;
++  uint16_t pllgfxclkspreadfreq;
++
++
++  uint8_t  uclkspreadenabled;
++  uint8_t  uclkspreadpercent;
++  uint16_t uclkspreadfreq;
++
++
++  uint8_t  fclkspreadenabled;
++  uint8_t  fclkspreadpercent;
++  uint16_t fclkspreadfreq;
++
++
++  uint8_t  fllgfxclkspreadenabled;
++  uint8_t  fllgfxclkspreadpercent;
++  uint16_t fllgfxclkspreadfreq;
++
++
++  struct smudpm_i2ccontrollerconfig_t  i2ccontrollers[7];
++
++
++  uint32_t boardreserved[10];
++};
++
+ /* 
+   ***************************************************************************
+     Data Table asic_profiling_info  structure
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+index 32fe384..e717404 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+@@ -417,8 +417,8 @@ static void dump_pptable(PPTable_t *pptable)
+ 	pr_info("FanGainEdge = %d\n", pptable->FanGainEdge);
+ 	pr_info("FanGainHotspot = %d\n", pptable->FanGainHotspot);
+ 	pr_info("FanGainLiquid = %d\n", pptable->FanGainLiquid);
+-	pr_info("FanGainVrVddc = %d\n", pptable->FanGainVrVddc);
+-	pr_info("FanGainVrMvdd = %d\n", pptable->FanGainVrMvdd);
++	pr_info("FanGainVrGfx = %d\n", pptable->FanGainVrGfx);
++	pr_info("FanGainVrSoc = %d\n", pptable->FanGainVrSoc);
+ 	pr_info("FanGainPlx = %d\n", pptable->FanGainPlx);
+ 	pr_info("FanGainHbm = %d\n", pptable->FanGainHbm);
+ 	pr_info("FanPwmMin = %d\n", pptable->FanPwmMin);
+@@ -533,23 +533,17 @@ static void dump_pptable(PPTable_t *pptable)
+ 	pr_info("MinVoltageUlvGfx = %d\n", pptable->MinVoltageUlvGfx);
+ 	pr_info("MinVoltageUlvSoc = %d\n", pptable->MinVoltageUlvSoc);
+ 
+-	for (i = 0; i < 14; i++)
+-		pr_info("Reserved[%d] = 0x%x\n", i, pptable->Reserved[i]);
++	pr_info("MGpuFanBoostLimitRpm = %d\n", pptable->MGpuFanBoostLimitRpm);
++	pr_info("padding16_Fan = %d\n", pptable->padding16_Fan);
+ 
+-	pr_info("Liquid1_I2C_address = 0x%x\n", pptable->Liquid1_I2C_address);
+-	pr_info("Liquid2_I2C_address = 0x%x\n", pptable->Liquid2_I2C_address);
+-	pr_info("Vr_I2C_address = 0x%x\n", pptable->Vr_I2C_address);
+-	pr_info("Plx_I2C_address = 0x%x\n", pptable->Plx_I2C_address);
++	pr_info("FanGainVrMem0 = %d\n", pptable->FanGainVrMem0);
++	pr_info("FanGainVrMem0 = %d\n", pptable->FanGainVrMem0);
+ 
+-	pr_info("Liquid_I2C_LineSCL = 0x%x\n", pptable->Liquid_I2C_LineSCL);
+-	pr_info("Liquid_I2C_LineSDA = 0x%x\n", pptable->Liquid_I2C_LineSDA);
+-	pr_info("Vr_I2C_LineSCL = 0x%x\n", pptable->Vr_I2C_LineSCL);
+-	pr_info("Vr_I2C_LineSDA = 0x%x\n", pptable->Vr_I2C_LineSDA);
++	for (i = 0; i < 12; i++)
++		pr_info("Reserved[%d] = 0x%x\n", i, pptable->Reserved[i]);
+ 
+-	pr_info("Plx_I2C_LineSCL = 0x%x\n", pptable->Plx_I2C_LineSCL);
+-	pr_info("Plx_I2C_LineSDA = 0x%x\n", pptable->Plx_I2C_LineSDA);
+-	pr_info("VrSensorPresent = 0x%x\n", pptable->VrSensorPresent);
+-	pr_info("LiquidSensorPresent = 0x%x\n", pptable->LiquidSensorPresent);
++	for (i = 0; i < 3; i++)
++		pr_info("Padding32[%d] = 0x%x\n", i, pptable->Padding32[i]);
+ 
+ 	pr_info("MaxVoltageStepGfx = 0x%x\n", pptable->MaxVoltageStepGfx);
+ 	pr_info("MaxVoltageStepSoc = 0x%x\n", pptable->MaxVoltageStepSoc);
+@@ -611,6 +605,24 @@ static void dump_pptable(PPTable_t *pptable)
+ 	pr_info("FllGfxclkSpreadPercent = %d\n", pptable->FllGfxclkSpreadPercent);
+ 	pr_info("FllGfxclkSpreadFreq = %d\n", pptable->FllGfxclkSpreadFreq);
+ 
++	for (i = 0; i < I2C_CONTROLLER_NAME_COUNT; i++) {
++		pr_info("I2cControllers[%d]:\n", i);
++		pr_info("                   .Enabled = %d\n",
++				pptable->I2cControllers[i].Enabled);
++		pr_info("                   .SlaveAddress = 0x%x\n",
++				pptable->I2cControllers[i].SlaveAddress);
++		pr_info("                   .ControllerPort = %d\n",
++				pptable->I2cControllers[i].ControllerPort);
++		pr_info("                   .ControllerName = %d\n",
++				pptable->I2cControllers[i].ControllerName);
++		pr_info("                   .ThermalThrottler = %d\n",
++				pptable->I2cControllers[i].ThermalThrottler);
++		pr_info("                   .I2cProtocol = %d\n",
++				pptable->I2cControllers[i].I2cProtocol);
++		pr_info("                   .I2cSpeed = %d\n",
++				pptable->I2cControllers[i].I2cSpeed);
++	}
++
+ 	for (i = 0; i < 10; i++)
+ 		pr_info("BoardReserved[%d] = 0x%x\n", i, pptable->BoardReserved[i]);
+ 
+@@ -693,29 +705,19 @@ static int copy_overdrive_feature_capabilities_array(
+ 
+ static int append_vbios_pptable(struct pp_hwmgr *hwmgr, PPTable_t *ppsmc_pptable)
+ {
+-	struct atom_smc_dpm_info_v4_3 *smc_dpm_table;
++	struct atom_smc_dpm_info_v4_4 *smc_dpm_table;
+ 	int index = GetIndexIntoMasterDataTable(smc_dpm_info);
++	int i;
+ 
+ 	PP_ASSERT_WITH_CODE(
+ 		smc_dpm_table = smu_atom_get_data_table(hwmgr->adev, index, NULL, NULL, NULL),
+ 		"[appendVbiosPPTable] Failed to retrieve Smc Dpm Table from VBIOS!",
+ 		return -1);
+ 
+-	ppsmc_pptable->Liquid1_I2C_address = smc_dpm_table->liquid1_i2c_address;
+-	ppsmc_pptable->Liquid2_I2C_address = smc_dpm_table->liquid2_i2c_address;
+-	ppsmc_pptable->Vr_I2C_address = smc_dpm_table->vr_i2c_address;
+-	ppsmc_pptable->Plx_I2C_address = smc_dpm_table->plx_i2c_address;
+-
+-	ppsmc_pptable->Liquid_I2C_LineSCL = smc_dpm_table->liquid_i2c_linescl;
+-	ppsmc_pptable->Liquid_I2C_LineSDA = smc_dpm_table->liquid_i2c_linesda;
+-	ppsmc_pptable->Vr_I2C_LineSCL = smc_dpm_table->vr_i2c_linescl;
+-	ppsmc_pptable->Vr_I2C_LineSDA = smc_dpm_table->vr_i2c_linesda;
+-
+-	ppsmc_pptable->Plx_I2C_LineSCL = smc_dpm_table->plx_i2c_linescl;
+-	ppsmc_pptable->Plx_I2C_LineSDA = smc_dpm_table->plx_i2c_linesda;
+-	ppsmc_pptable->VrSensorPresent = smc_dpm_table->vrsensorpresent;
+-	ppsmc_pptable->LiquidSensorPresent = smc_dpm_table->liquidsensorpresent;
+-
++	memset(ppsmc_pptable->Padding32,
++			0,
++			sizeof(struct atom_smc_dpm_info_v4_4) -
++			sizeof(struct atom_common_table_header));
+ 	ppsmc_pptable->MaxVoltageStepGfx = smc_dpm_table->maxvoltagestepgfx;
+ 	ppsmc_pptable->MaxVoltageStepSoc = smc_dpm_table->maxvoltagestepsoc;
+ 
+@@ -774,6 +776,24 @@ static int append_vbios_pptable(struct pp_hwmgr *hwmgr, PPTable_t *ppsmc_pptable
+ 	ppsmc_pptable->FllGfxclkSpreadPercent = smc_dpm_table->fllgfxclkspreadpercent;
+ 	ppsmc_pptable->FllGfxclkSpreadFreq = smc_dpm_table->fllgfxclkspreadfreq;
+ 
++	if ((smc_dpm_table->table_header.format_revision == 4) &&
++	    (smc_dpm_table->table_header.content_revision == 4)) {
++		for (i = 0; i < I2C_CONTROLLER_NAME_COUNT; i++) {
++			ppsmc_pptable->I2cControllers[i].Enabled =
++				smc_dpm_table->i2ccontrollers[i].enabled;
++			ppsmc_pptable->I2cControllers[i].SlaveAddress =
++				smc_dpm_table->i2ccontrollers[i].slaveaddress;
++			ppsmc_pptable->I2cControllers[i].ControllerPort =
++				smc_dpm_table->i2ccontrollers[i].controllerport;
++			ppsmc_pptable->I2cControllers[i].ThermalThrottler =
++				smc_dpm_table->i2ccontrollers[i].thermalthrottler;
++			ppsmc_pptable->I2cControllers[i].I2cProtocol =
++				smc_dpm_table->i2ccontrollers[i].i2cprotocol;
++			ppsmc_pptable->I2cControllers[i].I2cSpeed =
++				smc_dpm_table->i2ccontrollers[i].i2cspeed;
++		}
++	}
++
+ 	return 0;
+ }
+ 
+@@ -860,7 +880,15 @@ static int init_powerplay_table_information(
+ 	if (pptable_information->smc_pptable == NULL)
+ 		return -ENOMEM;
+ 
+-	memcpy(pptable_information->smc_pptable, &(powerplay_table->smcPPTable), sizeof(PPTable_t));
++	if (powerplay_table->smcPPTable.Version <= 2)
++		memcpy(pptable_information->smc_pptable,
++				&(powerplay_table->smcPPTable),
++				sizeof(PPTable_t) -
++				sizeof(I2cControllerConfig_t) * I2C_CONTROLLER_NAME_COUNT);
++	else
++		memcpy(pptable_information->smc_pptable,
++				&(powerplay_table->smcPPTable),
++				sizeof(PPTable_t));
+ 
+ 	result = append_vbios_pptable(hwmgr, (pptable_information->smc_pptable));
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+index a002021..c72cfab 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+@@ -27,7 +27,7 @@
+ // *** IMPORTANT ***
+ // SMU TEAM: Always increment the interface version if
+ // any structure is changed in this file
+-#define SMU11_DRIVER_IF_VERSION 0x11
++#define SMU11_DRIVER_IF_VERSION 0x12
+ 
+ #define PPTABLE_V20_SMU_VERSION 2
+ 
+@@ -186,6 +186,9 @@
+ #define DPM_OVERRIDE_ENABLE_GFXOFF_UCLK_SWITCH      0x00010000
+ #define DPM_OVERRIDE_ENABLE_GFXOFF_FCLK_SWITCH      0x00020000
+ 
++#define I2C_CONTROLLER_ENABLED     1
++#define I2C_CONTROLLER_DISABLED    0
++
+ #define VR_MAPPING_VR_SELECT_MASK  0x01
+ #define VR_MAPPING_VR_SELECT_SHIFT 0x00
+ 
+@@ -208,15 +211,17 @@
+ #define THROTTLER_STATUS_TEMP_HOTSPOT_BIT 2
+ #define THROTTLER_STATUS_TEMP_HBM_BIT     3
+ #define THROTTLER_STATUS_TEMP_VR_GFX_BIT  4
+-#define THROTTLER_STATUS_TEMP_VR_MEM_BIT  5
+-#define THROTTLER_STATUS_TEMP_LIQUID_BIT  6
+-#define THROTTLER_STATUS_TEMP_PLX_BIT     7
+-#define THROTTLER_STATUS_TEMP_SKIN_BIT    8
+-#define THROTTLER_STATUS_TDC_GFX_BIT      9
+-#define THROTTLER_STATUS_TDC_SOC_BIT      10
+-#define THROTTLER_STATUS_PPT_BIT          11
+-#define THROTTLER_STATUS_FIT_BIT          12
+-#define THROTTLER_STATUS_PPM_BIT          13
++#define THROTTLER_STATUS_TEMP_VR_SOC_BIT  5
++#define THROTTLER_STATUS_TEMP_VR_MEM0_BIT 6
++#define THROTTLER_STATUS_TEMP_VR_MEM1_BIT 7
++#define THROTTLER_STATUS_TEMP_LIQUID_BIT  8
++#define THROTTLER_STATUS_TEMP_PLX_BIT     9
++#define THROTTLER_STATUS_TEMP_SKIN_BIT    10
++#define THROTTLER_STATUS_TDC_GFX_BIT      11
++#define THROTTLER_STATUS_TDC_SOC_BIT      12
++#define THROTTLER_STATUS_PPT_BIT          13
++#define THROTTLER_STATUS_FIT_BIT          14
++#define THROTTLER_STATUS_PPM_BIT          15
+ 
+ 
+ #define TABLE_TRANSFER_OK         0x0
+@@ -236,6 +241,58 @@
+ #define XGMI_STATE_D0 1
+ #define XGMI_STATE_D3 0
+ 
++typedef enum {
++  I2C_CONTROLLER_PORT_0 = 0,
++  I2C_CONTROLLER_PORT_1 = 1,
++} I2cControllerPort_e;
++
++typedef enum {
++  I2C_CONTROLLER_NAME_VR_GFX = 0,
++  I2C_CONTROLLER_NAME_VR_SOC,
++  I2C_CONTROLLER_NAME_VR_VDDCI,
++  I2C_CONTROLLER_NAME_VR_HBM,
++  I2C_CONTROLLER_NAME_LIQUID_0,
++  I2C_CONTROLLER_NAME_LIQUID_1,
++  I2C_CONTROLLER_NAME_PLX,
++  I2C_CONTROLLER_NAME_COUNT,
++} I2cControllerName_e;
++
++typedef enum {
++  I2C_CONTROLLER_THROTTLER_TYPE_NONE = 0,
++  I2C_CONTROLLER_THROTTLER_VR_GFX,
++  I2C_CONTROLLER_THROTTLER_VR_SOC,
++  I2C_CONTROLLER_THROTTLER_VR_VDDCI,
++  I2C_CONTROLLER_THROTTLER_VR_HBM,
++  I2C_CONTROLLER_THROTTLER_LIQUID_0,
++  I2C_CONTROLLER_THROTTLER_LIQUID_1,
++  I2C_CONTROLLER_THROTTLER_PLX,
++} I2cControllerThrottler_e;
++
++typedef enum {
++  I2C_CONTROLLER_PROTOCOL_VR_XPDE132G5,
++  I2C_CONTROLLER_PROTOCOL_VR_IR35217,
++  I2C_CONTROLLER_PROTOCOL_TMP_TMP102A,
++  I2C_CONTROLLER_PROTOCOL_SPARE_0,
++  I2C_CONTROLLER_PROTOCOL_SPARE_1,
++  I2C_CONTROLLER_PROTOCOL_SPARE_2,
++} I2cControllerProtocol_e;
++
++typedef enum {
++  I2C_CONTROLLER_SPEED_SLOW = 0,
++  I2C_CONTROLLER_SPEED_FAST = 1,
++} I2cControllerSpeed_e;
++
++typedef struct {
++  uint32_t Enabled;
++  uint32_t SlaveAddress;
++  uint32_t ControllerPort;
++  uint32_t ControllerName;
++
++  uint32_t ThermalThrottler;
++  uint32_t I2cProtocol;
++  uint32_t I2cSpeed;
++} I2cControllerConfig_t;
++
+ typedef struct {
+   uint32_t a;
+   uint32_t b;
+@@ -406,8 +463,8 @@ typedef struct {
+   uint16_t     FanGainEdge;
+   uint16_t     FanGainHotspot;
+   uint16_t     FanGainLiquid;
+-  uint16_t     FanGainVrVddc;
+-  uint16_t     FanGainVrMvdd;
++  uint16_t     FanGainVrGfx;
++  uint16_t     FanGainVrSoc;
+   uint16_t     FanGainPlx;
+   uint16_t     FanGainHbm;
+   uint16_t     FanPwmMin;
+@@ -467,24 +524,11 @@ typedef struct {
+   uint16_t     MGpuFanBoostLimitRpm;
+   uint16_t     padding16_Fan;
+ 
+-  uint32_t     Reserved[13];
+-
++  uint16_t     FanGainVrMem0;
++  uint16_t     FanGainVrMem1;
++  uint32_t     Reserved[12];
+ 
+-
+-  uint8_t      Liquid1_I2C_address;
+-  uint8_t      Liquid2_I2C_address;
+-  uint8_t      Vr_I2C_address;
+-  uint8_t      Plx_I2C_address;
+-
+-  uint8_t      Liquid_I2C_LineSCL;
+-  uint8_t      Liquid_I2C_LineSDA;
+-  uint8_t      Vr_I2C_LineSCL;
+-  uint8_t      Vr_I2C_LineSDA;
+-
+-  uint8_t      Plx_I2C_LineSCL;
+-  uint8_t      Plx_I2C_LineSDA;
+-  uint8_t      VrSensorPresent;
+-  uint8_t      LiquidSensorPresent;
++  uint32_t     Padding32[3];
+ 
+   uint16_t     MaxVoltageStepGfx;
+   uint16_t     MaxVoltageStepSoc;
+@@ -551,6 +595,8 @@ typedef struct {
+   uint8_t      FllGfxclkSpreadPercent;
+   uint16_t     FllGfxclkSpreadFreq;
+ 
++  I2cControllerConfig_t I2cControllers[I2C_CONTROLLER_NAME_COUNT];
++
+   uint32_t     BoardReserved[10];
+ 
+ 
+@@ -607,7 +653,9 @@ typedef struct {
+   uint16_t TemperatureHotspot    ;
+   uint16_t TemperatureHBM        ;
+   uint16_t TemperatureVrGfx      ;
+-  uint16_t TemperatureVrMem      ;
++  uint16_t TemperatureVrSoc      ;
++  uint16_t TemperatureVrMem0     ;
++  uint16_t TemperatureVrMem1     ;
+   uint16_t TemperatureLiquid     ;
+   uint16_t TemperaturePlx        ;
+   uint32_t ThrottlerStatus       ;
+-- 
+2.7.4
+

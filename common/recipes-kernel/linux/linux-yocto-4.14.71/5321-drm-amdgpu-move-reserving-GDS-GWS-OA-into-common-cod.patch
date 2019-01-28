@@ -1,0 +1,156 @@
+From 1938eb8e62db762120655629eee383e5e0e9d20c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 21:08:57 +0200
+Subject: [PATCH 5321/5725] drm/amdgpu: move reserving GDS/GWS/OA into common
+ code
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We don't need that in the per ASIC code.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 18 ++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c   | 19 -------------------
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c   | 19 -------------------
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c   | 19 -------------------
+ 4 files changed, 18 insertions(+), 57 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index e8e36df..04bc197 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -2038,6 +2038,12 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 		return r;
+ 	}
+ 
++	r = amdgpu_bo_create_kernel(adev, adev->gds.mem.gfx_partition_size,
++				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GDS,
++				    &adev->gds.gds_gfx_bo, NULL, NULL);
++	if (r)
++		return r;
++
+ 	r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_GWS,
+ 			   adev->gds.gws.total_size);
+ 	if (r) {
+@@ -2045,6 +2051,12 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 		return r;
+ 	}
+ 
++	r = amdgpu_bo_create_kernel(adev, adev->gds.gws.gfx_partition_size,
++				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GWS,
++				    &adev->gds.gws_gfx_bo, NULL, NULL);
++	if (r)
++		return r;
++
+ 	r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_OA,
+ 			   adev->gds.oa.total_size);
+ 	if (r) {
+@@ -2052,6 +2064,12 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 		return r;
+ 	}
+ 
++	r = amdgpu_bo_create_kernel(adev, adev->gds.oa.gfx_partition_size,
++				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_OA,
++				    &adev->gds.oa_gfx_bo, NULL, NULL);
++	if (r)
++		return r;
++
+ 	/* Register debugfs entries for amdgpu_ttm */
+ 	r = amdgpu_ttm_debugfs_init(adev);
+ 	if (r) {
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+index c87cc9a..01ca681 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+@@ -4602,25 +4602,6 @@ static int gfx_v7_0_sw_init(void *handle)
+ 		}
+ 	}
+ 
+-	/* reserve GDS, GWS and OA resource for gfx */
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.mem.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GDS,
+-				    &adev->gds.gds_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.gws.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GWS,
+-				    &adev->gds.gws_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.oa.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_OA,
+-				    &adev->gds.oa_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+ 	adev->gfx.ce_ram_size = 0x8000;
+ 
+ 	gfx_v7_0_gpu_early_init(adev);
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 5e775c0..096347a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -2160,25 +2160,6 @@ static int gfx_v8_0_sw_init(void *handle)
+ 	if (r)
+ 		return r;
+ 
+-	/* reserve GDS, GWS and OA resource for gfx */
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.mem.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GDS,
+-				    &adev->gds.gds_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.gws.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GWS,
+-				    &adev->gds.gws_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.oa.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_OA,
+-				    &adev->gds.oa_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+ 	adev->gfx.ce_ram_size = 0x8000;
+ 
+ 	r = gfx_v8_0_gpu_early_init(adev);
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 06ac237..27a5ada 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1701,25 +1701,6 @@ static int gfx_v9_0_sw_init(void *handle)
+ 	if (r)
+ 		return r;
+ 
+-	/* reserve GDS, GWS and OA resource for gfx */
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.mem.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GDS,
+-				    &adev->gds.gds_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.gws.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GWS,
+-				    &adev->gds.gws_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+-	r = amdgpu_bo_create_kernel(adev, adev->gds.oa.gfx_partition_size,
+-				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_OA,
+-				    &adev->gds.oa_gfx_bo, NULL, NULL);
+-	if (r)
+-		return r;
+-
+ 	adev->gfx.ce_ram_size = 0x8000;
+ 
+ 	r = gfx_v9_0_gpu_early_init(adev);
+-- 
+2.7.4
+

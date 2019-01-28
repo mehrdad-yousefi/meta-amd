@@ -1,0 +1,52 @@
+From 085726ac4e489fa5ef30a983db19cb8d4e9a25a9 Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Wed, 13 Jun 2018 14:43:16 -0400
+Subject: [PATCH 4657/5725] drm/amd/display - use the get_crtc instead of get
+ existing crtc
+
+When notfy_freesync gets called, we are adding all the planes
+through drm_add_affected_planes, but we are getting a warning
+about crtc state missing and can potentially cause an issue.
+
+This patch proposes a simple workaround which would allow
+to safely dumblicate an existing crtc_state if one doesn't
+yet exist
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 14d0cce..1451026 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -1606,12 +1606,24 @@ static int amdgpu_notify_freesync(struct drm_device *dev, void *data,
+ 
+ retry:
+ 	drm_for_each_crtc(crtc, dev) {
++		struct drm_plane *plane;
++
+ 		ret = drm_atomic_add_affected_connectors(state, crtc);
+ 		if (ret)
+ 			goto fail;
+ 
+ 		/* TODO rework amdgpu_dm_commit_planes so we don't need this */
+-		ret = drm_atomic_add_affected_planes(state, crtc);
++		WARN_ON(!drm_atomic_get_crtc_state(state, crtc));
++
++		drm_for_each_plane_mask(plane, state->dev, crtc->state->plane_mask) {
++			struct drm_plane_state *plane_state =
++				drm_atomic_get_plane_state(state, plane);
++
++			if (IS_ERR(plane_state)) {
++				ret = PTR_ERR(plane_state);
++				break;
++			}
++		}
+ 		if (ret)
+ 			goto fail;
+ 	}
+-- 
+2.7.4
+

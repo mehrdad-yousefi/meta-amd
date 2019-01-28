@@ -1,0 +1,62 @@
+From 85e65fa1fac4c42a5d258e7cdb06cad53831609b Mon Sep 17 00:00:00 2001
+From: "A. Wilcox" <AWilcox@Wilcox-Tech.com>
+Date: Sun, 1 Jul 2018 22:44:52 -0500
+Subject: [PATCH 5308/5725] drm/amdgpu: use processed values for counting
+
+adev->gfx.rlc has the values from rlc_hdr already processed by
+le32_to_cpu.  Using the rlc_hdr values on big-endian machines causes
+a kernel Oops due to writing well outside of the array (0x24000000
+instead of 0x24).
+
+Signed-off-by: A. Wilcox <AWilcox@Wilcox-Tech.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c | 4 ++--
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 9a8f572..1d7034c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -1114,14 +1114,14 @@ static int gfx_v8_0_init_microcode(struct amdgpu_device *adev)
+ 
+ 	tmp = (unsigned int *)((uintptr_t)rlc_hdr +
+ 			le32_to_cpu(rlc_hdr->reg_list_format_array_offset_bytes));
+-	for (i = 0 ; i < (rlc_hdr->reg_list_format_size_bytes >> 2); i++)
++	for (i = 0 ; i < (adev->gfx.rlc.reg_list_format_size_bytes >> 2); i++)
+ 		adev->gfx.rlc.register_list_format[i] =	le32_to_cpu(tmp[i]);
+ 
+ 	adev->gfx.rlc.register_restore = adev->gfx.rlc.register_list_format + i;
+ 
+ 	tmp = (unsigned int *)((uintptr_t)rlc_hdr +
+ 			le32_to_cpu(rlc_hdr->reg_list_array_offset_bytes));
+-	for (i = 0 ; i < (rlc_hdr->reg_list_size_bytes >> 2); i++)
++	for (i = 0 ; i < (adev->gfx.rlc.reg_list_size_bytes >> 2); i++)
+ 		adev->gfx.rlc.register_restore[i] = le32_to_cpu(tmp[i]);
+ 
+ 	if (adev->asic_type >= CHIP_POLARIS10 && adev->asic_type <= CHIP_POLARIS12) {
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index e040c87..b9918ea 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -692,14 +692,14 @@ static int gfx_v9_0_init_microcode(struct amdgpu_device *adev)
+ 
+ 	tmp = (unsigned int *)((uintptr_t)rlc_hdr +
+ 			le32_to_cpu(rlc_hdr->reg_list_format_array_offset_bytes));
+-	for (i = 0 ; i < (rlc_hdr->reg_list_format_size_bytes >> 2); i++)
++	for (i = 0 ; i < (adev->gfx.rlc.reg_list_format_size_bytes >> 2); i++)
+ 		adev->gfx.rlc.register_list_format[i] =	le32_to_cpu(tmp[i]);
+ 
+ 	adev->gfx.rlc.register_restore = adev->gfx.rlc.register_list_format + i;
+ 
+ 	tmp = (unsigned int *)((uintptr_t)rlc_hdr +
+ 			le32_to_cpu(rlc_hdr->reg_list_array_offset_bytes));
+-	for (i = 0 ; i < (rlc_hdr->reg_list_size_bytes >> 2); i++)
++	for (i = 0 ; i < (adev->gfx.rlc.reg_list_size_bytes >> 2); i++)
+ 		adev->gfx.rlc.register_restore[i] = le32_to_cpu(tmp[i]);
+ 
+ 	if (adev->gfx.rlc.is_rlc_v2_1)
+-- 
+2.7.4
+

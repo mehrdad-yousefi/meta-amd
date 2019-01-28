@@ -1,0 +1,57 @@
+From cc6d04d756b873efbb147ffc2c52d56f91c31baf Mon Sep 17 00:00:00 2001
+From: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+Date: Tue, 24 Apr 2018 17:57:53 -0400
+Subject: [PATCH 5653/5725] drm/amdkfd: Mellanox: Support PeerSync interface
+
+The mellanox driver doesn't support memory invalidation for their
+new PeerSync interface. If a non NULL pointer is passed into
+ib_register_peer_memory_client() the Mellanox driver assumes peer device
+(AMD) requires invalidation. This would end in ignoring AMD device.
+
+The current kfd implementation of rdma doesn't use the invalidate and
+keeps the memory pinned for the entire duration. So passing NULL doesn't
+change the current behaviour. However, for a robust and secure solution
+this needs to be revisted.
+
+BUG: SWDEV-149064
+
+Change-Id: I6737331d65b1d2e63c2ebb970c40fe61d32f8d22
+Signed-off-by: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_peerdirect.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_peerdirect.c b/drivers/gpu/drm/amd/amdkfd/kfd_peerdirect.c
+index fae8e8c..1b1a0ca 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_peerdirect.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_peerdirect.c
+@@ -137,7 +137,6 @@ static void (*pfn_ib_unregister_peer_memory_client)(void *reg_handle);
+ 
+ static const struct amd_rdma_interface *rdma_interface;
+ 
+-static invalidate_peer_memory ib_invalidate_callback;
+ static void *ib_reg_handle;
+ 
+ struct amd_mem_context {
+@@ -169,9 +168,6 @@ static void free_callback(void *client_priv)
+ 
+ 	pr_debug("mem_context->core_context 0x%p\n", mem_context->core_context);
+ 
+-	/* Call back IB stack asking to invalidate memory */
+-	(*ib_invalidate_callback) (ib_reg_handle, mem_context->core_context);
+-
+ 	/* amdkfd will free resources when we return from this callback.
+ 	 * Set flag to inform that there is nothing to do on "put_pages", etc.
+ 	 */
+@@ -478,7 +474,7 @@ void kfd_init_peer_direct(void)
+ 	strcpy(amd_mem_client.version, AMD_PEER_BRIDGE_DRIVER_VERSION);
+ 
+ 	ib_reg_handle = pfn_ib_register_peer_memory_client(&amd_mem_client,
+-						&ib_invalidate_callback);
++							   NULL);
+ 
+ 	if (!ib_reg_handle) {
+ 		pr_err("Cannot register peer memory client\n");
+-- 
+2.7.4
+

@@ -1,0 +1,70 @@
+From 77c7d43ad35ecc5030a36c4baf6eddb4a96fbdfd Mon Sep 17 00:00:00 2001
+From: Eric Bernstein <eric.bernstein@amd.com>
+Date: Tue, 1 May 2018 15:21:42 -0400
+Subject: [PATCH 4524/5725] drm/amd/display: pass pipe_ctx straight to
+ blank_pixel_data
+
+Signed-off-by: Eric Bernstein <eric.bernstein@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c | 10 +++++-----
+ drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h         |  3 +--
+ 2 files changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index c40993a..b7ff538 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -2078,12 +2078,13 @@ static void update_dchubp_dpp(
+ 
+ static void dcn10_blank_pixel_data(
+ 		struct dc *dc,
+-		struct stream_resource *stream_res,
+-		struct dc_stream_state *stream,
++		struct pipe_ctx *pipe_ctx,
+ 		bool blank)
+ {
+ 	enum dc_color_space color_space;
+ 	struct tg_color black_color = {0};
++	struct stream_resource *stream_res = &pipe_ctx->stream_res;
++	struct dc_stream_state *stream = pipe_ctx->stream;
+ 
+ 	/* program otg blank color */
+ 	color_space = stream->output_color_space;
+@@ -2142,8 +2143,7 @@ static void program_all_pipe_in_tree(
+ 		pipe_ctx->stream_res.tg->funcs->program_global_sync(
+ 				pipe_ctx->stream_res.tg);
+ 
+-		dc->hwss.blank_pixel_data(dc, &pipe_ctx->stream_res,
+-				pipe_ctx->stream, blank);
++		dc->hwss.blank_pixel_data(dc, pipe_ctx, blank);
+ 	}
+ 
+ 	if (pipe_ctx->plane_state != NULL) {
+@@ -2262,7 +2262,7 @@ static void dcn10_apply_ctx_for_surface(
+ 
+ 	if (num_planes == 0) {
+ 		/* OTG blank before remove all front end */
+-		dc->hwss.blank_pixel_data(dc, &top_pipe_to_program->stream_res, top_pipe_to_program->stream, true);
++		dc->hwss.blank_pixel_data(dc, top_pipe_to_program, true);
+ 	}
+ 
+ 	/* Disconnect unused mpcc */
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+index 63fc6c4..52db80f 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+@@ -160,8 +160,7 @@ struct hw_sequencer_funcs {
+ 				bool lock);
+ 	void (*blank_pixel_data)(
+ 			struct dc *dc,
+-			struct stream_resource *stream_res,
+-			struct dc_stream_state *stream,
++			struct pipe_ctx *pipe_ctx,
+ 			bool blank);
+ 
+ 	void (*set_bandwidth)(
+-- 
+2.7.4
+

@@ -1,0 +1,83 @@
+From 90b59fa09e6ba3ce9065127be2559e08b06efb6a Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Mon, 16 Jul 2018 14:05:11 -0400
+Subject: [PATCH 5065/5725] drm/amd/display: pass compat_level to hubp
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c         | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.h         | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c | 4 +++-
+ drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h              | 3 ++-
+ 4 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+index 2138cd3..fa1bacd 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+@@ -485,7 +485,8 @@ void hubp1_program_surface_config(
+ 	union plane_size *plane_size,
+ 	enum dc_rotation_angle rotation,
+ 	struct dc_plane_dcc_param *dcc,
+-	bool horizontal_mirror)
++	bool horizontal_mirror,
++	unsigned int compat_level)
+ {
+ 	hubp1_dcc_control(hubp, dcc->enable, dcc->grph.independent_64b_blks);
+ 	hubp1_program_tiling(hubp, tiling_info, format);
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.h
+index f689fea..48c1907 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.h
+@@ -664,7 +664,8 @@ void hubp1_program_surface_config(
+ 	union plane_size *plane_size,
+ 	enum dc_rotation_angle rotation,
+ 	struct dc_plane_dcc_param *dcc,
+-	bool horizontal_mirror);
++	bool horizontal_mirror,
++	unsigned int compat_level);
+ 
+ void hubp1_program_deadline(
+ 		struct hubp *hubp,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 05014e0..ba4856f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -2019,6 +2019,7 @@ static void update_dchubp_dpp(
+ 	struct dpp *dpp = pipe_ctx->plane_res.dpp;
+ 	struct dc_plane_state *plane_state = pipe_ctx->plane_state;
+ 	union plane_size size = plane_state->plane_size;
++	unsigned int compat_level = 0;
+ 
+ 	/* depends on DML calculation, DPP clock value may change dynamically */
+ 	/* If request max dpp clk is lower than current dispclk, no need to
+@@ -2110,7 +2111,8 @@ static void update_dchubp_dpp(
+ 			&size,
+ 			plane_state->rotation,
+ 			&plane_state->dcc,
+-			plane_state->horizontal_mirror);
++			plane_state->horizontal_mirror,
++			compat_level);
+ 	}
+ 
+ 	hubp->power_gated = false;
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h b/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h
+index 4f3f9e6..334c48c 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h
+@@ -96,7 +96,8 @@ struct hubp_funcs {
+ 		union plane_size *plane_size,
+ 		enum dc_rotation_angle rotation,
+ 		struct dc_plane_dcc_param *dcc,
+-		bool horizontal_mirror);
++		bool horizontal_mirror,
++		unsigned int compa_level);
+ 
+ 	bool (*hubp_is_flip_pending)(struct hubp *hubp);
+ 
+-- 
+2.7.4
+

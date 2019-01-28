@@ -1,0 +1,30 @@
+From 77cffd6bacdf0dc19383cf5184f223777052c960 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sat, 29 Sep 2018 15:30:11 +0800
+Subject: [PATCH 5514/5725] drm/amdgpu: Don't reallocate ucode bo when suspend
+
+driver don't release the ucode memory when suspend. so don't
+need to allocate bo when resume back.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+index ccffc1d4..ce4044a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+@@ -434,7 +434,7 @@ int amdgpu_ucode_init_bo(struct amdgpu_device *adev)
+ 		return 0;
+ 	}
+ 
+-	if (!adev->in_gpu_reset) {
++	if (!adev->in_gpu_reset && !adev->in_suspend) {
+ 		err = amdgpu_bo_create_kernel(adev, adev->firmware.fw_size, PAGE_SIZE,
+ 					amdgpu_sriov_vf(adev) ? AMDGPU_GEM_DOMAIN_VRAM : AMDGPU_GEM_DOMAIN_GTT,
+ 					&adev->firmware.fw_buf,
+-- 
+2.7.4
+

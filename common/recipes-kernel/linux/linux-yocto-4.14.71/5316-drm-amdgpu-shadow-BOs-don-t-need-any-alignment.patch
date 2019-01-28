@@ -1,0 +1,50 @@
+From 9db6d8c022bd1acadb16f663c13dc2cd883508c0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 11 Sep 2018 10:31:54 +0200
+Subject: [PATCH 5316/5725] drm/amdgpu: shadow BOs don't need any alignment
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+They aren't directly used by the hardware.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 68c3b94..ae4f267 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -575,7 +575,7 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev,
+ }
+ 
+ static int amdgpu_bo_create_shadow(struct amdgpu_device *adev,
+-				   unsigned long size, int byte_align,
++				   unsigned long size,
+ 				   struct amdgpu_bo *bo)
+ {
+ 	struct amdgpu_bo_param bp;
+@@ -586,7 +586,6 @@ static int amdgpu_bo_create_shadow(struct amdgpu_device *adev,
+ 
+ 	memset(&bp, 0, sizeof(bp));
+ 	bp.size = size;
+-	bp.byte_align = byte_align;
+ 	bp.domain = AMDGPU_GEM_DOMAIN_GTT;
+ 	bp.flags = AMDGPU_GEM_CREATE_CPU_GTT_USWC |
+ 		AMDGPU_GEM_CREATE_SHADOW;
+@@ -636,7 +635,7 @@ int amdgpu_bo_create(struct amdgpu_device *adev,
+ 			WARN_ON(reservation_object_lock((*bo_ptr)->tbo.resv,
+ 							NULL));
+ 
+-		r = amdgpu_bo_create_shadow(adev, bp->size, bp->byte_align, (*bo_ptr));
++		r = amdgpu_bo_create_shadow(adev, bp->size, *bo_ptr);
+ 
+ 		if (!bp->resv)
+ 			reservation_object_unlock((*bo_ptr)->tbo.resv);
+-- 
+2.7.4
+

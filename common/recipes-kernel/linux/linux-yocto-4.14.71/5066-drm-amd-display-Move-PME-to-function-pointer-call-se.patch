@@ -1,0 +1,227 @@
+From 7e75b72a5f26fb6d262dd18cde1f7186f72a7810 Mon Sep 17 00:00:00 2001
+From: Jun Lei <Jun.Lei@amd.com>
+Date: Mon, 16 Jul 2018 10:40:31 -0400
+Subject: [PATCH 5066/5725] drm/amd/display: Move PME to function pointer call
+ semantics
+
+[why]
+Legacy IRI style is not linux friendly.
+
+[how]
+New function pointer call
+semantics will be used for all future PPLIB/DAL interfaces, and also
+some existing will be refactored.  This change defines how the
+new function pointer structures will look, as well as implements
+
+Signed-off-by: Jun Lei <Jun.Lei@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ .../drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c   |  8 +-
+ drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c   |  7 ++
+ drivers/gpu/drm/amd/display/dc/dm_pp_smu.h         | 92 +++++++++++++---------
+ 3 files changed, 65 insertions(+), 42 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+index fbe878a..e5c5b0a 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+@@ -478,7 +478,7 @@ bool dm_pp_get_static_clocks(
+ void pp_rv_set_display_requirement(struct pp_smu *pp,
+ 		struct pp_smu_display_requirement_rv *req)
+ {
+-	struct dc_context *ctx = pp->ctx;
++	const struct dc_context *ctx = pp->dm;
+ 	struct amdgpu_device *adev = ctx->driver_context;
+ 	const struct amd_pm_funcs *pp_funcs = adev->powerplay.pp_funcs;
+ 
+@@ -491,7 +491,7 @@ void pp_rv_set_display_requirement(struct pp_smu *pp,
+ void pp_rv_set_wm_ranges(struct pp_smu *pp,
+ 		struct pp_smu_wm_range_sets *ranges)
+ {
+-	struct dc_context *ctx = pp->ctx;
++	const struct dc_context *ctx = pp->dm;
+ 	struct amdgpu_device *adev = ctx->driver_context;
+ 	void *pp_handle = adev->powerplay.pp_handle;
+ 	const struct amd_pm_funcs *pp_funcs = adev->powerplay.pp_funcs;
+@@ -540,7 +540,7 @@ void pp_rv_set_wm_ranges(struct pp_smu *pp,
+ 
+ void pp_rv_set_pme_wa_enable(struct pp_smu *pp)
+ {
+-	struct dc_context *ctx = pp->ctx;
++	const struct dc_context *ctx = pp->dm;
+ 	struct amdgpu_device *adev = ctx->driver_context;
+ 	void *pp_handle = adev->powerplay.pp_handle;
+ 	const struct amd_pm_funcs *pp_funcs = adev->powerplay.pp_funcs;
+@@ -555,7 +555,7 @@ void dm_pp_get_funcs_rv(
+ 		struct dc_context *ctx,
+ 		struct pp_smu_funcs_rv *funcs)
+ {
+-	funcs->pp_smu.ctx = ctx;
++	funcs->pp_smu.dm = ctx;
+ 	funcs->set_display_requirement = pp_rv_set_display_requirement;
+ 	funcs->set_wm_ranges = pp_rv_set_wm_ranges;
+ 	funcs->set_pme_wa_enable = pp_rv_set_pme_wa_enable;
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+index bd03932..32b3413 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+@@ -37,6 +37,13 @@
+ 
+ #define DC_LOGGER \
+ 	dc->ctx->logger
++
++#define WM_SET_COUNT 4
++#define WM_A 0
++#define WM_B 1
++#define WM_C 2
++#define WM_D 3
++
+ /*
+  * NOTE:
+  *   This file is gcc-parseable HW gospel, coming straight from HW engineers.
+diff --git a/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h b/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h
+index 58ed205..f2ea845 100644
+--- a/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h
++++ b/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h
+@@ -30,33 +30,45 @@
+  * interface to PPLIB/SMU to setup clocks and pstate requirements on SoC
+  */
+ 
++enum pp_smu_ver {
++	/*
++	 * PP_SMU_INTERFACE_X should be interpreted as the interface defined
++	 * starting from X, where X is some family of ASICs.  This is as
++	 * opposed to interfaces used only for X.  There will be some degree
++	 * of interface sharing between families of ASIcs.
++	 */
++	PP_SMU_UNSUPPORTED,
++	PP_SMU_VER_RV
++};
+ 
+ struct pp_smu {
+-	struct dc_context *ctx;
+-};
++	enum pp_smu_ver ver;
++	const void *pp;
+ 
+-enum wm_set_id {
+-	WM_A,
+-	WM_B,
+-	WM_C,
+-	WM_D,
+-	WM_SET_COUNT,
++	/*
++	 * interim extra handle for backwards compatibility
++	 * as some existing functionality not yet implemented
++	 * by ppsmu
++	 */
++	const void *dm;
+ };
+ 
+ struct pp_smu_wm_set_range {
+-	enum wm_set_id wm_inst;
++	unsigned int wm_inst;
+ 	uint32_t min_fill_clk_khz;
+ 	uint32_t max_fill_clk_khz;
+ 	uint32_t min_drain_clk_khz;
+ 	uint32_t max_drain_clk_khz;
+ };
+ 
++#define MAX_WATERMARK_SETS 4
++
+ struct pp_smu_wm_range_sets {
+-	uint32_t num_reader_wm_sets;
+-	struct pp_smu_wm_set_range reader_wm_sets[WM_SET_COUNT];
++	unsigned int num_reader_wm_sets;
++	struct pp_smu_wm_set_range reader_wm_sets[MAX_WATERMARK_SETS];
+ 
+-	uint32_t num_writer_wm_sets;
+-	struct pp_smu_wm_set_range writer_wm_sets[WM_SET_COUNT];
++	unsigned int num_writer_wm_sets;
++	struct pp_smu_wm_set_range writer_wm_sets[MAX_WATERMARK_SETS];
+ };
+ 
+ struct pp_smu_display_requirement_rv {
+@@ -85,48 +97,52 @@ struct pp_smu_display_requirement_rv {
+ struct pp_smu_funcs_rv {
+ 	struct pp_smu pp_smu;
+ 
+-	void (*set_display_requirement)(struct pp_smu *pp,
+-			struct pp_smu_display_requirement_rv *req);
++	/* PPSMC_MSG_SetDisplayCount
++	 * 0 triggers S0i2 optimization
++	 */
++	void (*set_display_count)(struct pp_smu *pp, int count);
+ 
+ 	/* which SMU message?  are reader and writer WM separate SMU msg? */
+ 	void (*set_wm_ranges)(struct pp_smu *pp,
+ 			struct pp_smu_wm_range_sets *ranges);
+-	/* PME w/a */
+-	void (*set_pme_wa_enable)(struct pp_smu *pp);
+-};
+ 
+-#if 0
+-struct pp_smu_funcs_rv {
++	/* PPSMC_MSG_SetHardMinDcfclkByFreq
++	 * fixed clock at requested freq, either from FCH bypass or DFS
++	 */
++	void (*set_hard_min_dcfclk_by_freq)(struct pp_smu *pp, int khz);
+ 
+-	/* PPSMC_MSG_SetDisplayCount
+-	 *  0 triggers S0i2 optimization
++	/* PPSMC_MSG_SetMinDeepSleepDcfclk
++	 * when DF is in cstate, dcf clock is further divided down
++	 * to just above given frequency
+ 	 */
+-	void (*set_display_count)(struct pp_smu *pp, int count);
++	void (*set_min_deep_sleep_dcfclk)(struct pp_smu *pp, int mhz);
+ 
+ 	/* PPSMC_MSG_SetHardMinFclkByFreq
+-	 *  FCLK will vary with DPM, but never below requested hard min
++	 * FCLK will vary with DPM, but never below requested hard min
+ 	 */
+ 	void (*set_hard_min_fclk_by_freq)(struct pp_smu *pp, int khz);
+ 
+-	/* PPSMC_MSG_SetHardMinDcefclkByFreq
+-	 *  fixed clock at requested freq, either from FCH bypass or DFS
++	/* PPSMC_MSG_SetHardMinSocclkByFreq
++	 * Needed for DWB support
+ 	 */
+-	void (*set_hard_min_dcefclk_by_freq)(struct pp_smu *pp, int khz);
++	void (*set_hard_min_socclk_by_freq)(struct pp_smu *pp, int khz);
+ 
+-	/* PPSMC_MSG_SetMinDeepSleepDcefclk
+-	 *  when DF is in cstate, dcf clock is further divided down
+-	 *  to just above given frequency
+-	 */
+-	void (*set_min_deep_sleep_dcefclk)(struct pp_smu *pp, int mhz);
++	/* PME w/a */
++	void (*set_pme_wa_enable)(struct pp_smu *pp);
+ 
+-	/* todo: aesthetic
+-	 * watermark range table
++	/*
++	 * Legacy functions.  Used for backwards comp. with existing
++	 * PPlib code.
+ 	 */
++	void (*set_display_requirement)(struct pp_smu *pp,
++			struct pp_smu_display_requirement_rv *req);
++};
+ 
+-	/* todo: functional/feature
+-	 * PPSMC_MSG_SetHardMinSocclkByFreq: required to support DWB
+-	 */
++struct pp_smu_funcs {
++	struct pp_smu ctx;
++	union {
++		struct pp_smu_funcs_rv rv_funcs;
++	};
+ };
+-#endif
+ 
+ #endif /* DM_PP_SMU_IF__H */
+-- 
+2.7.4
+

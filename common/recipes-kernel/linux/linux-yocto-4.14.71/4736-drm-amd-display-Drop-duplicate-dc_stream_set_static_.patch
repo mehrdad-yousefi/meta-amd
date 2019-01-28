@@ -1,0 +1,31 @@
+From a5fed478e88922e6477e62b6f094841188293ecd Mon Sep 17 00:00:00 2001
+From: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Date: Wed, 30 May 2018 10:56:32 -0400
+Subject: [PATCH 4736/5725] drm/amd/display: Drop duplicate
+ dc_stream_set_static_screen_events definition
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc_stream.h | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_stream.h b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+index 984a7a3..597c6bf 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_stream.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+@@ -304,9 +304,4 @@ bool dc_stream_get_crtc_position(struct dc *dc,
+ 				 unsigned int *v_pos,
+ 				 unsigned int *nom_v_pos);
+ 
+-void dc_stream_set_static_screen_events(struct dc *dc,
+-					struct dc_stream_state **stream,
+-					int num_streams,
+-					const struct dc_static_screen_events *events);
+-
+ #endif /* DC_STREAM_H_ */
+-- 
+2.7.4
+

@@ -1,0 +1,29 @@
+From cb42c984af0dcd5dabdd62ded6f8d6e6e6c981dc Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 20 Sep 2018 22:16:45 -0500
+Subject: [PATCH 5440/5725] drm/amdgpu: add new
+ AMDGPU_PP_SENSOR_ENABLED_SMC_FEATURES_MASK sensor
+
+For getting the 64 bit enabled smc feature mask from vega parts.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/kgd_pp_interface.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/include/kgd_pp_interface.h b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+index 448dee4..bd74045 100644
+--- a/drivers/gpu/drm/amd/include/kgd_pp_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+@@ -113,6 +113,7 @@ enum amd_pp_sensors {
+ 	AMDGPU_PP_SENSOR_GPU_POWER,
+ 	AMDGPU_PP_SENSOR_STABLE_PSTATE_SCLK,
+ 	AMDGPU_PP_SENSOR_STABLE_PSTATE_MCLK,
++	AMDGPU_PP_SENSOR_ENABLED_SMC_FEATURES_MASK,
+ };
+ 
+ enum amd_pp_task {
+-- 
+2.7.4
+

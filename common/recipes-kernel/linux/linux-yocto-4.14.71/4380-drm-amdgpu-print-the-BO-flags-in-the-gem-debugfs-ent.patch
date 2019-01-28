@@ -1,0 +1,53 @@
+From 48e718bf83742b864896f982345c4a94ebaa9fb0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 11 May 2018 23:14:29 +0800
+Subject: [PATCH 4380/5725] drm/amdgpu: print the BO flags in the gem debugfs
+ entry
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Quite useful to know.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 22e1298..b432b21 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -925,6 +925,12 @@ int amdgpu_mode_dumb_create(struct drm_file *file_priv,
+ }
+ 
+ #if defined(CONFIG_DEBUG_FS)
++
++#define amdgpu_debugfs_gem_bo_print_flag(m, bo, flag)	\
++	if (bo->flags & (AMDGPU_GEM_CREATE_ ## flag)) {	\
++		seq_printf((m), " " #flag);		\
++	}
++
+ static int amdgpu_debugfs_gem_bo_info(int id, void *ptr, void *data)
+ {
+ 	struct drm_gem_object *gobj = ptr;
+@@ -972,6 +978,15 @@ static int amdgpu_debugfs_gem_bo_info(int id, void *ptr, void *data)
+ 	else if (dma_buf)
+ 		seq_printf(m, " exported as %p", dma_buf);
+ 
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, CPU_ACCESS_REQUIRED);
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, NO_CPU_ACCESS);
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, CPU_GTT_USWC);
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, VRAM_CLEARED);
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, SHADOW);
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, VRAM_CONTIGUOUS);
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, VM_ALWAYS_VALID);
++	amdgpu_debugfs_gem_bo_print_flag(m, bo, EXPLICIT_SYNC);
++
+ 	seq_printf(m, "\n");
+ 
+ 	return 0;
+-- 
+2.7.4
+

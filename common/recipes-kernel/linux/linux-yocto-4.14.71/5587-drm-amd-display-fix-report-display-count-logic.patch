@@ -1,0 +1,148 @@
+From 27063ce35b2acbf08520558666cb881e85139316 Mon Sep 17 00:00:00 2001
+From: Eric Yang <Eric.Yang2@amd.com>
+Date: Wed, 26 Sep 2018 15:52:19 -0400
+Subject: [PATCH 5587/5725] drm/amd/display: fix report display count logic
+
+[Why]
+Previous logic to update display count in commit_planes_do_stream_update
+doesn't cover all cases.
+
+[How]
+Update display count as part of clock updates. Count virtual stream
+as active to work around headless situation.
+
+Signed-off-by: Eric Yang <Eric.Yang2@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c          | 35 +----------------
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c | 47 +++++++++++++++++++++--
+ 2 files changed, 45 insertions(+), 37 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 3842541..e7be6bf 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1391,35 +1391,6 @@ static struct dc_stream_status *stream_get_status(
+ 
+ static const enum surface_update_type update_surface_trace_level = UPDATE_TYPE_FULL;
+ 
+-static void notify_display_count_to_smu(
+-		struct dc *dc,
+-		struct dc_state *context)
+-{
+-	int i, display_count;
+-	struct pp_smu_funcs_rv *pp_smu = dc->res_pool->pp_smu;
+-
+-	/*
+-	 * if function pointer not set up, this message is
+-	 * sent as part of pplib_apply_display_requirements.
+-	 * So just return.
+-	 */
+-	if (!pp_smu || !pp_smu->set_display_count)
+-		return;
+-
+-	display_count = 0;
+-	for (i = 0; i < context->stream_count; i++) {
+-		const struct dc_stream_state *stream = context->streams[i];
+-
+-		/* only notify active stream */
+-		if (stream->dpms_off)
+-			continue;
+-
+-		display_count++;
+-	}
+-
+-	pp_smu->set_display_count(&pp_smu->pp_smu, display_count);
+-}
+-
+ static void commit_planes_do_stream_update(struct dc *dc,
+ 		struct dc_stream_state *stream,
+ 		struct dc_stream_update *stream_update,
+@@ -1470,15 +1441,13 @@ static void commit_planes_do_stream_update(struct dc *dc,
+ 			if (stream_update->dpms_off) {
+ 				if (*stream_update->dpms_off) {
+ 					core_link_disable_stream(pipe_ctx, KEEP_ACQUIRED_RESOURCE);
+-					notify_display_count_to_smu(dc, dc->current_state);
++					dc->hwss.optimize_bandwidth(dc, dc->current_state);
+ 				} else {
+-					notify_display_count_to_smu(dc, dc->current_state);
++					dc->hwss.prepare_bandwidth(dc, dc->current_state);
+ 					core_link_enable_stream(dc->current_state, pipe_ctx);
+ 				}
+ 			}
+ 
+-
+-
+ 			if (stream_update->abm_level && pipe_ctx->stream_res.abm) {
+ 				if (pipe_ctx->stream_res.tg->funcs->is_blanked) {
+ 					// if otg funcs defined check if blanked before programming
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
+index abfe82f..0a9f944 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
+@@ -139,6 +139,29 @@ static void dcn1_ramp_up_dispclk_with_dpp(struct dccg *dccg, struct dc_clocks *n
+ 	dccg->clks.max_supported_dppclk_khz = new_clocks->max_supported_dppclk_khz;
+ }
+ 
++static int get_active_display_cnt(
++		struct dc *dc,
++		struct dc_state *context)
++{
++	int i, display_count;
++
++	display_count = 0;
++	for (i = 0; i < context->stream_count; i++) {
++		const struct dc_stream_state *stream = context->streams[i];
++
++		/*
++		 * Only notify active stream or virtual stream.
++		 * Need to notify virtual stream to work around
++		 * headless case. HPD does not fire when system is in
++		 * S0i2.
++		 */
++		if (!stream->dpms_off || stream->signal == SIGNAL_TYPE_VIRTUAL)
++			display_count++;
++	}
++
++	return display_count;
++}
++
+ static void dcn1_update_clocks(struct dccg *dccg,
+ 			struct dc_state *context,
+ 			bool safe_to_lower)
+@@ -152,11 +175,27 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 	struct dm_pp_clock_for_voltage_req clock_voltage_req = {0};
+ 	bool send_request_to_increase = false;
+ 	bool send_request_to_lower = false;
++	int display_count;
++
++	bool enter_display_off = false;
++
++	display_count = get_active_display_cnt(dc, context);
++
++	if (display_count == 0)
++		enter_display_off = true;
+ 
+-	if (new_clocks->phyclk_khz)
+-		smu_req.display_count = 1;
+-	else
+-		smu_req.display_count = 0;
++	if (enter_display_off == safe_to_lower) {
++		/*
++		 * Notify SMU active displays
++		 * if function pointer not set up, this message is
++		 * sent as part of pplib_apply_display_requirements.
++		 */
++		if (pp_smu->set_display_count)
++			pp_smu->set_display_count(&pp_smu->pp_smu, display_count);
++		else
++			smu_req.display_count = display_count;
++
++	}
+ 
+ 	if (new_clocks->dispclk_khz > dccg->clks.dispclk_khz
+ 			|| new_clocks->phyclk_khz > dccg->clks.phyclk_khz
+-- 
+2.7.4
+

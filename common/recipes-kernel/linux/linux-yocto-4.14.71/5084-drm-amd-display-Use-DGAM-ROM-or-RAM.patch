@@ -1,0 +1,126 @@
+From 27979191d4930f7addbb34ac148a5c7d08955509 Mon Sep 17 00:00:00 2001
+From: Vitaly Prosyak <vitaly.prosyak@amd.com>
+Date: Wed, 18 Jul 2018 15:10:10 -0500
+Subject: [PATCH 5084/5725] drm/amd/display: Use DGAM ROM or RAM
+
+[Why]
+Optimize gamma programming
+
+[How]
+Use ROM for optimization when it is possible.
+Use RAM only when it is necessary.
+
+Signed-off-by: Vitaly Prosyak <vitaly.prosyak@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c |  6 ++++--
+ drivers/gpu/drm/amd/display/modules/color/color_gamma.c | 10 +++++-----
+ drivers/gpu/drm/amd/display/modules/color/color_gamma.h |  5 +++--
+ 3 files changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c
+index 326f6fb..be19e68 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c
+@@ -22,7 +22,7 @@
+  * Authors: AMD
+  *
+  */
+-
++#include "amdgpu.h"
+ #include "amdgpu_mode.h"
+ #include "amdgpu_dm.h"
+ #include "dc.h"
+@@ -122,6 +122,8 @@ int amdgpu_dm_set_regamma_lut(struct dm_crtc_state *crtc)
+ {
+ 	struct drm_property_blob *blob = crtc->base.gamma_lut;
+ 	struct dc_stream_state *stream = crtc->stream;
++	struct amdgpu_device *adev = (struct amdgpu_device *)
++		crtc->base.state->dev->dev_private;
+ 	struct drm_color_lut *lut;
+ 	uint32_t lut_size;
+ 	struct dc_gamma *gamma;
+@@ -162,7 +164,7 @@ int amdgpu_dm_set_regamma_lut(struct dm_crtc_state *crtc)
+ 	 */
+ 	stream->out_transfer_func->type = TF_TYPE_DISTRIBUTED_POINTS;
+ 	ret = mod_color_calculate_regamma_params(stream->out_transfer_func,
+-						 gamma, true);
++						 gamma, true, adev->asic_type <= CHIP_RAVEN);
+ 	dc_gamma_release(&gamma);
+ 	if (!ret) {
+ 		stream->out_transfer_func->type = old_type;
+diff --git a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+index 4c67058..646e60d 100644
+--- a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
++++ b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+@@ -1352,7 +1352,7 @@ static bool map_regamma_hw_to_x_user(
+ #define _EXTRA_POINTS 3
+ 
+ bool mod_color_calculate_regamma_params(struct dc_transfer_func *output_tf,
+-		const struct dc_gamma *ramp, bool mapUserRamp)
++		const struct dc_gamma *ramp, bool mapUserRamp, bool canRomBeUsed)
+ {
+ 	struct dc_transfer_func_distributed_points *tf_pts = &output_tf->tf_pts;
+ 	struct dividers dividers;
+@@ -1368,7 +1368,7 @@ bool mod_color_calculate_regamma_params(struct dc_transfer_func *output_tf,
+ 		return false;
+ 
+ 	/* we can use hardcoded curve for plain SRGB TF */
+-	if (output_tf->type == TF_TYPE_PREDEFINED &&
++	if (output_tf->type == TF_TYPE_PREDEFINED && canRomBeUsed == true &&
+ 			output_tf->tf == TRANSFER_FUNCTION_SRGB &&
+ 			(!mapUserRamp && ramp->type == GAMMA_RGB_256))
+ 		return true;
+@@ -1427,7 +1427,6 @@ bool mod_color_calculate_regamma_params(struct dc_transfer_func *output_tf,
+ 				MAX_HW_POINTS,
+ 				coordinates_x, tf == TRANSFER_FUNCTION_SRGB ? true:false);
+ 	}
+-
+ 	map_regamma_hw_to_x_user(ramp, coeff, rgb_user,
+ 			coordinates_x, axix_x, rgb_regamma,
+ 			MAX_HW_POINTS, tf_pts,
+@@ -1652,7 +1651,8 @@ bool mod_color_calculate_degamma_params(struct dc_transfer_func *input_tf,
+ 
+ 
+ bool  mod_color_calculate_curve(enum dc_transfer_func_predefined trans,
+-				struct dc_transfer_func_distributed_points *points)
++				struct dc_transfer_func_distributed_points *points,
++				uint32_t sdr_ref_white_level)
+ {
+ 	uint32_t i;
+ 	bool ret = false;
+@@ -1686,7 +1686,7 @@ bool  mod_color_calculate_curve(enum dc_transfer_func_predefined trans,
+ 		build_pq(rgb_regamma,
+ 				MAX_HW_POINTS,
+ 				coordinates_x,
+-				80);
++				sdr_ref_white_level);
+ 		for (i = 0; i <= MAX_HW_POINTS ; i++) {
+ 			points->red[i]    = rgb_regamma[i].r;
+ 			points->green[i]  = rgb_regamma[i].g;
+diff --git a/drivers/gpu/drm/amd/display/modules/color/color_gamma.h b/drivers/gpu/drm/amd/display/modules/color/color_gamma.h
+index b6404899..63ccb9c 100644
+--- a/drivers/gpu/drm/amd/display/modules/color/color_gamma.h
++++ b/drivers/gpu/drm/amd/display/modules/color/color_gamma.h
+@@ -78,13 +78,14 @@ void precompute_pq(void);
+ void precompute_de_pq(void);
+ 
+ bool mod_color_calculate_regamma_params(struct dc_transfer_func *output_tf,
+-		const struct dc_gamma *ramp, bool mapUserRamp);
++		const struct dc_gamma *ramp, bool mapUserRamp, bool canRomBeUsed);
+ 
+ bool mod_color_calculate_degamma_params(struct dc_transfer_func *output_tf,
+ 		const struct dc_gamma *ramp, bool mapUserRamp);
+ 
+ bool mod_color_calculate_curve(enum dc_transfer_func_predefined  trans,
+-		struct dc_transfer_func_distributed_points *points);
++		struct dc_transfer_func_distributed_points *points,
++		uint32_t sdr_ref_white_level);
+ 
+ bool mod_color_calculate_degamma_curve(enum dc_transfer_func_predefined trans,
+ 				struct dc_transfer_func_distributed_points *points);
+-- 
+2.7.4
+

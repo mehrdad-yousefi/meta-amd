@@ -1,0 +1,29 @@
+From e41ca33ca8f744c4b69528b89a15f32fb831b2f5 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 11 May 2018 14:41:40 +0800
+Subject: [PATCH 4384/5725] drm/amdgpu: Drop the unused header files in
+ soc15.c.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 9006576..f31df18 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -41,8 +41,6 @@
+ #include "sdma1/sdma1_4_0_offset.h"
+ #include "hdp/hdp_4_0_offset.h"
+ #include "hdp/hdp_4_0_sh_mask.h"
+-#include "mp/mp_9_0_offset.h"
+-#include "mp/mp_9_0_sh_mask.h"
+ #include "smuio/smuio_9_0_offset.h"
+ #include "smuio/smuio_9_0_sh_mask.h"
+ 
+-- 
+2.7.4
+

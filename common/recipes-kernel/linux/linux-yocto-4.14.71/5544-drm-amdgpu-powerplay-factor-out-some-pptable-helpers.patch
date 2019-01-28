@@ -1,0 +1,265 @@
+From 787c5a404019f291420d8dfe62ae5753c8d71b32 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 9 Oct 2018 16:03:53 -0500
+Subject: [PATCH 5544/5725] drm/amdgpu/powerplay: factor out some pptable
+ helpers
+
+Move copy_array helpers to smu_helper.c and share between
+vega12 and vega20.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c   | 44 ++++++++++++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h   | 12 +++++
+ .../amd/powerplay/hwmgr/vega12_processpptables.c   | 58 ++++------------------
+ .../amd/powerplay/hwmgr/vega20_processpptables.c   | 52 ++-----------------
+ 4 files changed, 70 insertions(+), 96 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c
+index 8ad4e696..4714b5b 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c
+@@ -39,6 +39,50 @@ uint16_t convert_to_vddc(uint8_t vid)
+ 	return (uint16_t) ((6200 - (vid * 25)) / VOLTAGE_SCALE);
+ }
+ 
++int phm_copy_clock_limits_array(
++	struct pp_hwmgr *hwmgr,
++	uint32_t **pptable_info_array,
++	const uint32_t *pptable_array,
++	uint32_t power_saving_clock_count)
++{
++	uint32_t array_size, i;
++	uint32_t *table;
++
++	array_size = sizeof(uint32_t) * power_saving_clock_count;
++	table = kzalloc(array_size, GFP_KERNEL);
++	if (NULL == table)
++		return -ENOMEM;
++
++	for (i = 0; i < power_saving_clock_count; i++)
++		table[i] = le32_to_cpu(pptable_array[i]);
++
++	*pptable_info_array = table;
++
++	return 0;
++}
++
++int phm_copy_overdrive_settings_limits_array(
++	struct pp_hwmgr *hwmgr,
++	uint32_t **pptable_info_array,
++	const uint32_t *pptable_array,
++	uint32_t od_setting_count)
++{
++	uint32_t array_size, i;
++	uint32_t *table;
++
++	array_size = sizeof(uint32_t) * od_setting_count;
++	table = kzalloc(array_size, GFP_KERNEL);
++	if (NULL == table)
++		return -ENOMEM;
++
++	for (i = 0; i < od_setting_count; i++)
++		table[i] = le32_to_cpu(pptable_array[i]);
++
++	*pptable_info_array = table;
++
++	return 0;
++}
++
+ uint32_t phm_set_field_to_u32(u32 offset, u32 original_data, u32 field, u32 size)
+ {
+ 	u32 mask = 0;
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h
+index 5454289..ad33983 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h
+@@ -47,6 +47,18 @@ struct watermarks {
+ 	uint32_t     padding[7];
+ };
+ 
++int phm_copy_clock_limits_array(
++	struct pp_hwmgr *hwmgr,
++	uint32_t **pptable_info_array,
++	const uint32_t *pptable_array,
++	uint32_t power_saving_clock_count);
++
++int phm_copy_overdrive_settings_limits_array(
++	struct pp_hwmgr *hwmgr,
++	uint32_t **pptable_info_array,
++	const uint32_t *pptable_array,
++	uint32_t od_setting_count);
++
+ extern int phm_wait_for_register_unequal(struct pp_hwmgr *hwmgr,
+ 					uint32_t index,
+ 					uint32_t value, uint32_t mask);
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
+index e330058..a4ab78e 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
+@@ -99,50 +99,6 @@ static int set_platform_caps(struct pp_hwmgr *hwmgr, uint32_t powerplay_caps)
+ 	return 0;
+ }
+ 
+-static int copy_clock_limits_array(
+-	struct pp_hwmgr *hwmgr,
+-	uint32_t **pptable_info_array,
+-	const uint32_t *pptable_array)
+-{
+-	uint32_t array_size, i;
+-	uint32_t *table;
+-
+-	array_size = sizeof(uint32_t) * ATOM_VEGA12_PPCLOCK_COUNT;
+-
+-	table = kzalloc(array_size, GFP_KERNEL);
+-	if (NULL == table)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < ATOM_VEGA12_PPCLOCK_COUNT; i++)
+-		table[i] = le32_to_cpu(pptable_array[i]);
+-
+-	*pptable_info_array = table;
+-
+-	return 0;
+-}
+-
+-static int copy_overdrive_settings_limits_array(
+-		struct pp_hwmgr *hwmgr,
+-		uint32_t **pptable_info_array,
+-		const uint32_t *pptable_array)
+-{
+-	uint32_t array_size, i;
+-	uint32_t *table;
+-
+-	array_size = sizeof(uint32_t) * ATOM_VEGA12_ODSETTING_COUNT;
+-
+-	table = kzalloc(array_size, GFP_KERNEL);
+-	if (NULL == table)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < ATOM_VEGA12_ODSETTING_COUNT; i++)
+-		table[i] = le32_to_cpu(pptable_array[i]);
+-
+-	*pptable_info_array = table;
+-
+-	return 0;
+-}
+-
+ static int append_vbios_pptable(struct pp_hwmgr *hwmgr, PPTable_t *ppsmc_pptable)
+ {
+ 	struct pp_atomfwctrl_smc_dpm_parameters smc_dpm_table;
+@@ -256,8 +212,14 @@ static int init_powerplay_table_information(
+ 	hwmgr->platform_descriptor.overdriveLimit.memoryClock =
+ 		le32_to_cpu(powerplay_table->ODSettingsMax[ATOM_VEGA12_ODSETTING_UCLKFMAX]);
+ 
+-	copy_overdrive_settings_limits_array(hwmgr, &pptable_information->od_settings_max, powerplay_table->ODSettingsMax);
+-	copy_overdrive_settings_limits_array(hwmgr, &pptable_information->od_settings_min, powerplay_table->ODSettingsMin);
++	phm_copy_overdrive_settings_limits_array(hwmgr,
++						 &pptable_information->od_settings_max,
++						 powerplay_table->ODSettingsMax,
++						 ATOM_VEGA12_ODSETTING_COUNT);
++	phm_copy_overdrive_settings_limits_array(hwmgr,
++						 &pptable_information->od_settings_min,
++						 powerplay_table->ODSettingsMin,
++						 ATOM_VEGA12_ODSETTING_COUNT);
+ 
+ 	/* hwmgr->platformDescriptor.minOverdriveVDDC = 0;
+ 	hwmgr->platformDescriptor.maxOverdriveVDDC = 0;
+@@ -285,8 +247,8 @@ static int init_powerplay_table_information(
+ 				PHM_PlatformCaps_PowerControl);
+ 	}
+ 
+-	copy_clock_limits_array(hwmgr, &pptable_information->power_saving_clock_max, powerplay_table->PowerSavingClockMax);
+-	copy_clock_limits_array(hwmgr, &pptable_information->power_saving_clock_min, powerplay_table->PowerSavingClockMin);
++	phm_copy_clock_limits_array(hwmgr, &pptable_information->power_saving_clock_max, powerplay_table->PowerSavingClockMax, ATOM_VEGA12_PPCLOCK_COUNT);
++	phm_copy_clock_limits_array(hwmgr, &pptable_information->power_saving_clock_min, powerplay_table->PowerSavingClockMin, ATOM_VEGA12_PPCLOCK_COUNT);
+ 
+ 	pptable_information->smc_pptable = (PPTable_t *)kmalloc(sizeof(PPTable_t), GFP_KERNEL);
+ 	if (pptable_information->smc_pptable == NULL)
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+index 956aa6a..32fe384 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+@@ -661,50 +661,6 @@ static int set_platform_caps(struct pp_hwmgr *hwmgr, uint32_t powerplay_caps)
+ 	return 0;
+ }
+ 
+-static int copy_clock_limits_array(
+-	struct pp_hwmgr *hwmgr,
+-	uint32_t **pptable_info_array,
+-	const uint32_t *pptable_array,
+-	uint32_t power_saving_clock_count)
+-{
+-	uint32_t array_size, i;
+-	uint32_t *table;
+-
+-	array_size = sizeof(uint32_t) * power_saving_clock_count;
+-	table = kzalloc(array_size, GFP_KERNEL);
+-	if (NULL == table)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < power_saving_clock_count; i++)
+-		table[i] = le32_to_cpu(pptable_array[i]);
+-
+-	*pptable_info_array = table;
+-
+-	return 0;
+-}
+-
+-static int copy_overdrive_settings_limits_array(
+-		struct pp_hwmgr *hwmgr,
+-		uint32_t **pptable_info_array,
+-		const uint32_t *pptable_array,
+-		uint32_t od_setting_count)
+-{
+-	uint32_t array_size, i;
+-	uint32_t *table;
+-
+-	array_size = sizeof(uint32_t) * od_setting_count;
+-	table = kzalloc(array_size, GFP_KERNEL);
+-	if (NULL == table)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < od_setting_count; i++)
+-		table[i] = le32_to_cpu(pptable_array[i]);
+-
+-	*pptable_info_array = table;
+-
+-	return 0;
+-}
+-
+ static int copy_overdrive_feature_capabilities_array(
+ 		struct pp_hwmgr *hwmgr,
+ 		uint8_t **pptable_info_array,
+@@ -859,11 +815,11 @@ static int init_powerplay_table_information(
+ 				&pptable_information->od_feature_capabilities,
+ 				powerplay_table->OverDrive8Table.ODFeatureCapabilities,
+ 				od_feature_count);
+-		copy_overdrive_settings_limits_array(hwmgr,
++		phm_copy_overdrive_settings_limits_array(hwmgr,
+ 				&pptable_information->od_settings_max,
+ 				powerplay_table->OverDrive8Table.ODSettingsMax,
+ 				od_setting_count);
+-		copy_overdrive_settings_limits_array(hwmgr,
++		phm_copy_overdrive_settings_limits_array(hwmgr,
+ 				&pptable_information->od_settings_min,
+ 				powerplay_table->OverDrive8Table.ODSettingsMin,
+ 				od_setting_count);
+@@ -890,11 +846,11 @@ static int init_powerplay_table_information(
+ 			 ATOM_VEGA20_PPCLOCK_COUNT) ?
+ 			ATOM_VEGA20_PPCLOCK_COUNT :
+ 			le32_to_cpu(powerplay_table->PowerSavingClockTable.PowerSavingClockCount);
+-		copy_clock_limits_array(hwmgr,
++		phm_copy_clock_limits_array(hwmgr,
+ 				&pptable_information->power_saving_clock_max,
+ 				powerplay_table->PowerSavingClockTable.PowerSavingClockMax,
+ 				power_saving_clock_count);
+-		copy_clock_limits_array(hwmgr,
++		phm_copy_clock_limits_array(hwmgr,
+ 				&pptable_information->power_saving_clock_min,
+ 				powerplay_table->PowerSavingClockTable.PowerSavingClockMin,
+ 				power_saving_clock_count);
+-- 
+2.7.4
+

@@ -1,0 +1,71 @@
+From 521b4da5ac654875b61091a318b9915366454128 Mon Sep 17 00:00:00 2001
+From: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Date: Tue, 24 Jul 2018 13:19:49 -0400
+Subject: [PATCH 5068/5725] drm/amd/display: Set DFS bypass flags for dce110
+
+[Why]
+
+While there is support for using and quering DFS bypass clocks the
+hardware is never notified to enter DFS bypass mode for dce110.
+
+[How]
+
+Add a flag that can be set when programming the display engine PLL
+to enable DFS bypass mode. If this flag is set then the hardware is
+notified to enter DFS bypass mode and the correct display engine clock
+frequency can be acquired.
+
+Signed-off-by: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/bios/command_table.c     | 3 +++
+ drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c         | 3 +++
+ drivers/gpu/drm/amd/display/include/bios_parser_types.h | 2 ++
+ 3 files changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/bios/command_table.c b/drivers/gpu/drm/amd/display/dc/bios/command_table.c
+index a558bfa..2bd7cd9 100644
+--- a/drivers/gpu/drm/amd/display/dc/bios/command_table.c
++++ b/drivers/gpu/drm/amd/display/dc/bios/command_table.c
+@@ -2201,6 +2201,9 @@ static enum bp_result program_clock_v6(
+ 	if (bp_params->flags.SET_EXTERNAL_REF_DIV_SRC)
+ 		params.sPCLKInput.ucMiscInfo |= PIXEL_CLOCK_MISC_REF_DIV_SRC;
+ 
++	if (bp_params->flags.SET_DISPCLK_DFS_BYPASS)
++		params.sPCLKInput.ucMiscInfo |= PIXEL_CLOCK_V6_MISC_DPREFCLK_BYPASS;
++
+ 	if (EXEC_BIOS_CMD_TABLE(SetPixelClock, params)) {
+ 		/* True display clock is returned by VBIOS if DFS bypass
+ 		 * is enabled. */
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+index 684da3d..10bb8095 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+@@ -249,6 +249,9 @@ static int dce_set_clock(
+ 	pxl_clk_params.target_pixel_clock = requested_clk_khz;
+ 	pxl_clk_params.pll_id = CLOCK_SOURCE_ID_DFS;
+ 
++	if (clk_dce->dfs_bypass_enabled)
++		pxl_clk_params.flags.SET_DISPCLK_DFS_BYPASS = true;
++
+ 	bp->funcs->program_display_engine_pll(bp, &pxl_clk_params);
+ 
+ 	if (clk_dce->dfs_bypass_enabled) {
+diff --git a/drivers/gpu/drm/amd/display/include/bios_parser_types.h b/drivers/gpu/drm/amd/display/include/bios_parser_types.h
+index 0840f69..f8dbfa5 100644
+--- a/drivers/gpu/drm/amd/display/include/bios_parser_types.h
++++ b/drivers/gpu/drm/amd/display/include/bios_parser_types.h
+@@ -234,6 +234,8 @@ struct bp_pixel_clock_parameters {
+ 		uint32_t USE_E_CLOCK_AS_SOURCE_FOR_D_CLOCK:1;
+ 		/* Use external reference clock (refDivSrc for PLL) */
+ 		uint32_t SET_EXTERNAL_REF_DIV_SRC:1;
++		/* Use DFS bypass for Display clock. */
++		uint32_t SET_DISPCLK_DFS_BYPASS:1;
+ 		/* Force program PHY PLL only */
+ 		uint32_t PROGRAM_PHY_PLL_ONLY:1;
+ 		/* Support for YUV420 */
+-- 
+2.7.4
+

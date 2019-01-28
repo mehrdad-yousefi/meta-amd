@@ -1,0 +1,29 @@
+From 32c934131ba12685af016d537aa7236f08e439a2 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 17 May 2018 16:03:47 +0800
+Subject: [PATCH 4503/5725] drm/amdgpu: Enable VCN static PG by default on RV
+
+Change-Id: Id36f84407cd1896434e47a7b34f741c6dcda51f3
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 485cb43..9a7a85d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -713,7 +713,8 @@ static int soc15_common_early_init(void *handle)
+ 			AMD_CG_SUPPORT_SDMA_MGCG |
+ 			AMD_CG_SUPPORT_SDMA_LS |
+ 			AMD_CG_SUPPORT_VCN_MGCG;
+-		adev->pg_flags = AMD_PG_SUPPORT_SDMA;
++
++		adev->pg_flags = AMD_PG_SUPPORT_SDMA | AMD_PG_SUPPORT_VCN;
+ 
+ 		if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
+ 			adev->pg_flags |= AMD_PG_SUPPORT_GFX_PG |
+-- 
+2.7.4
+

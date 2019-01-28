@@ -1,0 +1,55 @@
+From 5ccff6efa334974ba35d3bad9b6c667fc1438442 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 21 Aug 2018 15:09:39 +0200
+Subject: [PATCH 5334/5725] drm/amdgpu: fix preamble handling
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+At this point the command submission can still be interrupted.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index a1ad99e..3e41c03 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1015,13 +1015,9 @@ static int amdgpu_cs_ib_fill(struct amdgpu_device *adev,
+ 		if (r)
+ 			return r;
+ 
+-		if (chunk_ib->flags & AMDGPU_IB_FLAG_PREAMBLE) {
+-			parser->job->preamble_status |= AMDGPU_PREAMBLE_IB_PRESENT;
+-			if (!parser->ctx->preamble_presented) {
+-				parser->job->preamble_status |= AMDGPU_PREAMBLE_IB_PRESENT_FIRST;
+-				parser->ctx->preamble_presented = true;
+-			}
+-		}
++		if (chunk_ib->flags & AMDGPU_IB_FLAG_PREAMBLE)
++			parser->job->preamble_status |=
++				AMDGPU_PREAMBLE_IB_PRESENT;
+ 
+ 		if (parser->ring && parser->ring != ring)
+ 			return -EINVAL;
+@@ -1235,6 +1231,12 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ 
+ 	amdgpu_cs_post_dependencies(p);
+ 
++	if ((job->preamble_status & AMDGPU_PREAMBLE_IB_PRESENT) &&
++			!p->ctx->preamble_presented) {
++		job->preamble_status |= AMDGPU_PREAMBLE_IB_PRESENT_FIRST;
++		p->ctx->preamble_presented = true;
++	}
++
+ 	cs->out.handle = seq;
+ 	job->uf_sequence = seq;
+ 
+-- 
+2.7.4
+

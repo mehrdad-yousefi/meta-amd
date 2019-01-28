@@ -1,0 +1,79 @@
+From 138a4a1b2b33df8f640163553d40a7630984122b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 24 Aug 2018 14:48:02 +0200
+Subject: [PATCH 5224/5725] drm/amdgpu: fix holding mn_lock while allocating
+ memory
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We can't hold the mn_lock while allocating memory.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Chunming Zhou <david1.zhou@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 31 +++++++++++++++++++------------
+ 1 file changed, 19 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index c2a5caa..f7fa60b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1210,26 +1210,24 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ 
+ 	int r;
+ 
++	job = p->job;
++	p->job = NULL;
++
++	r = drm_sched_job_init(&job->base, &ring->sched, entity, p->filp);
++	if (r)
++		goto error_unlock;
++
++	/* No memory allocation is allowed while holding the mn lock */
+ 	amdgpu_mn_lock(p->mn);
+ 	amdgpu_bo_list_for_each_userptr_entry(e, p->bo_list) {
+ 		struct amdgpu_bo *bo = e->robj;
+ 
+ 		if (amdgpu_ttm_tt_userptr_needs_pages(bo->tbo.ttm)) {
+-			amdgpu_mn_unlock(p->mn);
+-			return -ERESTARTSYS;
++			r = -ERESTARTSYS;
++			goto error_abort;
+ 		}
+ 	}
+ 
+-	job = p->job;
+-	p->job = NULL;
+-
+-	r = drm_sched_job_init(&job->base, &ring->sched, entity, p->filp);
+-	if (r) {
+-		amdgpu_job_free(job);
+-		amdgpu_mn_unlock(p->mn);
+-		return r;
+-	}
+-
+ 	job->owner = p->filp;
+ 	p->fence = dma_fence_get(&job->base.s_fence->finished);
+ 
+@@ -1254,6 +1252,15 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ 	amdgpu_mn_unlock(p->mn);
+ 
+ 	return 0;
++
++error_abort:
++	dma_fence_put(&job->base.s_fence->finished);
++	job->base.s_fence = NULL;
++
++error_unlock:
++	amdgpu_job_free(job);
++	amdgpu_mn_unlock(p->mn);
++	return r;
+ }
+ 
+ int amdgpu_cs_ioctl(struct drm_device *dev, void *data, struct drm_file *filp)
+-- 
+2.7.4
+

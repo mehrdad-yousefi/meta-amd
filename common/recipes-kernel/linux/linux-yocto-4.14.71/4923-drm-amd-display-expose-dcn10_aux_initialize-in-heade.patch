@@ -1,0 +1,64 @@
+From 39916fb37613175bc9df6534c683ef2b25402dce Mon Sep 17 00:00:00 2001
+From: Yongqiang Sun <yongqiang.sun@amd.com>
+Date: Mon, 25 Jun 2018 00:18:54 +0800
+Subject: [PATCH 4923/5725] drm/amd/display: expose dcn10_aux_initialize in
+ header
+
+Signed-off-by: Yongqiang Sun <yongqiang.sun@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c | 10 ++--------
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h |  2 ++
+ 2 files changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+index 18a7cac..be78ccb 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+@@ -65,11 +65,6 @@ enum {
+ 	DP_MST_UPDATE_MAX_RETRY = 50
+ };
+ 
+-
+-
+-static void aux_initialize(struct dcn10_link_encoder *enc10);
+-
+-
+ static const struct link_encoder_funcs dcn10_lnk_enc_funcs = {
+ 	.validate_output_with_stream =
+ 		dcn10_link_encoder_validate_output_with_stream,
+@@ -811,7 +806,7 @@ void dcn10_link_encoder_hw_init(
+ 		ASSERT(result == BP_RESULT_OK);
+ 
+ 	}
+-	aux_initialize(enc10);
++	dcn10_aux_initialize(enc10);
+ 
+ 	/* reinitialize HPD.
+ 	 * hpd_initialize() will pass DIG_FE id to HW context.
+@@ -1348,8 +1343,7 @@ void dcn10_link_encoder_disable_hpd(struct link_encoder *enc)
+ 				FN(reg, f1), v1,\
+ 				FN(reg, f2), v2)
+ 
+-static void aux_initialize(
+-	struct dcn10_link_encoder *enc10)
++void dcn10_aux_initialize(struct dcn10_link_encoder *enc10)
+ {
+ 	enum hpd_source_id hpd_source = enc10->base.hpd_source;
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h
+index cd3bb5d..49ead12 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h
+@@ -336,4 +336,6 @@ void dcn10_psr_program_secondary_packet(struct link_encoder *enc,
+ 
+ bool dcn10_is_dig_enabled(struct link_encoder *enc);
+ 
++void dcn10_aux_initialize(struct dcn10_link_encoder *enc10);
++
+ #endif /* __DC_LINK_ENCODER__DCN10_H__ */
+-- 
+2.7.4
+

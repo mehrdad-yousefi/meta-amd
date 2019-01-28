@@ -1,0 +1,53 @@
+From 4aa26b2b8f57c5b5f6be33b40435aafbe21eaec0 Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Wed, 22 Aug 2018 20:32:23 +0800
+Subject: [PATCH 5192/5725] drm/amdgpu: Don't use kiq in gpu reset
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When in gpu reset, don't use kiq, it will generate more TDR.
+
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>.
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 15 ++++-----------
+ 1 file changed, 4 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 4b54027..02366a5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -331,15 +331,8 @@ signed long  amdgpu_kiq_reg_write_reg_wait(struct amdgpu_device *adev,
+ 
+ 	r = amdgpu_fence_wait_polling(ring, seq, MAX_KIQ_REG_WAIT);
+ 
+-	/* don't wait anymore for gpu reset case because this way may
+-	 * block gpu_recover() routine forever, e.g. this virt_kiq_rreg
+-	 * is triggered in TTM and ttm_bo_lock_delayed_workqueue() will
+-	 * never return if we keep waiting in virt_kiq_rreg, which cause
+-	 * gpu_recover() hang there.
+-	 *
+-	 * also don't wait anymore for IRQ context
+-	 * */
+-	if (r < 1 && (adev->in_gpu_reset || in_interrupt()))
++	/* don't wait anymore for IRQ context */
++	if (r < 1 && in_interrupt())
+ 		goto failed_kiq;
+ 
+ 	might_sleep();
+@@ -387,8 +380,8 @@ static void gmc_v9_0_flush_gpu_tlb(struct amdgpu_device *adev,
+ 		u32 tmp = gmc_v9_0_get_invalidate_req(vmid);
+ 
+ 		if (adev->gfx.kiq.ring.ready &&
+-		    (amdgpu_sriov_runtime(adev) ||
+-		     !amdgpu_sriov_vf(adev))) {
++		    (amdgpu_sriov_runtime(adev) || !amdgpu_sriov_vf(adev)) &&
++		    !adev->in_gpu_reset) {
+ 			r = amdgpu_kiq_reg_write_reg_wait(adev, hub->vm_inv_eng0_req + eng,
+ 				hub->vm_inv_eng0_ack + eng, tmp, 1 << vmid);
+ 			if (!r)
+-- 
+2.7.4
+

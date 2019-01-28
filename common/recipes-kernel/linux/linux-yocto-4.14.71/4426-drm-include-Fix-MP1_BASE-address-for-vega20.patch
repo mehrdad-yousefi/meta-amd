@@ -1,0 +1,37 @@
+From ff894c7b5b2785d69978dbbafb49cf3862e9c463 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Wed, 18 Apr 2018 10:52:44 +0800
+Subject: [PATCH 4426/5725] drm/include: Fix MP1_BASE address for vega20
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/vega20_ip_offset.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/vega20_ip_offset.h b/drivers/gpu/drm/amd/include/vega20_ip_offset.h
+index 2da2d97..97db93c 100644
+--- a/drivers/gpu/drm/amd/include/vega20_ip_offset.h
++++ b/drivers/gpu/drm/amd/include/vega20_ip_offset.h
+@@ -90,7 +90,7 @@ static const struct IP_BASE MP0_BASE            ={ { { { 0x00016000, 0, 0, 0, 0,
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } } } };
+-static const struct IP_BASE MP1_BASE            ={ { { { 0x00016200, 0, 0, 0, 0, 0 } },
++static const struct IP_BASE MP1_BASE            ={ { { { 0x00016000, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+                                         { { 0, 0, 0, 0, 0, 0 } },
+@@ -542,7 +542,7 @@ static const struct IP_BASE RSMU_BASE            ={ { { { 0x00012000, 0, 0, 0, 0
+ #define MP0_BASE__INST5_SEG4                       0
+ #define MP0_BASE__INST5_SEG5                       0
+ 
+-#define MP1_BASE__INST0_SEG0                       0x00016200
++#define MP1_BASE__INST0_SEG0                       0x00016000
+ #define MP1_BASE__INST0_SEG1                       0
+ #define MP1_BASE__INST0_SEG2                       0
+ #define MP1_BASE__INST0_SEG3                       0
+-- 
+2.7.4
+

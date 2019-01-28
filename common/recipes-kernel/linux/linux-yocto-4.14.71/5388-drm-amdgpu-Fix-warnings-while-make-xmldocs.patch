@@ -1,0 +1,44 @@
+From e7918df24cb517a3d92559d80b66e49e5ba078b7 Mon Sep 17 00:00:00 2001
+From: Masanari Iida <standby24x7@gmail.com>
+Date: Thu, 6 Sep 2018 11:10:57 +0900
+Subject: [PATCH 5388/5725] drm/amdgpu: Fix warnings while make xmldocs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch fixes following warnings.
+
+./drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c:3011:
+warning: Excess function parameter 'dev' description
+in 'amdgpu_vm_get_task_info'
+
+./drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c:3012:
+warning: Function parameter or member 'adev' not
+described in 'amdgpu_vm_get_task_info'
+
+./drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c:3012:
+warning: Excess function parameter 'dev' description
+in 'amdgpu_vm_get_task_info'
+
+Signed-off-by: Masanari Iida <standby24x7@gmail.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index ccc007c..64cbcff 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -3095,7 +3095,7 @@ int amdgpu_vm_ioctl(struct drm_device *dev, void *data, struct drm_file *filp)
+ /**
+  * amdgpu_vm_get_task_info - Extracts task info for a PASID.
+  *
+- * @dev: drm device pointer
++ * @adev: drm device pointer
+  * @pasid: PASID identifier for VM
+  * @task_info: task_info to fill.
+  */
+-- 
+2.7.4
+

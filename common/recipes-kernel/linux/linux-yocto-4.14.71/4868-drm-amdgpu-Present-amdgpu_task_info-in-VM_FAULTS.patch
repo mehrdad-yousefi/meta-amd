@@ -1,0 +1,88 @@
+From baaf8570ec1d667f9f97570ee6110a1cc77e5c86 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Thu, 28 Jun 2018 22:55:27 -0400
+Subject: [PATCH 4868/5725] drm/amdgpu: Present amdgpu_task_info in VM_FAULTS.
+
+Extract and present the reposnsible process and thread when
+VM_FAULT happens.
+
+v2: Use getter and setter functions.
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Acked-by: Jim Qu <Jim.Qu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c |  4 ++++
+ drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c  | 10 +++++++---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c  |  9 +++++++--
+ 3 files changed, 18 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index da11c95..62182e9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -187,6 +187,10 @@ static int amdgpu_cs_parser_init(struct amdgpu_cs_parser *p, void *data)
+ 	if (p->uf_entry.robj)
+ 		p->job->uf_addr = uf_offset;
+ 	kfree(chunk_array);
++
++	/* Use this opportunity to fill in task info for the vm */
++	amdgpu_vm_set_task_info(vm);
++
+ 	return 0;
+ 
+ free_all_kdata:
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+index c696bad..a3312f7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+@@ -44,7 +44,6 @@
+ 
+ #include "amdgpu_atombios.h"
+ 
+-
+ static void gmc_v8_0_set_gmc_funcs(struct amdgpu_device *adev);
+ static void gmc_v8_0_set_irq_funcs(struct amdgpu_device *adev);
+ static int gmc_v8_0_wait_for_idle(void *handle);
+@@ -1459,8 +1458,13 @@ static int gmc_v8_0_process_interrupt(struct amdgpu_device *adev,
+ 		gmc_v8_0_set_fault_enable_default(adev, false);
+ 
+ 	if (printk_ratelimit()) {
+-		dev_err(adev->dev, "GPU fault detected: %d 0x%08x\n",
+-			entry->src_id, entry->src_data[0]);
++		struct amdgpu_task_info task_info = { 0 };
++
++		amdgpu_vm_get_task_info(adev, entry->pasid, &task_info);
++
++		dev_err(adev->dev, "GPU fault detected: %d 0x%08x for process %s pid %d thread %s pid %d\n",
++			entry->src_id, entry->src_data[0], task_info.process_name,
++			task_info.tgid, task_info.task_name, task_info.pid);
+ 		dev_err(adev->dev, "  VM_CONTEXT1_PROTECTION_FAULT_ADDR   0x%08X\n",
+ 			addr);
+ 		dev_err(adev->dev, "  VM_CONTEXT1_PROTECTION_FAULT_STATUS 0x%08X\n",
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index ad65e57c..95b0587 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -256,11 +256,16 @@ static int gmc_v9_0_process_interrupt(struct amdgpu_device *adev,
+ 	}
+ 
+ 	if (printk_ratelimit()) {
++		struct amdgpu_task_info task_info = { 0 };
++
++		amdgpu_vm_get_task_info(adev, entry->pasid, &task_info);
++
+ 		dev_err(adev->dev,
+-			"[%s] VMC page fault (src_id:%u ring:%u vmid:%u pasid:%u)\n",
++			"[%s] VMC page fault (src_id:%u ring:%u vmid:%u pasid:%u, for process %s pid %d thread %s pid %d\n)\n",
+ 			entry->vmid_src ? "mmhub" : "gfxhub",
+ 			entry->src_id, entry->ring_id, entry->vmid,
+-			entry->pasid);
++			entry->pasid, task_info.process_name, task_info.tgid,
++			task_info.task_name, task_info.pid);
+ 		dev_err(adev->dev, "  at page 0x%016llx from %d\n",
+ 			addr, entry->client_id);
+ 		if (!amdgpu_sriov_vf(adev))
+-- 
+2.7.4
+

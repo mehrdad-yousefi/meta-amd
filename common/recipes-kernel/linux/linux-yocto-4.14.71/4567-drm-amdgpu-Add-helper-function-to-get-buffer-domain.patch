@@ -1,0 +1,97 @@
+From 1c9feef9832189d2eff784341beaf6646ae55d85 Mon Sep 17 00:00:00 2001
+From: Deepak Sharma <Deepak.Sharma@amd.com>
+Date: Fri, 25 May 2018 17:12:29 -0700
+Subject: [PATCH 4567/5725] drm/amdgpu: Add helper function to get buffer
+ domain
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Move logic of getting supported domain to a helper
+function
+
+Signed-off-by: Deepak Sharma <Deepak.Sharma@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c    | 10 +++-------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 17 ++++++++++++-----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.h |  3 ++-
+ 3 files changed, 17 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 2f4a6a7..275c316 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -901,19 +901,15 @@ int amdgpu_mode_dumb_create(struct drm_file *file_priv,
+ 	struct amdgpu_device *adev = dev->dev_private;
+ 	struct drm_gem_object *gobj;
+ 	uint32_t handle;
+-	u32 domain = amdgpu_display_supported_domains(adev);
++	u32 domain;
+ 	int r;
+ 
+ 	args->pitch = amdgpu_align_pitch(adev, args->width,
+ 					 DIV_ROUND_UP(args->bpp, 8), 0);
+ 	args->size = (u64)args->pitch * args->height;
+ 	args->size = ALIGN(args->size, PAGE_SIZE);
+-	if (domain == (AMDGPU_GEM_DOMAIN_VRAM | AMDGPU_GEM_DOMAIN_GTT)) {
+-		domain = AMDGPU_GEM_DOMAIN_VRAM;
+-		if (adev->gmc.real_vram_size <= AMDGPU_SG_THRESHOLD)
+-			domain = AMDGPU_GEM_DOMAIN_GTT;
+-	}
+-
++	domain = amdgpu_bo_get_preferred_pin_domain(adev,
++				amdgpu_display_supported_domains(adev));
+ 	r = amdgpu_gem_object_create(adev, args->size, 0, domain,
+ 				     AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED,
+ 				     false, NULL, &gobj);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 719423e..526f6e8 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -743,11 +743,7 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+ 	/* This assumes only APU display buffers are pinned with (VRAM|GTT).
+ 	 * See function amdgpu_display_supported_domains()
+ 	 */
+-	if (domain == (AMDGPU_GEM_DOMAIN_VRAM | AMDGPU_GEM_DOMAIN_GTT)) {
+-		domain = AMDGPU_GEM_DOMAIN_VRAM;
+-		if (adev->gmc.real_vram_size <= AMDGPU_SG_THRESHOLD)
+-			domain = AMDGPU_GEM_DOMAIN_GTT;
+-	}
++	domain = amdgpu_bo_get_preferred_pin_domain(adev, domain);
+ 
+ 	if (bo->pin_count) {
+ 		uint32_t mem_type = bo->tbo.mem.mem_type;
+@@ -1107,3 +1103,14 @@ u64 amdgpu_bo_gpu_offset(struct amdgpu_bo *bo)
+ 
+ 	return bo->tbo.offset;
+ }
++
++uint32_t amdgpu_bo_get_preferred_pin_domain(struct amdgpu_device *adev,
++					    uint32_t domain)
++{
++	if (domain == (AMDGPU_GEM_DOMAIN_VRAM | AMDGPU_GEM_DOMAIN_GTT)) {
++		domain = AMDGPU_GEM_DOMAIN_VRAM;
++		if (adev->gmc.real_vram_size <= AMDGPU_SG_THRESHOLD)
++			domain = AMDGPU_GEM_DOMAIN_GTT;
++	}
++	return domain;
++}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+index 2c79c25..40e7b42 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+@@ -300,7 +300,8 @@ int amdgpu_bo_restore_from_shadow(struct amdgpu_device *adev,
+ 				  struct reservation_object *resv,
+ 				  struct dma_fence **fence,
+ 				  bool direct);
+-
++uint32_t amdgpu_bo_get_preferred_pin_domain(struct amdgpu_device *adev,
++					    uint32_t domain);
+ 
+ /*
+  * sub allocation
+-- 
+2.7.4
+

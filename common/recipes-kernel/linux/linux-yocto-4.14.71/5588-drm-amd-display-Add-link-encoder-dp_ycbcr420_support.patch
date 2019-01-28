@@ -1,0 +1,145 @@
+From 47eb73de936323ae1bb9d9d33bbed3c41dea3b8c Mon Sep 17 00:00:00 2001
+From: Eric Bernstein <eric.bernstein@amd.com>
+Date: Tue, 25 Sep 2018 15:56:41 -0400
+Subject: [PATCH 5588/5725] drm/amd/display: Add link encoder
+ dp_ycbcr420_supported feature flag
+
+[Why]
+Need separate feature flag for DP 4:2:0 support, since existing
+flag is used for HDMI
+
+[How]
+Added dp_ycbcr420_supported to struct encoder_feature_support
+
+Change-Id: Ied533de8fd0778beb88deed20121acd0a331d6e2
+Signed-off-by: Eric Bernstein <eric.bernstein@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c         | 4 ++--
+ drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c     | 2 +-
+ drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c   | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c   | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c | 8 +++++---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c     | 3 ++-
+ drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h      | 3 ++-
+ 7 files changed, 16 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index a488601..a50cfa2 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3910,12 +3910,12 @@ void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
+ 	case DRM_MODE_CONNECTOR_HDMIA:
+ 		aconnector->base.polled = DRM_CONNECTOR_POLL_HPD;
+ 		aconnector->base.ycbcr_420_allowed =
+-			link->link_enc->features.ycbcr420_supported ? true : false;
++			link->link_enc->features.hdmi_ycbcr420_supported ? true : false;
+ 		break;
+ 	case DRM_MODE_CONNECTOR_DisplayPort:
+ 		aconnector->base.polled = DRM_CONNECTOR_POLL_HPD;
+ 		aconnector->base.ycbcr_420_allowed =
+-			link->link_enc->features.ycbcr420_supported ? true : false;
++			link->link_enc->features.dp_ycbcr420_supported ? true : false;
+ 		break;
+ 	case DRM_MODE_CONNECTOR_DVID:
+ 		aconnector->base.polled = DRM_CONNECTOR_POLL_HPD;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+index 366bc8c..3e18ea8 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+@@ -645,7 +645,7 @@ static bool dce110_link_encoder_validate_hdmi_output(
+ 		return false;
+ 
+ 	/* DCE11 HW does not support 420 */
+-	if (!enc110->base.features.ycbcr420_supported &&
++	if (!enc110->base.features.hdmi_ycbcr420_supported &&
+ 			crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
+ 		return false;
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+index b3d00d7..e73b139 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+@@ -551,7 +551,8 @@ static struct transform *dce112_transform_create(
+ static const struct encoder_feature_support link_enc_feature = {
+ 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
+ 		.max_hdmi_pixel_clock = 600000,
+-		.ycbcr420_supported = true,
++		.hdmi_ycbcr420_supported = true,
++		.dp_ycbcr420_supported = false,
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+ 		.flags.bits.IS_HBR3_CAPABLE = true,
+ 		.flags.bits.IS_TPS3_CAPABLE = true,
+diff --git a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+index 512a22d..a69e89f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+@@ -607,7 +607,8 @@ static struct audio *create_audio(
+ static const struct encoder_feature_support link_enc_feature = {
+ 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
+ 		.max_hdmi_pixel_clock = 600000,
+-		.ycbcr420_supported = true,
++		.hdmi_ycbcr420_supported = true,
++		.dp_ycbcr420_supported = false,
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+ 		.flags.bits.IS_HBR3_CAPABLE = true,
+ 		.flags.bits.IS_TPS3_CAPABLE = true,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+index ba6a8686..477ab92 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+@@ -589,7 +589,7 @@ static bool dcn10_link_encoder_validate_hdmi_output(
+ 		return false;
+ 
+ 	/* DCE11 HW does not support 420 */
+-	if (!enc10->base.features.ycbcr420_supported &&
++	if (!enc10->base.features.hdmi_ycbcr420_supported &&
+ 			crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
+ 		return false;
+ 
+@@ -606,8 +606,10 @@ bool dcn10_link_encoder_validate_dp_output(
+ 	const struct dcn10_link_encoder *enc10,
+ 	const struct dc_crtc_timing *crtc_timing)
+ {
+-	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
+-		return false;
++	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420) {
++		if (!enc10->base.features.dp_ycbcr420_supported)
++			return false;
++	}
+ 
+ 	return true;
+ }
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index 55d2d17..3d9118e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -719,7 +719,8 @@ static struct timing_generator *dcn10_timing_generator_create(
+ static const struct encoder_feature_support link_enc_feature = {
+ 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
+ 		.max_hdmi_pixel_clock = 600000,
+-		.ycbcr420_supported = true,
++		.hdmi_ycbcr420_supported = true,
++		.dp_ycbcr420_supported = false,
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+ 		.flags.bits.IS_HBR3_CAPABLE = true,
+ 		.flags.bits.IS_TPS3_CAPABLE = true,
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h b/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
+index e28e977..c20fdca 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
+@@ -65,7 +65,8 @@ struct encoder_feature_support {
+ 
+ 	enum dc_color_depth max_hdmi_deep_color;
+ 	unsigned int max_hdmi_pixel_clock;
+-	bool ycbcr420_supported;
++	bool hdmi_ycbcr420_supported;
++	bool dp_ycbcr420_supported;
+ };
+ 
+ union dpcd_psr_configuration {
+-- 
+2.7.4
+

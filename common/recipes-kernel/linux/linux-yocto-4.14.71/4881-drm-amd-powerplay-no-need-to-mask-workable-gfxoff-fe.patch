@@ -1,0 +1,35 @@
+From 9ccb0b2ee210f91637e7be294df4041ed301114d Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 5 Jul 2018 10:44:33 +0800
+Subject: [PATCH 4881/5725] drm/amd/powerplay: no need to mask workable gfxoff
+ feature for vega12
+
+Gfxoff feature for vega12 is workable. So, there is no need to
+mask it any more.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+index 9b675d9..8994aa5 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+@@ -147,10 +147,10 @@ int hwmgr_early_init(struct pp_hwmgr *hwmgr)
+ 		smu7_init_function_pointers(hwmgr);
+ 		break;
+ 	case AMDGPU_FAMILY_AI:
+-		hwmgr->feature_mask &= ~PP_GFXOFF_MASK;
+ 		switch (hwmgr->chip_id) {
+ 		case CHIP_VEGA10:
+ 		case CHIP_VEGA20:
++			hwmgr->feature_mask &= ~PP_GFXOFF_MASK;
+ 			hwmgr->smumgr_funcs = &vega10_smu_funcs;
+ 			vega10_hwmgr_init(hwmgr);
+ 			break;
+-- 
+2.7.4
+

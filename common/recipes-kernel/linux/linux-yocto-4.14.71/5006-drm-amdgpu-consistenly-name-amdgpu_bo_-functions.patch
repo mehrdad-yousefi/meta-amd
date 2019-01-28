@@ -1,0 +1,428 @@
+From 6cff8c430599dee4de77c77dc65fc06a244ef451 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 16 Jul 2018 16:12:24 +0200
+Subject: [PATCH 5006/5725] drm/amdgpu: consistenly name amdgpu_bo_ functions
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Just rename functions, no functional change.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h              |  2 --
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c |  8 ++---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c           | 10 +++----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c          |  2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c       | 34 ++++++++++-----------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.h       |  3 ++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c        | 38 ++++++++++++------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h        |  2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c          | 10 +++----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c          |  4 +--
+ 10 files changed, 57 insertions(+), 56 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index d83a206..cbe4336 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -1868,8 +1868,6 @@ void amdgpu_display_update_priority(struct amdgpu_device *adev);
+ 
+ void amdgpu_cs_report_moved_bytes(struct amdgpu_device *adev, u64 num_bytes,
+ 				  u64 num_vis_bytes);
+-void amdgpu_ttm_placement_from_domain(struct amdgpu_bo *abo, u32 domain);
+-bool amdgpu_ttm_bo_is_amdgpu_bo(struct ttm_buffer_object *bo);
+ void amdgpu_device_vram_location(struct amdgpu_device *adev,
+ 				 struct amdgpu_gmc *mc, u64 base);
+ void amdgpu_device_gart_location(struct amdgpu_device *adev,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 1c616bd..4c0f2a3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -328,7 +328,7 @@ static int amdgpu_amdkfd_bo_validate(struct amdgpu_bo *bo, uint32_t domain,
+ 		 "Called with userptr BO"))
+ 		return -EINVAL;
+ 
+-	amdgpu_ttm_placement_from_domain(bo, domain);
++	amdgpu_bo_placement_from_domain(bo, domain);
+ 
+ 	ret = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 	if (ret)
+@@ -613,7 +613,7 @@ static int init_user_pages(struct kgd_mem *mem, struct mm_struct *mm,
+ 		pr_err("%s: Failed to reserve BO\n", __func__);
+ 		goto release_out;
+ 	}
+-	amdgpu_ttm_placement_from_domain(bo, mem->domain);
++	amdgpu_bo_placement_from_domain(bo, mem->domain);
+ 	ret = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 	if (ret)
+ 		pr_err("%s: failed to validate BO\n", __func__);
+@@ -1977,7 +1977,7 @@ static int update_invalid_user_pages(struct amdkfd_process_info *process_info,
+ 
+ 		if (amdgpu_bo_reserve(bo, true))
+ 			return -EAGAIN;
+-		amdgpu_ttm_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_CPU);
++		amdgpu_bo_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_CPU);
+ 		ret = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 		amdgpu_bo_unreserve(bo);
+ 		if (ret) {
+@@ -2121,7 +2121,7 @@ static int validate_invalid_user_pages(struct amdkfd_process_info *process_info)
+ 		if (mem->user_pages[0]) {
+ 			amdgpu_ttm_tt_set_user_pages(bo->tbo.ttm,
+ 						     mem->user_pages);
+-			amdgpu_ttm_placement_from_domain(bo, mem->domain);
++			amdgpu_bo_placement_from_domain(bo, mem->domain);
+ 			ret = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 			if (ret) {
+ 				pr_err("%s: failed to validate BO\n", __func__);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 4d68c37..15fa375 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -419,7 +419,7 @@ static int amdgpu_cs_bo_validate(struct amdgpu_cs_parser *p,
+ 	}
+ 
+ retry:
+-	amdgpu_ttm_placement_from_domain(bo, domain);
++	amdgpu_bo_placement_from_domain(bo, domain);
+ 	r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 	
+ 	p->bytes_moved += ctx.bytes_moved;
+@@ -478,7 +478,7 @@ static bool amdgpu_cs_try_evict(struct amdgpu_cs_parser *p,
+ 		update_bytes_moved_vis =
+ 				!amdgpu_gmc_vram_full_visible(&adev->gmc) &&
+ 				amdgpu_bo_in_cpu_visible_vram(bo);
+-		amdgpu_ttm_placement_from_domain(bo, other);
++		amdgpu_bo_placement_from_domain(bo, other);
+ 		r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 		p->bytes_moved += ctx.bytes_moved;
+ 		if (update_bytes_moved_vis)
+@@ -532,8 +532,8 @@ static int amdgpu_cs_list_validate(struct amdgpu_cs_parser *p,
+ 		/* Check if we have user pages and nobody bound the BO already */
+                 if (amdgpu_ttm_tt_userptr_needs_pages(bo->tbo.ttm) &&
+                     lobj->user_pages) {
+-                        amdgpu_ttm_placement_from_domain(bo,
+-                                                         AMDGPU_GEM_DOMAIN_CPU);
++                        amdgpu_bo_placement_from_domain(bo,
++                                                        AMDGPU_GEM_DOMAIN_CPU);
+ 			r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+                         if (r)
+                                 return r;
+@@ -1657,7 +1657,7 @@ int amdgpu_cs_find_mapping(struct amdgpu_cs_parser *parser,
+ 
+ 	if (!((*bo)->flags & AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS)) {
+ 		(*bo)->flags |= AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
+-		amdgpu_ttm_placement_from_domain(*bo, (*bo)->allowed_domains);
++		amdgpu_bo_placement_from_domain(*bo, (*bo)->allowed_domains);
+ 		r = ttm_bo_validate(&(*bo)->tbo, &(*bo)->placement, &ctx);
+ 		if (r)
+ 			return r;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 868832e..6171e03 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -437,7 +437,7 @@ int amdgpu_gem_userptr_ioctl(struct drm_device *dev, void *data,
+ 		if (r)
+ 			goto free_pages;
+ 
+-		amdgpu_ttm_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_GTT);
++		amdgpu_bo_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_GTT);
+ 		r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 		amdgpu_bo_unreserve(bo);
+ 		if (r)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 352d6b1..e61d122 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -51,7 +51,7 @@
+  *
+ */
+ 
+-static bool amdgpu_need_backup(struct amdgpu_device *adev)
++static bool amdgpu_bo_need_backup(struct amdgpu_device *adev)
+ {
+ 	if (adev->flags & AMD_IS_APU)
+ 		return false;
+@@ -84,7 +84,7 @@ static void amdgpu_bo_subtract_pin_size(struct amdgpu_bo *bo)
+ 	}
+ }
+ 
+-static void amdgpu_ttm_bo_destroy(struct ttm_buffer_object *tbo)
++static void amdgpu_bo_destroy(struct ttm_buffer_object *tbo)
+ {
+ 	struct amdgpu_device *adev = amdgpu_ttm_adev(tbo->bdev);
+ 	struct amdgpu_bo *bo = ttm_to_amdgpu_bo(tbo);
+@@ -115,7 +115,7 @@ static void amdgpu_ttm_bo_destroy(struct ttm_buffer_object *tbo)
+ }
+ 
+ /**
+- * amdgpu_ttm_bo_is_amdgpu_bo - check if the buffer object is an &amdgpu_bo
++ * amdgpu_bo_is_amdgpu_bo - check if the buffer object is an &amdgpu_bo
+  * @bo: buffer object to be checked
+  *
+  * Uses destroy function associated with the object to determine if this is
+@@ -124,22 +124,22 @@ static void amdgpu_ttm_bo_destroy(struct ttm_buffer_object *tbo)
+  * Returns:
+  * true if the object belongs to &amdgpu_bo, false if not.
+  */
+-bool amdgpu_ttm_bo_is_amdgpu_bo(struct ttm_buffer_object *bo)
++bool amdgpu_bo_is_amdgpu_bo(struct ttm_buffer_object *bo)
+ {
+-	if (bo->destroy == &amdgpu_ttm_bo_destroy)
++	if (bo->destroy == &amdgpu_bo_destroy)
+ 		return true;
+ 	return false;
+ }
+ 
+ /**
+- * amdgpu_ttm_placement_from_domain - set buffer's placement
++ * amdgpu_bo_placement_from_domain - set buffer's placement
+  * @abo: &amdgpu_bo buffer object whose placement is to be set
+  * @domain: requested domain
+  *
+  * Sets buffer's placement according to requested domain and the buffer's
+  * flags.
+  */
+-void amdgpu_ttm_placement_from_domain(struct amdgpu_bo *abo, u32 domain)
++void amdgpu_bo_placement_from_domain(struct amdgpu_bo *abo, u32 domain)
+ {
+ 	struct amdgpu_device *adev = amdgpu_ttm_adev(abo->tbo.bdev);
+ 	struct ttm_placement *placement = &abo->placement;
+@@ -511,13 +511,13 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev,
+ #endif
+ 
+ 	bo->tbo.bdev = &adev->mman.bdev;
+-	amdgpu_ttm_placement_from_domain(bo, bp->domain);
++	amdgpu_bo_placement_from_domain(bo, bp->domain);
+ 	if (bp->type == ttm_bo_type_kernel)
+ 		bo->tbo.priority = 1;
+ 
+ 	r = ttm_bo_init_reserved(&adev->mman.bdev, &bo->tbo, size, bp->type,
+ 				 &bo->placement, page_align, &ctx, acc_size,
+-				 NULL, bp->resv, &amdgpu_ttm_bo_destroy);
++				 NULL, bp->resv, &amdgpu_bo_destroy);
+ 	
+ 	if (unlikely(r != 0))
+ 		return r;
+@@ -635,7 +635,7 @@ int amdgpu_bo_create(struct amdgpu_device *adev,
+ 	if (r)
+ 		return r;
+ 
+-	if ((flags & AMDGPU_GEM_CREATE_SHADOW) && amdgpu_need_backup(adev)) {
++	if ((flags & AMDGPU_GEM_CREATE_SHADOW) && amdgpu_bo_need_backup(adev)) {
+ 		if (!bp->resv)
+ 			WARN_ON(reservation_object_lock((*bo_ptr)->tbo.resv,
+ 							NULL));
+@@ -723,7 +723,7 @@ int amdgpu_bo_validate(struct amdgpu_bo *bo)
+ 	domain = bo->preferred_domains;
+ 
+ retry:
+-	amdgpu_ttm_placement_from_domain(bo, domain);
++	amdgpu_bo_placement_from_domain(bo, domain);
+ 	r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 	if (unlikely(r == -ENOMEM) && domain != bo->allowed_domains) {
+ 		domain = bo->allowed_domains;
+@@ -956,7 +956,7 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+ 	/* force to pin into visible video ram */
+ 	if (!(bo->flags & AMDGPU_GEM_CREATE_NO_CPU_ACCESS))
+ 		bo->flags |= AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
+-	amdgpu_ttm_placement_from_domain(bo, domain);
++	amdgpu_bo_placement_from_domain(bo, domain);
+ 	for (i = 0; i < bo->placement.num_placement; i++) {
+ 		unsigned fpfn, lpfn;
+ 
+@@ -1287,7 +1287,7 @@ void amdgpu_bo_move_notify(struct ttm_buffer_object *bo,
+ 	struct amdgpu_bo *abo;
+ 	struct ttm_mem_reg *old_mem = &bo->mem;
+ 
+-	if (!amdgpu_ttm_bo_is_amdgpu_bo(bo))
++	if (!amdgpu_bo_is_amdgpu_bo(bo))
+ 		return;
+ 
+ 	abo = ttm_to_amdgpu_bo(bo);
+@@ -1304,7 +1304,7 @@ void amdgpu_bo_move_notify(struct ttm_buffer_object *bo,
+ 		return;
+ 
+ 	/* move_notify is called before move happens */
+-	trace_amdgpu_ttm_bo_move(abo, new_mem->mem_type, old_mem->mem_type);
++	trace_amdgpu_bo_move(abo, new_mem->mem_type, old_mem->mem_type);
+ }
+ 
+ /**
+@@ -1326,7 +1326,7 @@ int amdgpu_bo_fault_reserve_notify(struct ttm_buffer_object *bo)
+ 	unsigned long offset, size;
+ 	int r;
+ 
+-	if (!amdgpu_ttm_bo_is_amdgpu_bo(bo))
++	if (!amdgpu_bo_is_amdgpu_bo(bo))
+ 		return 0;
+ 
+ 	abo = ttm_to_amdgpu_bo(bo);
+@@ -1348,8 +1348,8 @@ int amdgpu_bo_fault_reserve_notify(struct ttm_buffer_object *bo)
+ 
+ 	/* hurrah the memory is not visible ! */
+ 	atomic64_inc(&adev->num_vram_cpu_page_faults);
+-	amdgpu_ttm_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_VRAM |
+-					 AMDGPU_GEM_DOMAIN_GTT);
++	amdgpu_bo_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_VRAM |
++					AMDGPU_GEM_DOMAIN_GTT);
+ 
+ 	/* Avoid costly evictions; only set GTT as a busy placement */
+ 	abo->placement.num_busy_placement = 1;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+index 2c4fca6..93c4325 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+@@ -242,6 +242,9 @@ static inline bool amdgpu_bo_explicit_sync(struct amdgpu_bo *bo)
+ 	return bo->flags & AMDGPU_GEM_CREATE_EXPLICIT_SYNC;
+ }
+ 
++bool amdgpu_bo_is_amdgpu_bo(struct ttm_buffer_object *bo);
++void amdgpu_bo_placement_from_domain(struct amdgpu_bo *abo, u32 domain);
++
+ int amdgpu_bo_create(struct amdgpu_device *adev,
+ 		     struct amdgpu_bo_param *bp,
+ 		     struct amdgpu_bo **bo_ptr);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+index 81d3788..e6ef562 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+@@ -309,31 +309,31 @@ struct reservation_object *amdgpu_gem_prime_res_obj(struct drm_gem_object *obj)
+  * 0 on success or negative error code.
+  */
+ static int amdgpu_gem_begin_cpu_access(struct dma_buf *dma_buf,
+-                                       enum dma_data_direction direction)
++		enum dma_data_direction direction)
+ {
+-        struct amdgpu_bo *bo = gem_to_amdgpu_bo(dma_buf->priv);
+-        struct amdgpu_device *adev = amdgpu_ttm_adev(bo->tbo.bdev);
+-        struct ttm_operation_ctx ctx = { true, false };
++	struct amdgpu_bo *bo = gem_to_amdgpu_bo(dma_buf->priv);
++	struct amdgpu_device *adev = amdgpu_ttm_adev(bo->tbo.bdev);
++	struct ttm_operation_ctx ctx = { true, false };
+ 	u32 domain = amdgpu_display_supported_domains(adev);
+-        int ret;
+-        bool reads = (direction == DMA_BIDIRECTIONAL ||
+-                      direction == DMA_FROM_DEVICE);
++	int ret;
++	bool reads = (direction == DMA_BIDIRECTIONAL ||
++			direction == DMA_FROM_DEVICE);
+ 
+-        if (!reads || !(domain & AMDGPU_GEM_DOMAIN_GTT))
+-                return 0;
++	if (!reads || !(domain & AMDGPU_GEM_DOMAIN_GTT))
++		return 0;
+ 
+-        /* move to gtt */
+-        ret = amdgpu_bo_reserve(bo, false);
+-        if (unlikely(ret != 0))
+-                return ret;
++	/* move to gtt */
++	ret = amdgpu_bo_reserve(bo, false);
++	if (unlikely(ret != 0))
++		return ret;
+ 
+-        if (!bo->pin_count && (bo->allowed_domains & AMDGPU_GEM_DOMAIN_GTT)) {
+-                amdgpu_ttm_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_GTT);
+-                ret = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+-        }
++	if (!bo->pin_count && (bo->allowed_domains & AMDGPU_GEM_DOMAIN_GTT)) {
++		amdgpu_bo_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_GTT);
++		ret = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
++	}
+ 
+-        amdgpu_bo_unreserve(bo);
+-        return ret;
++	amdgpu_bo_unreserve(bo);
++	return ret;
+ }
+ 
+ const struct dma_buf_ops amdgpu_dmabuf_ops = {
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+index 7692003..11f262f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+@@ -436,7 +436,7 @@ TRACE_EVENT(amdgpu_cs_bo_status,
+ 			__entry->total_bo, __entry->total_size)
+ );
+ 
+-TRACE_EVENT(amdgpu_ttm_bo_move,
++TRACE_EVENT(amdgpu_bo_move,
+ 	    TP_PROTO(struct amdgpu_bo* bo, uint32_t new_placement, uint32_t old_placement),
+ 	    TP_ARGS(bo, new_placement, old_placement),
+ 	    TP_STRUCT__entry(
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 5adaefc..a164c52 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -265,7 +265,7 @@ static void amdgpu_evict_flags(struct ttm_buffer_object *bo,
+ 	}
+ 
+ 	/* Object isn't an AMDGPU object so ignore */
+-	if (!amdgpu_ttm_bo_is_amdgpu_bo(bo)) {
++	if (!amdgpu_bo_is_amdgpu_bo(bo)) {
+ 		placement->placement = &placements;
+ 		placement->busy_placement = &placements;
+ 		placement->num_placement = 1;
+@@ -279,7 +279,7 @@ static void amdgpu_evict_flags(struct ttm_buffer_object *bo,
+ 	case AMDGPU_PL_DGMA:
+ 		if (!adev->mman.buffer_funcs_enabled) {
+ 			/* Move to system memory */
+-			amdgpu_ttm_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_CPU);
++			amdgpu_bo_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_CPU);
+ 		} else if (!amdgpu_gmc_vram_full_visible(&adev->gmc) &&
+ 			   !(abo->flags & AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED) &&
+ 			   amdgpu_bo_in_cpu_visible_vram(abo)) {
+@@ -289,7 +289,7 @@ static void amdgpu_evict_flags(struct ttm_buffer_object *bo,
+ 			 * BO will be evicted to GTT rather than causing other
+ 			 * BOs to be evicted from VRAM
+ 			 */
+-			amdgpu_ttm_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_VRAM |
++			amdgpu_bo_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_VRAM |
+ 							 AMDGPU_GEM_DOMAIN_GTT);
+ 			abo->placements[0].fpfn = adev->gmc.visible_vram_size >> PAGE_SHIFT;
+ 			abo->placements[0].lpfn = 0;
+@@ -297,13 +297,13 @@ static void amdgpu_evict_flags(struct ttm_buffer_object *bo,
+ 			abo->placement.num_busy_placement = 1;
+ 		} else {
+ 			/* Move to GTT memory */
+-			amdgpu_ttm_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_GTT);
++			amdgpu_bo_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_GTT);
+ 		}
+ 		break;
+ 	case TTM_PL_TT:
+ 	case AMDGPU_PL_DGMA_IMPORT:
+ 	default:
+-		amdgpu_ttm_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_CPU);
++		amdgpu_bo_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_CPU);
+ 	}
+ 	*placement = abo->placement;
+ }
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index 3536198..420a533 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -478,7 +478,7 @@ static int amdgpu_uvd_cs_pass1(struct amdgpu_uvd_cs_ctx *ctx)
+ 		if (cmd == 0x0 || cmd == 0x3) {
+ 			/* yes, force it into VRAM */
+ 			uint32_t domain = AMDGPU_GEM_DOMAIN_VRAM;
+-			amdgpu_ttm_placement_from_domain(bo, domain);
++			amdgpu_bo_placement_from_domain(bo, domain);
+ 		}
+ 		amdgpu_uvd_force_into_uvd_segment(bo);
+ 
+@@ -1019,7 +1019,7 @@ static int amdgpu_uvd_send_msg(struct amdgpu_ring *ring, struct amdgpu_bo *bo,
+ 	if (!ring->adev->uvd.address_64_bit) {
+ 		struct ttm_operation_ctx ctx = { true, false };
+ 
+-		amdgpu_ttm_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_VRAM);
++		amdgpu_bo_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_VRAM);
+ 		amdgpu_uvd_force_into_uvd_segment(bo);
+ 		r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+ 		if (r)
+-- 
+2.7.4
+

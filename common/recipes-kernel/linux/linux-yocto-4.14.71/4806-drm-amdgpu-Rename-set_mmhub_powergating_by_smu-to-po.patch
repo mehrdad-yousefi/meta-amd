@@ -1,0 +1,136 @@
+From 3d0017eb06bc8dca7319e1b3b77a8f7375150de1 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 5 Jun 2018 10:07:53 +0800
+Subject: [PATCH 4806/5725] drm/amdgpu: Rename set_mmhub_powergating_by_smu to
+ powergate_mmhub
+
+In order to keep consistent with powergate_uvd/vce.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h           | 4 ++--
+ drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c           | 4 ++--
+ drivers/gpu/drm/amd/include/kgd_pp_interface.h    | 2 +-
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c     | 8 ++++----
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c | 4 ++--
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h         | 2 +-
+ 6 files changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h
+index 9acfbee..c6d6926 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h
+@@ -359,8 +359,8 @@ enum amdgpu_pcie_gen {
+ 		((adev)->powerplay.pp_funcs->odn_edit_dpm_table(\
+ 			(adev)->powerplay.pp_handle, type, parameter, size))
+ 
+-#define amdgpu_dpm_set_mmhub_powergating_by_smu(adev) \
+-		((adev)->powerplay.pp_funcs->set_mmhub_powergating_by_smu( \
++#define amdgpu_dpm_powergate_mmhub(adev) \
++		((adev)->powerplay.pp_funcs->powergate_mmhub( \
+ 		(adev)->powerplay.pp_handle))
+ 
+ struct amdgpu_dpm {
+diff --git a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+index 3d53c44..377f536 100644
+--- a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+@@ -471,8 +471,8 @@ void mmhub_v1_0_update_power_gating(struct amdgpu_device *adev,
+ 						RENG_EXECUTE_ON_REG_UPDATE, 1);
+ 		WREG32_SOC15(MMHUB, 0, mmPCTL1_RENG_EXECUTE, pctl1_reng_execute);
+ 
+-		if (adev->powerplay.pp_funcs->set_mmhub_powergating_by_smu)
+-			amdgpu_dpm_set_mmhub_powergating_by_smu(adev);
++		if (adev->powerplay.pp_funcs->powergate_mmhub)
++			amdgpu_dpm_powergate_mmhub(adev);
+ 
+ 	} else {
+ 		pctl0_reng_execute = REG_SET_FIELD(pctl0_reng_execute,
+diff --git a/drivers/gpu/drm/amd/include/kgd_pp_interface.h b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+index 06f08f3..0f98862 100644
+--- a/drivers/gpu/drm/amd/include/kgd_pp_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+@@ -269,7 +269,7 @@ struct amd_pm_funcs {
+ 	int (*get_power_profile_mode)(void *handle, char *buf);
+ 	int (*set_power_profile_mode)(void *handle, long *input, uint32_t size);
+ 	int (*odn_edit_dpm_table)(void *handle, uint32_t type, long *input, uint32_t size);
+-	int (*set_mmhub_powergating_by_smu)(void *handle);
++	int (*powergate_mmhub)(void *handle);
+ };
+ 
+ #endif
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 9e285ed..9732ae9 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -1179,19 +1179,19 @@ static int pp_get_display_mode_validation_clocks(void *handle,
+ 	return ret;
+ }
+ 
+-static int pp_set_mmhub_powergating_by_smu(void *handle)
++static int pp_dpm_powergate_mmhub(void *handle)
+ {
+ 	struct pp_hwmgr *hwmgr = handle;
+ 
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return -EINVAL;
+ 
+-	if (hwmgr->hwmgr_func->set_mmhub_powergating_by_smu == NULL) {
++	if (hwmgr->hwmgr_func->powergate_mmhub == NULL) {
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+ 
+-	return hwmgr->hwmgr_func->set_mmhub_powergating_by_smu(hwmgr);
++	return hwmgr->hwmgr_func->powergate_mmhub(hwmgr);
+ }
+ 
+ static const struct amd_pm_funcs pp_dpm_funcs = {
+@@ -1238,6 +1238,6 @@ static const struct amd_pm_funcs pp_dpm_funcs = {
+ 	.set_watermarks_for_clocks_ranges = pp_set_watermarks_for_clocks_ranges,
+ 	.display_clock_voltage_request = pp_display_clock_voltage_request,
+ 	.get_display_mode_validation_clocks = pp_get_display_mode_validation_clocks,
+-	.set_mmhub_powergating_by_smu = pp_set_mmhub_powergating_by_smu,
++	.powergate_mmhub = pp_dpm_powergate_mmhub,
+ };
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index c905df4..b810d9c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -1126,7 +1126,7 @@ static int smu10_smus_notify_pwe(struct pp_hwmgr *hwmgr)
+ 	return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_SetRccPfcPmeRestoreRegister);
+ }
+ 
+-static int smu10_set_mmhub_powergating_by_smu(struct pp_hwmgr *hwmgr)
++static int smu10_powergate_mmhub(struct pp_hwmgr *hwmgr)
+ {
+ 	return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_PowerGateMmHub);
+ }
+@@ -1182,7 +1182,7 @@ static const struct pp_hwmgr_func smu10_hwmgr_funcs = {
+ 	.asic_setup = smu10_setup_asic_task,
+ 	.power_state_set = smu10_set_power_state_tasks,
+ 	.dynamic_state_management_disable = smu10_disable_dpm_tasks,
+-	.set_mmhub_powergating_by_smu = smu10_set_mmhub_powergating_by_smu,
++	.powergate_mmhub = smu10_powergate_mmhub,
+ 	.smus_notify_pwe = smu10_smus_notify_pwe,
+ 	.gfx_off_control = smu10_gfx_off_control,
+ 	.display_clock_voltage_request = smu10_display_clock_voltage_request,
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index 40c98ca..9b07d6e 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -327,7 +327,7 @@ struct pp_hwmgr_func {
+ 					enum PP_OD_DPM_TABLE_COMMAND type,
+ 					long *input, uint32_t size);
+ 	int (*set_power_limit)(struct pp_hwmgr *hwmgr, uint32_t n);
+-	int (*set_mmhub_powergating_by_smu)(struct pp_hwmgr *hwmgr);
++	int (*powergate_mmhub)(struct pp_hwmgr *hwmgr);
+ 	int (*smus_notify_pwe)(struct pp_hwmgr *hwmgr);
+ };
+ 
+-- 
+2.7.4
+

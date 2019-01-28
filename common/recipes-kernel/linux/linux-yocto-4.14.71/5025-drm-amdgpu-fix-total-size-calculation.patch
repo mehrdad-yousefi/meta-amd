@@ -1,0 +1,37 @@
+From fd4307bf2d02f9594575c5d0806d300d5632165d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 30 Jul 2018 15:33:34 +0200
+Subject: [PATCH 5025/5725] drm/amdgpu: fix total size calculation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+long might only be 32bit in size and we can easily use more than 4GB
+here.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming  Zhou <david1.zhou@amd.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c
+index 7b4ce1d..2247486 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c
+@@ -105,9 +105,9 @@ static int amdgpu_bo_list_set(struct amdgpu_device *adev,
+ 	struct amdgpu_bo *oa_obj = adev->gds.oa_gfx_bo;
+ 
+ 	unsigned last_entry = 0, first_userptr = num_entries;
++	uint64_t total_size = 0;
+ 	unsigned i;
+ 	int r;
+-	unsigned long total_size = 0;
+ 
+ 	array = kvmalloc_array(num_entries, sizeof(struct amdgpu_bo_list_entry), GFP_KERNEL);
+ 	if (!array)
+-- 
+2.7.4
+

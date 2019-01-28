@@ -1,0 +1,30 @@
+From b3bd77cd53157ec789042d3ea65baaf6e1092cae Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 18 Jul 2018 16:24:18 -0400
+Subject: [PATCH 5097/5725] drm/amdgpu: add system interrupt mask for jrbc
+
+Add new mask for enabling system interrupt for jrbc.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Acked-by: Leo Liu <leo.liu at amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_sh_mask.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_sh_mask.h b/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_sh_mask.h
+index d6ba269..124383d 100644
+--- a/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_sh_mask.h
++++ b/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_sh_mask.h
+@@ -982,6 +982,8 @@
+ #define UVD_MASTINT_EN__VCPU_EN_MASK                                                                          0x00000002L
+ #define UVD_MASTINT_EN__SYS_EN_MASK                                                                           0x00000004L
+ #define UVD_MASTINT_EN__INT_OVERRUN_MASK                                                                      0x007FFFF0L
++//UVD_SYS_INT_EN
++#define UVD_SYS_INT_EN__UVD_JRBC_EN_MASK                                                                      0x00000010L
+ //JPEG_CGC_CTRL
+ #define JPEG_CGC_CTRL__DYN_CLOCK_MODE__SHIFT                                                                  0x0
+ #define JPEG_CGC_CTRL__JPEG2_MODE__SHIFT                                                                      0x1
+-- 
+2.7.4
+

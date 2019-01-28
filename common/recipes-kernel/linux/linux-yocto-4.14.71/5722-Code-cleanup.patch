@@ -1,0 +1,28 @@
+From 36d62982266efb5a7168bbd12ca45c2f6a383bea Mon Sep 17 00:00:00 2001
+From: Ravi Kumar <ravi1.kumar@amd.com>
+Date: Mon, 3 Dec 2018 12:09:46 +0530
+Subject: [PATCH 5722/5725] Code cleanup.
+
+Cleaned up some unwanted debug prints.
+
+Signed-off-by: Ravi Kumar <ravi1.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index a0590d8..ef0fc42 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1371,8 +1371,6 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
+ 
+ 	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_gpu_info.bin", chip_name);
+ 	
+-	printk(">>Ravi: fw_name: %s adev->dev: %d adev->firmware.gpuinfo_fw: %d\n", fw_name, adev->dev, amdgpu_device_parse_gpu_info_fw);
+-	
+ 	err = request_firmware(&adev->firmware.gpu_info_fw, fw_name, adev->dev);
+ 	if (err) {
+ 		dev_err(adev->dev,
+-- 
+2.7.4
+

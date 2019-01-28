@@ -1,0 +1,33 @@
+From 6cdfed7b466e6ab042b7a0343855dcf377acc4a1 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 30 May 2018 14:13:33 -0400
+Subject: [PATCH 4599/5725] drm/amdgpu: add vcn jpeg ring
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add jpeg to amdgpu_vcn
+
+v2: remove unnecessary scheduler entity
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+index 773010b..6f3bed1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+@@ -66,6 +66,7 @@ struct amdgpu_vcn {
+ 	const struct firmware	*fw;	/* VCN firmware */
+ 	struct amdgpu_ring	ring_dec;
+ 	struct amdgpu_ring	ring_enc[AMDGPU_VCN_MAX_ENC_RINGS];
++	struct amdgpu_ring	ring_jpeg;
+ 	struct amdgpu_irq_src	irq;
+ 	unsigned		num_enc_rings;
+ };
+-- 
+2.7.4
+

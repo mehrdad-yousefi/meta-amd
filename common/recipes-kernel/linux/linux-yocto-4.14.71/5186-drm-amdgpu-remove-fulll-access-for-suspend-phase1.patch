@@ -1,0 +1,43 @@
+From 8fdf3237b9fa11639eae655c1ffb7d9391f52f91 Mon Sep 17 00:00:00 2001
+From: Yintian Tao <yttao@amd.com>
+Date: Thu, 16 Aug 2018 16:17:57 +0800
+Subject: [PATCH 5186/5725] drm/amdgpu: remove fulll access for suspend phase1
+
+There is no need for gpu full access for suspend phase1
+because under virtualization there is no hw register access
+for dce block.
+
+Signed-off-by: Yintian Tao <yttao@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index b5d0c9c..1acb85e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -2023,9 +2023,6 @@ static int amdgpu_device_ip_suspend_phase2(struct amdgpu_device *adev)
+ {
+ 	int i, r;
+ 
+-	if (amdgpu_sriov_vf(adev))
+-		amdgpu_virt_request_full_gpu(adev, false);
+-
+ 	for (i = adev->num_ip_blocks - 1; i >= 0; i--) {
+ 		if (!adev->ip_blocks[i].status.valid)
+ 			continue;
+@@ -2041,9 +2038,6 @@ static int amdgpu_device_ip_suspend_phase2(struct amdgpu_device *adev)
+ 		}
+ 	}
+ 
+-	if (amdgpu_sriov_vf(adev))
+-		amdgpu_virt_release_full_gpu(adev, false);
+-
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

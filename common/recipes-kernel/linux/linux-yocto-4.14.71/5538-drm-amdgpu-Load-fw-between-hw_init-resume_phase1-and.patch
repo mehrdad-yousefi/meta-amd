@@ -1,0 +1,290 @@
+From ed92a4ecd991b2e62b49f9d607c0fa1e3d163546 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 10 Oct 2018 20:41:32 +0800
+Subject: [PATCH 5538/5725] drm/amdgpu: Load fw between hw_init/resume_phase1
+ and phase2
+
+Extract the function of fw loading out of powerplay.
+Do fw loading between hw_init/resuem_phase1 and phase2
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c         | 61 +++++++++++++++++++++-
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c              | 11 ----
+ drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c             |  8 ---
+ drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c        | 20 -------
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h          |  1 -
+ drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c |  8 +--
+ drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c |  5 --
+ 7 files changed, 62 insertions(+), 52 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index a8b95cd..6260307 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1620,6 +1620,47 @@ static int amdgpu_device_ip_hw_init_phase2(struct amdgpu_device *adev)
+ 	return 0;
+ }
+ 
++static int amdgpu_device_fw_loading(struct amdgpu_device *adev)
++{
++	int r = 0;
++	int i;
++
++	if (adev->asic_type >= CHIP_VEGA10) {
++		for (i = 0; i < adev->num_ip_blocks; i++) {
++			if (adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_PSP) {
++				if (adev->in_gpu_reset || adev->in_suspend) {
++					if (amdgpu_sriov_vf(adev) && adev->in_gpu_reset)
++						break; /* sriov gpu reset, psp need to do hw_init before IH because of hw limit */
++					r = adev->ip_blocks[i].version->funcs->resume(adev);
++					if (r) {
++						DRM_ERROR("resume of IP block <%s> failed %d\n",
++							  adev->ip_blocks[i].version->funcs->name, r);
++						return r;
++					}
++				} else {
++					r = adev->ip_blocks[i].version->funcs->hw_init(adev);
++					if (r) {
++						DRM_ERROR("hw_init of IP block <%s> failed %d\n",
++						  adev->ip_blocks[i].version->funcs->name, r);
++						return r;
++					}
++				}
++				adev->ip_blocks[i].status.hw = true;
++			}
++		}
++	}
++
++	if (adev->powerplay.pp_funcs->load_firmware) {
++		r = adev->powerplay.pp_funcs->load_firmware(adev->powerplay.pp_handle);
++		if (r) {
++			pr_err("firmware loading failed\n");
++			return r;
++		}
++	}
++
++	return 0;
++}
++
+ /**
+  * amdgpu_device_ip_init - run init for hardware IPs
+  *
+@@ -1684,6 +1725,10 @@ static int amdgpu_device_ip_init(struct amdgpu_device *adev)
+ 	if (r)
+ 		return r;
+ 
++	r = amdgpu_device_fw_loading(adev);
++	if (r)
++		return r;
++
+ 	r = amdgpu_device_ip_hw_init_phase2(adev);
+ 	if (r)
+ 		return r;
+@@ -2216,7 +2261,8 @@ static int amdgpu_device_ip_resume_phase2(struct amdgpu_device *adev)
+ 			continue;
+ 		if (adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_COMMON ||
+ 		    adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_GMC ||
+-		    adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_IH)
++		    adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_IH ||
++		    adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_PSP)
+ 			continue;
+ 		r = adev->ip_blocks[i].version->funcs->resume(adev);
+ 		if (r) {
+@@ -2248,6 +2294,11 @@ static int amdgpu_device_ip_resume(struct amdgpu_device *adev)
+ 	r = amdgpu_device_ip_resume_phase1(adev);
+ 	if (r)
+ 		return r;
++
++	r = amdgpu_device_fw_loading(adev);
++	if (r)
++		return r;
++
+ 	r = amdgpu_device_ip_resume_phase2(adev);
+ 
+ 	return r;
+@@ -3204,6 +3255,10 @@ static int amdgpu_device_reset(struct amdgpu_device *adev)
+                         if (r)
+                                 goto out;
+ 
++			r = amdgpu_device_fw_loading(adev);
++			if (r)
++				return r;
++
+                         r = amdgpu_device_ip_resume_phase2(adev);
+                         if (r)
+                                 goto out;
+@@ -3264,6 +3319,10 @@ static int amdgpu_device_reset_sriov(struct amdgpu_device *adev,
+         /* we need recover gart prior to run SMC/CP/SDMA resume */
+         amdgpu_gtt_mgr_recover(&adev->mman.bdev.man[TTM_PL_TT]);
+ 
++	r = amdgpu_device_fw_loading(adev);
++	if (r)
++		return r;
++	
+         /* now we are okay to resume SMC/CP/SDMA */
+         r = amdgpu_device_ip_reinit_late_sriov(adev);
+         if (r)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 575f363..a0fc2c2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -4174,20 +4174,9 @@ static void gfx_v8_0_rlc_start(struct amdgpu_device *adev)
+ 
+ static int gfx_v8_0_rlc_resume(struct amdgpu_device *adev)
+ {
+-	int r;
+-
+ 	gfx_v8_0_rlc_stop(adev);
+ 	gfx_v8_0_rlc_reset(adev);
+ 	gfx_v8_0_init_pg(adev);
+-
+-	if (adev->powerplay.pp_funcs->load_firmware) {
+-		r = adev->powerplay.pp_funcs->load_firmware(adev->powerplay.pp_handle);
+-		if (r) {
+-			pr_err("firmware loading failed\n");
+-			return r;
+-		}
+-	}
+-
+ 	gfx_v8_0_rlc_start(adev);
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
+index 573284f..24b5252 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
+@@ -796,14 +796,6 @@ static int sdma_v3_0_start(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	if (adev->powerplay.pp_funcs->load_firmware) {
+-		r = adev->powerplay.pp_funcs->load_firmware(adev->powerplay.pp_handle);
+-		if (r) {
+-			pr_err("firmware loading failed\n");
+-			return r;
+-		}
+-	}
+-
+ 	/* disable sdma engine before programing it */
+ 	sdma_v3_0_ctx_switch_enable(adev, false);
+ 	sdma_v3_0_enable(adev, false);
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+index d552af2..47ac923 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+@@ -89,7 +89,6 @@ int hwmgr_early_init(struct pp_hwmgr *hwmgr)
+ 	hwmgr_init_default_caps(hwmgr);
+ 	hwmgr_set_user_specify_caps(hwmgr);
+ 	hwmgr->fan_ctrl_is_in_default_mode = true;
+-	hwmgr->reload_fw = 1;
+ 	hwmgr_init_workload_prority(hwmgr);
+ 
+ 	switch (hwmgr->chip_family) {
+@@ -209,17 +208,6 @@ int hwmgr_hw_init(struct pp_hwmgr *hwmgr)
+ {
+ 	int ret = 0;
+ 
+-	if (!hwmgr || !hwmgr->smumgr_funcs)
+-		return -EINVAL;
+-
+-	if (hwmgr->smumgr_funcs->start_smu) {
+-		ret = hwmgr->smumgr_funcs->start_smu(hwmgr);
+-		if (ret) {
+-			pr_err("smc start failed\n");
+-			return -EINVAL;
+-		}
+-	}
+-
+ 	if (!hwmgr->pm_en)
+ 		return 0;
+ 
+@@ -301,7 +289,6 @@ int hwmgr_suspend(struct pp_hwmgr *hwmgr)
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return 0;
+ 
+-	hwmgr->reload_fw = true;
+ 	phm_disable_smc_firmware_ctf(hwmgr);
+ 	ret = psm_set_boot_states(hwmgr);
+ 	if (ret)
+@@ -321,13 +308,6 @@ int hwmgr_resume(struct pp_hwmgr *hwmgr)
+ 	if (!hwmgr)
+ 		return -EINVAL;
+ 
+-	if (hwmgr->smumgr_funcs && hwmgr->smumgr_funcs->start_smu) {
+-		if (hwmgr->smumgr_funcs->start_smu(hwmgr)) {
+-			pr_err("smc start failed\n");
+-			return -EINVAL;
+-		}
+-	}
+-
+ 	if (!hwmgr->pm_en)
+ 		return 0;
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index f07d93e..0d00dc3 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -735,7 +735,6 @@ struct pp_hwmgr {
+ 	void *smu_backend;
+ 	const struct pp_smumgr_func *smumgr_funcs;
+ 	bool is_kicker;
+-	bool reload_fw;
+ 
+ 	enum PP_DAL_POWERLEVEL dal_power_level;
+ 	struct phm_dynamic_state_info dyn_state;
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+index 5db9215..f189c40 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+@@ -345,9 +345,6 @@ int smu7_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 	uint32_t fw_to_load;
+ 	int r = 0;
+ 
+-	if (!hwmgr->reload_fw)
+-		return 0;
+-
+ 	amdgpu_ucode_init_bo(hwmgr->adev);
+ 
+ 	if (smu_data->soft_regs_start)
+@@ -434,10 +431,9 @@ int smu7_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 	smu7_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_LoadUcodes, fw_to_load);
+ 
+ 	r = smu7_check_fw_load_finish(hwmgr, fw_to_load);
+-	if (!r) {
+-		hwmgr->reload_fw = 0;
++	if (!r)
+ 		return 0;
+-	}
++
+ 	pr_err("SMU load firmware failed\n");
+ 
+ failed:
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+index abbf2f2..f836d30 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+@@ -661,9 +661,6 @@ static int smu8_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 	uint32_t fw_to_check = 0;
+ 	int ret;
+ 
+-	if (!hwmgr->reload_fw)
+-		return 0;
+-
+ 	amdgpu_ucode_init_bo(hwmgr->adev);
+ 
+ 	smu8_smu_populate_firmware_entries(hwmgr);
+@@ -719,8 +716,6 @@ static int smu8_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 		return ret;
+ 	}
+ 
+-	hwmgr->reload_fw = 0;
+-
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

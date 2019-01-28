@@ -1,0 +1,72 @@
+From 97de30522fb39e3dccd3db8d922c6799f3d64298 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 23 Aug 2018 15:45:15 +0800
+Subject: [PATCH 5216/5725] drm/amdgpu: Remove dead code in amdgpu_pm.c
+
+As we have unify powergate_uvd/vce/mmhub to set_powergating_by_smu,
+and set_powergating_by_smu was supported by both dpm and powerplay.
+so remove the else case.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 35 ----------------------------------
+ 1 file changed, 35 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index 4928c61..f5404f2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -1719,18 +1719,6 @@ void amdgpu_dpm_enable_uvd(struct amdgpu_device *adev, bool enable)
+ 		mutex_lock(&adev->pm.mutex);
+ 		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_UVD, !enable);
+ 		mutex_unlock(&adev->pm.mutex);
+-	} else {
+-		if (enable) {
+-			mutex_lock(&adev->pm.mutex);
+-			adev->pm.dpm.uvd_active = true;
+-			adev->pm.dpm.state = POWER_STATE_TYPE_INTERNAL_UVD;
+-			mutex_unlock(&adev->pm.mutex);
+-		} else {
+-			mutex_lock(&adev->pm.mutex);
+-			adev->pm.dpm.uvd_active = false;
+-			mutex_unlock(&adev->pm.mutex);
+-		}
+-		amdgpu_pm_compute_clocks(adev);
+ 	}
+ }
+ 
+@@ -1741,29 +1729,6 @@ void amdgpu_dpm_enable_vce(struct amdgpu_device *adev, bool enable)
+ 		mutex_lock(&adev->pm.mutex);
+ 		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_VCE, !enable);
+ 		mutex_unlock(&adev->pm.mutex);
+-	} else {
+-		if (enable) {
+-			mutex_lock(&adev->pm.mutex);
+-			adev->pm.dpm.vce_active = true;
+-			/* XXX select vce level based on ring/task */
+-			adev->pm.dpm.vce_level = AMD_VCE_LEVEL_AC_ALL;
+-			mutex_unlock(&adev->pm.mutex);
+-			amdgpu_device_ip_set_clockgating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+-							       AMD_CG_STATE_UNGATE);
+-			amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+-							       AMD_PG_STATE_UNGATE);
+-			amdgpu_pm_compute_clocks(adev);
+-		} else {
+-			amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+-							       AMD_PG_STATE_GATE);
+-			amdgpu_device_ip_set_clockgating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+-							       AMD_CG_STATE_GATE);
+-			mutex_lock(&adev->pm.mutex);
+-			adev->pm.dpm.vce_active = false;
+-			mutex_unlock(&adev->pm.mutex);
+-			amdgpu_pm_compute_clocks(adev);
+-		}
+-
+ 	}
+ }
+ 
+-- 
+2.7.4
+

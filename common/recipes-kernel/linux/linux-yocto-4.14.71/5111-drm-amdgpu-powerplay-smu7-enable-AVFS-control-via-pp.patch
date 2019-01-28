@@ -1,0 +1,32 @@
+From 213b777d1a6300aeba781cd2687c411468dae377 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Fri, 10 Aug 2018 13:19:26 -0500
+Subject: [PATCH 5111/5725] drm/amdgpu/powerplay/smu7: enable AVFS control via
+ ppfeaturemask
+
+Allow the user to disable AFVS via ppfeaturemask for debugging.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+index cc56a24..1234400 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+@@ -622,7 +622,8 @@ int smu7_init(struct pp_hwmgr *hwmgr)
+ 		return -EINVAL;
+ 	}
+ 
+-	if (smum_is_hw_avfs_present(hwmgr))
++	if (smum_is_hw_avfs_present(hwmgr) &&
++	    (hwmgr->feature_mask & PP_AVFS_MASK))
+ 		hwmgr->avfs_supported = true;
+ 
+ 	return 0;
+-- 
+2.7.4
+

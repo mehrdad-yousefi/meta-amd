@@ -1,0 +1,379 @@
+From 66f4d6a51b2b06f0b7fe4605323b8ca06b37d62b Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Mon, 13 Aug 2018 11:41:35 -0500
+Subject: [PATCH 5080/5725] drm/amdgpu: move gem definitions into amdgpu_gem
+ header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Demangle amdgpu.h.
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h       | 76 +------------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c    |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c   |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c    |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.h   | 92 +++++++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c   |  4 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c |  6 +-
+ drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c     |  1 +
+ drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c     |  1 +
+ drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c     |  1 +
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c     |  1 +
+ 11 files changed, 104 insertions(+), 81 deletions(-)
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_gem.h
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 402e42f..048a8ed 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -78,6 +78,7 @@
+ #include "amdgpu_debugfs.h"
+ #include "amdgpu_job.h"
+ #include "amdgpu_bo_list.h"
++#include "amdgpu_gem.h"
+ 
+ /*
+  * Modules parameters.
+@@ -308,46 +309,6 @@ struct amdgpu_clock {
+ 	uint32_t max_pixel_clock;
+ };
+ 
+-/*
+- * GEM.
+- */
+-
+-#define AMDGPU_GEM_DOMAIN_MAX		0x3
+-
+-struct amdgpu_gem_object {
+-	struct drm_gem_object		base;
+-	struct list_head		list;
+-	struct amdgpu_bo		*bo;
+-};
+-
+-struct kgd_mem;
+-
+-#define gem_to_amdgpu_bo(gobj) container_of((gobj), struct amdgpu_bo, gem_base)
+-
+-void amdgpu_gem_object_free(struct drm_gem_object *obj);
+-int amdgpu_gem_object_open(struct drm_gem_object *obj,
+-				struct drm_file *file_priv);
+-void amdgpu_gem_object_close(struct drm_gem_object *obj,
+-				struct drm_file *file_priv);
+-unsigned long amdgpu_gem_timeout(uint64_t timeout_ns);
+-struct sg_table *amdgpu_gem_prime_get_sg_table(struct drm_gem_object *obj);
+-struct drm_gem_object *
+-amdgpu_gem_prime_import_sg_table(struct drm_device *dev,
+-				 struct dma_buf_attachment *attach,
+-				 struct sg_table *sg);
+-struct dma_buf *amdgpu_gem_prime_export(struct drm_device *dev,
+-					struct drm_gem_object *gobj,
+-					int flags);
+-struct drm_gem_object *amdgpu_gem_prime_import(struct drm_device *dev,
+-                                               struct dma_buf *dma_buf);
+-struct drm_gem_object *
+-amdgpu_gem_prime_foreign_bo(struct amdgpu_device *adev, struct amdgpu_bo *bo);
+-struct reservation_object *amdgpu_gem_prime_res_obj(struct drm_gem_object *);
+-void *amdgpu_gem_prime_vmap(struct drm_gem_object *obj);
+-void amdgpu_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr);
+-int amdgpu_gem_prime_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma);
+-
+-extern const struct dma_buf_ops amdgpu_dmabuf_ops;
+ 
+ /* sub-allocation manager, it has to be protected by another lock.
+  * By conception this is an helper for other part of the driver
+@@ -398,22 +359,6 @@ struct amdgpu_sa_bo {
+ 	struct dma_fence	        *fence;
+ };
+ 
+-/*
+- * GEM objects.
+- */
+-void amdgpu_gem_force_release(struct amdgpu_device *adev);
+-int amdgpu_gem_object_create(struct amdgpu_device *adev, unsigned long size,
+-			     int alignment, u32 initial_domain,
+-			     u64 flags, enum ttm_bo_type type,
+-			     struct reservation_object *resv,
+-			     struct drm_gem_object **obj);
+-
+-int amdgpu_mode_dumb_create(struct drm_file *file_priv,
+-			    struct drm_device *dev,
+-			    struct drm_mode_create_dumb *args);
+-int amdgpu_mode_dumb_mmap(struct drm_file *filp,
+-			  struct drm_device *dev,
+-			  uint32_t handle, uint64_t *offset_p);
+ int amdgpu_fence_slab_init(void);
+ void amdgpu_fence_slab_fini(void);
+ 
+@@ -814,25 +759,9 @@ struct amdgpu_asic_funcs {
+ /*
+  * IOCTL.
+  */
+-int amdgpu_gem_create_ioctl(struct drm_device *dev, void *data,
+-			    struct drm_file *filp);
+ int amdgpu_bo_list_ioctl(struct drm_device *dev, void *data,
+ 				struct drm_file *filp);
+ 
+-int amdgpu_gem_info_ioctl(struct drm_device *dev, void *data,
+-			  struct drm_file *filp);
+-int amdgpu_gem_userptr_ioctl(struct drm_device *dev, void *data,
+-			struct drm_file *filp);
+-int amdgpu_gem_find_bo_by_cpu_mapping_ioctl(struct drm_device *dev, void *data,
+-					    struct drm_file *filp);
+-int amdgpu_gem_mmap_ioctl(struct drm_device *dev, void *data,
+-			  struct drm_file *filp);
+-int amdgpu_gem_wait_idle_ioctl(struct drm_device *dev, void *data,
+-			      struct drm_file *filp);
+-int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
+-			  struct drm_file *filp);
+-int amdgpu_gem_op_ioctl(struct drm_device *dev, void *data,
+-			struct drm_file *filp);
+ int amdgpu_cs_ioctl(struct drm_device *dev, void *data, struct drm_file *filp);
+ int amdgpu_cs_fence_to_handle_ioctl(struct drm_device *dev, void *data,
+ 				    struct drm_file *filp);
+@@ -840,9 +769,6 @@ int amdgpu_cs_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *fi
+ int amdgpu_cs_wait_fences_ioctl(struct drm_device *dev, void *data,
+ 				struct drm_file *filp);
+ 
+-int amdgpu_gem_metadata_ioctl(struct drm_device *dev, void *data,
+-				struct drm_file *filp);
+-
+ int amdgpu_display_freesync_ioctl(struct drm_device *dev, void *data,
+ 				  struct drm_file *filp);
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index bf68877..24f2489 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -32,6 +32,7 @@
+ #include "amdgpu.h"
+ #include "amdgpu_trace.h"
+ #include "amdgpu_gmc.h"
++#include "amdgpu_gem.h"
+ 
+ static int amdgpu_cs_user_fence_chunk(struct amdgpu_cs_parser *p,
+ 				      struct drm_amdgpu_cs_chunk_fence *data,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index d587428..6754cbf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -36,6 +36,7 @@
+ 
+ #include "amdgpu.h"
+ #include "amdgpu_irq.h"
++#include "amdgpu_gem.h"
+ 
+ #include "amdgpu_amdkfd.h"
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
+index 7ff11d7..dc7a7d6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
+@@ -33,6 +33,7 @@
+ #include <drm/amdgpu_drm.h>
+ #include "amdgpu.h"
+ #include "cikd.h"
++#include "amdgpu_gem.h"
+ 
+ #include <drm/drm_fb_helper.h>
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.h
+new file mode 100644
+index 0000000..d63daba
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.h
+@@ -0,0 +1,92 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++#ifndef __AMDGPU_GEM_H__
++#define __AMDGPU_GEM_H__
++
++#include <drm/amdgpu_drm.h>
++#include <drm/drm_gem.h>
++
++/*
++ * GEM.
++ */
++
++#define AMDGPU_GEM_DOMAIN_MAX		0x3
++#define gem_to_amdgpu_bo(gobj) container_of((gobj), struct amdgpu_bo, gem_base)
++
++void amdgpu_gem_object_free(struct drm_gem_object *obj);
++int amdgpu_gem_object_open(struct drm_gem_object *obj,
++				struct drm_file *file_priv);
++void amdgpu_gem_object_close(struct drm_gem_object *obj,
++				struct drm_file *file_priv);
++unsigned long amdgpu_gem_timeout(uint64_t timeout_ns);
++struct sg_table *amdgpu_gem_prime_get_sg_table(struct drm_gem_object *obj);
++struct drm_gem_object *
++amdgpu_gem_prime_import_sg_table(struct drm_device *dev,
++				 struct dma_buf_attachment *attach,
++				 struct sg_table *sg);
++struct dma_buf *amdgpu_gem_prime_export(struct drm_device *dev,
++					struct drm_gem_object *gobj,
++					int flags);
++struct drm_gem_object *amdgpu_gem_prime_import(struct drm_device *dev,
++					    struct dma_buf *dma_buf);
++struct reservation_object *amdgpu_gem_prime_res_obj(struct drm_gem_object *);
++void *amdgpu_gem_prime_vmap(struct drm_gem_object *obj);
++void amdgpu_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr);
++int amdgpu_gem_prime_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma);
++
++/*
++ * GEM objects.
++ */
++void amdgpu_gem_force_release(struct amdgpu_device *adev);
++int amdgpu_gem_object_create(struct amdgpu_device *adev, unsigned long size,
++			     int alignment, u32 initial_domain,
++			     u64 flags, enum ttm_bo_type type,
++			     struct reservation_object *resv,
++			     struct drm_gem_object **obj);
++
++int amdgpu_mode_dumb_create(struct drm_file *file_priv,
++			    struct drm_device *dev,
++			    struct drm_mode_create_dumb *args);
++int amdgpu_mode_dumb_mmap(struct drm_file *filp,
++			  struct drm_device *dev,
++			  uint32_t handle, uint64_t *offset_p);
++
++int amdgpu_gem_create_ioctl(struct drm_device *dev, void *data,
++			    struct drm_file *filp);
++int amdgpu_gem_info_ioctl(struct drm_device *dev, void *data,
++			  struct drm_file *filp);
++int amdgpu_gem_userptr_ioctl(struct drm_device *dev, void *data,
++			struct drm_file *filp);
++int amdgpu_gem_mmap_ioctl(struct drm_device *dev, void *data,
++			  struct drm_file *filp);
++int amdgpu_gem_wait_idle_ioctl(struct drm_device *dev, void *data,
++			      struct drm_file *filp);
++int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
++			  struct drm_file *filp);
++int amdgpu_gem_op_ioctl(struct drm_device *dev, void *data,
++			struct drm_file *filp);
++
++int amdgpu_gem_metadata_ioctl(struct drm_device *dev, void *data,
++				struct drm_file *filp);
++
++#endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 58158b0..1d7c70d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -37,6 +37,7 @@
+ #include <linux/slab.h>
+ #include <linux/pm_runtime.h>
+ #include "amdgpu_amdkfd.h"
++#include "amdgpu_gem.h"
+ 
+ /**
+  * amdgpu_driver_unload_kms - Main unload function for KMS.
+@@ -1138,8 +1139,7 @@ const struct drm_ioctl_desc amdgpu_ioctls_kms[] = {
+     DRM_IOCTL_DEF_DRV(AMDGPU_GEM_VA, amdgpu_gem_va_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
+     DRM_IOCTL_DEF_DRV(AMDGPU_GEM_OP, amdgpu_gem_op_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
+     DRM_IOCTL_DEF_DRV(AMDGPU_GEM_USERPTR, amdgpu_gem_userptr_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
+-	DRM_IOCTL_DEF_DRV(AMDGPU_FREESYNC, amdgpu_display_freesync_ioctl, DRM_MASTER),
+-    DRM_IOCTL_DEF_DRV(AMDGPU_GEM_FIND_BO, amdgpu_gem_find_bo_by_cpu_mapping_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
++    DRM_IOCTL_DEF_DRV(AMDGPU_FREESYNC, amdgpu_display_freesync_ioctl, DRM_MASTER),
+     DRM_IOCTL_DEF_DRV(AMDGPU_GEM_DGMA, amdgpu_gem_dgma_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
+     DRM_IOCTL_DEF_DRV(AMDGPU_SEM, amdgpu_sem_ioctl, DRM_AUTH|DRM_UNLOCKED|DRM_RENDER_ALLOW),
+ };
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+index e6ef562..8c93c9e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+@@ -35,6 +35,7 @@
+ 
+ #include "amdgpu.h"
+ #include "amdgpu_display.h"
++#include "amdgpu_gem.h"
+ #include <drm/amdgpu_drm.h>
+ #include <linux/dma-buf.h>
+ 
+@@ -177,10 +178,7 @@ amdgpu_gem_prime_import_sg_table(struct drm_device *dev,
+ 	bo->allowed_domains = AMDGPU_GEM_DOMAIN_GTT;
+ 	bo->preferred_domains = AMDGPU_GEM_DOMAIN_GTT;
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || !defined(BUILD_AS_DKMS)
+-        if (attach->dmabuf->ops != &amdgpu_dmabuf_ops)
+-#endif
+-                bo->prime_shared_count = 1;
++	bo->prime_shared_count = 1;
+ 
+ 	ww_mutex_unlock(&resv->lock);
+ 	return &bo->gem_base;
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+index b2ad0c2..8fc37d7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+@@ -25,6 +25,7 @@
+ #include "amdgpu.h"
+ #include "gmc_v6_0.h"
+ #include "amdgpu_ucode.h"
++#include "amdgpu_gem.h"
+ 
+ #include "bif/bif_3_0_d.h"
+ #include "bif/bif_3_0_sh_mask.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+index 3040e8a..5f854e5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+@@ -28,6 +28,7 @@
+ #include "gmc_v7_0.h"
+ #include "amdgpu_ucode.h"
+ #include "amdgpu_amdkfd.h"
++#include "amdgpu_gem.h"
+ 
+ #include "bif/bif_4_1_d.h"
+ #include "bif/bif_4_1_sh_mask.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+index 5476ddd..82f19e7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+@@ -26,6 +26,7 @@
+ #include "gmc_v8_0.h"
+ #include "amdgpu_ucode.h"
+ #include "amdgpu_amdkfd.h"
++#include "amdgpu_gem.h"
+ 
+ #include "gmc/gmc_8_1_d.h"
+ #include "gmc/gmc_8_1_sh_mask.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 68355b1..8a5bccc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -24,6 +24,7 @@
+ #include "amdgpu.h"
+ #include "gmc_v9_0.h"
+ #include "amdgpu_atomfirmware.h"
++#include "amdgpu_gem.h"
+ 
+ #include "hdp/hdp_4_0_offset.h"
+ #include "hdp/hdp_4_0_sh_mask.h"
+-- 
+2.7.4
+

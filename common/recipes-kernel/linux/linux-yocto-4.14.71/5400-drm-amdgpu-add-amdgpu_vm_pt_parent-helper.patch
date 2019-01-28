@@ -1,0 +1,81 @@
+From f09c35c2eef64aa85c791a9781b6510ef3ab2792 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Thu, 30 Aug 2018 15:55:54 +0200
+Subject: [PATCH 5400/5725] drm/amdgpu: add amdgpu_vm_pt_parent helper
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add a function to get the parent of a PD/PT.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 37 +++++++++++++++++++++-------------
+ 1 file changed, 23 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 64cbcff..90e959d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -304,6 +304,24 @@ static void amdgpu_vm_bo_base_init(struct amdgpu_vm_bo_base *base,
+ }
+ 
+ /**
++ * amdgpu_vm_pt_parent - get the parent page directory
++ *
++ * @pt: child page table
++ *
++ * Helper to get the parent entry for the child page table. NULL if we are at
++ * the root page directory.
++ */
++static struct amdgpu_vm_pt *amdgpu_vm_pt_parent(struct amdgpu_vm_pt *pt)
++{
++	struct amdgpu_bo *parent = pt->base.bo->parent;
++
++	if (!parent)
++		return NULL;
++
++	return list_first_entry(&parent->va, struct amdgpu_vm_pt, base.bo_list);
++}
++
++/**
+  * amdgpu_vm_get_pd_bo - add the VM PD to a validation list
+  *
+  * @vm: vm providing the BOs
+@@ -1135,25 +1153,16 @@ int amdgpu_vm_update_directories(struct amdgpu_device *adev,
+ 	}
+ 
+ 	while (!list_empty(&vm->relocated)) {
+-		struct amdgpu_vm_bo_base *bo_base, *parent;
+ 		struct amdgpu_vm_pt *pt, *entry;
+-		struct amdgpu_bo *bo;
+ 
+-		bo_base = list_first_entry(&vm->relocated,
+-					   struct amdgpu_vm_bo_base,
+-					   vm_status);
+-		bo_base->moved = false;
+-		list_del_init(&bo_base->vm_status);
++		entry = list_first_entry(&vm->relocated, struct amdgpu_vm_pt,
++					 base.vm_status); 
++		list_del_init(&entry->base.vm_status);
+ 
+-		bo = bo_base->bo->parent;
+-		if (!bo)
++		pt = amdgpu_vm_pt_parent(entry);
++		if (!pt)
+ 			continue;
+ 
+-		parent = list_first_entry(&bo->va, struct amdgpu_vm_bo_base,
+-					  bo_list);
+-		pt = container_of(parent, struct amdgpu_vm_pt, base);
+-		entry = container_of(bo_base, struct amdgpu_vm_pt, base);
+-
+ 		amdgpu_vm_update_pde(&params, vm, pt, entry);
+ 
+ 		if (!vm->use_cpu_for_update &&
+-- 
+2.7.4
+

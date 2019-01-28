@@ -1,0 +1,296 @@
+From c3865754d985aa32866a01554c6f5b1b6f0b7e74 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 13 Jun 2018 18:26:38 +0800
+Subject: [PATCH 4653/5725] drm/amd/pp: Add S3 support for OD feature
+
+make custom values survive when S3 sleep transitions.
+so not reset the od table if it is not null.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c   | 126 +++++++++++----------
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c |  79 +++++++------
+ 2 files changed, 107 insertions(+), 98 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index 0f307a7..e8285f1 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -885,6 +885,60 @@ static void smu7_setup_voltage_range_from_vbios(struct pp_hwmgr *hwmgr)
+ 	data->odn_dpm_table.max_vddc = max_vddc;
+ }
+ 
++static void smu7_check_dpm_table_updated(struct pp_hwmgr *hwmgr)
++{
++	struct smu7_hwmgr *data = (struct smu7_hwmgr *)(hwmgr->backend);
++	struct smu7_odn_dpm_table *odn_table = &(data->odn_dpm_table);
++	struct phm_ppt_v1_information *table_info =
++			(struct phm_ppt_v1_information *)(hwmgr->pptable);
++	uint32_t i;
++
++	struct phm_ppt_v1_clock_voltage_dependency_table *dep_table;
++	struct phm_ppt_v1_clock_voltage_dependency_table *odn_dep_table;
++
++	if (table_info == NULL)
++		return;
++
++	for (i = 0; i < data->dpm_table.sclk_table.count; i++) {
++		if (odn_table->odn_core_clock_dpm_levels.entries[i].clock !=
++					data->dpm_table.sclk_table.dpm_levels[i].value) {
++			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_SCLK;
++			break;
++		}
++	}
++
++	for (i = 0; i < data->dpm_table.mclk_table.count; i++) {
++		if (odn_table->odn_memory_clock_dpm_levels.entries[i].clock !=
++					data->dpm_table.mclk_table.dpm_levels[i].value) {
++			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_MCLK;
++			break;
++		}
++	}
++
++	dep_table = table_info->vdd_dep_on_mclk;
++	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dependency_on_mclk);
++
++	for (i = 0; i < dep_table->count; i++) {
++		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
++			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_MCLK;
++			return;
++		}
++	}
++
++	dep_table = table_info->vdd_dep_on_sclk;
++	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dependency_on_sclk);
++	for (i = 0; i < dep_table->count; i++) {
++		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
++			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_SCLK;
++			return;
++		}
++	}
++	if (data->need_update_smu7_dpm_table & DPMTABLE_OD_UPDATE_VDDC) {
++		data->need_update_smu7_dpm_table &= ~DPMTABLE_OD_UPDATE_VDDC;
++		data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_SCLK | DPMTABLE_OD_UPDATE_MCLK;
++	}
++}
++
+ static int smu7_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ {
+ 	struct smu7_hwmgr *data = (struct smu7_hwmgr *)(hwmgr->backend);
+@@ -904,10 +958,13 @@ static int smu7_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 
+ 	/* initialize ODN table */
+ 	if (hwmgr->od_enabled) {
+-		smu7_setup_voltage_range_from_vbios(hwmgr);
+-		smu7_odn_initial_default_setting(hwmgr);
++		if (data->odn_dpm_table.max_vddc) {
++			smu7_check_dpm_table_updated(hwmgr);
++		} else {
++			smu7_setup_voltage_range_from_vbios(hwmgr);
++			smu7_odn_initial_default_setting(hwmgr);
++		}
+ 	}
+-
+ 	return 0;
+ }
+ 
+@@ -3716,8 +3773,9 @@ static int smu7_trim_single_dpm_states(struct pp_hwmgr *hwmgr,
+ 	uint32_t i;
+ 
+ 	for (i = 0; i < dpm_table->count; i++) {
+-		if ((dpm_table->dpm_levels[i].value < low_limit)
+-		|| (dpm_table->dpm_levels[i].value > high_limit))
++	/*skip the trim if od is enabled*/
++		if (!hwmgr->od_enabled && (dpm_table->dpm_levels[i].value < low_limit
++			|| dpm_table->dpm_levels[i].value > high_limit))
+ 			dpm_table->dpm_levels[i].enabled = false;
+ 		else
+ 			dpm_table->dpm_levels[i].enabled = true;
+@@ -3761,10 +3819,8 @@ static int smu7_generate_dpm_level_enable_mask(
+ 	const struct smu7_power_state *smu7_ps =
+ 			cast_const_phw_smu7_power_state(states->pnew_state);
+ 
+-	/*skip the trim if od is enabled*/
+-	if (!hwmgr->od_enabled)
+-		result = smu7_trim_dpm_states(hwmgr, smu7_ps);
+ 
++	result = smu7_trim_dpm_states(hwmgr, smu7_ps);
+ 	if (result)
+ 		return result;
+ 
+@@ -4736,60 +4792,6 @@ static bool smu7_check_clk_voltage_valid(struct pp_hwmgr *hwmgr,
+ 	return true;
+ }
+ 
+-static void smu7_check_dpm_table_updated(struct pp_hwmgr *hwmgr)
+-{
+-	struct smu7_hwmgr *data = (struct smu7_hwmgr *)(hwmgr->backend);
+-	struct smu7_odn_dpm_table *odn_table = &(data->odn_dpm_table);
+-	struct phm_ppt_v1_information *table_info =
+-			(struct phm_ppt_v1_information *)(hwmgr->pptable);
+-	uint32_t i;
+-
+-	struct phm_ppt_v1_clock_voltage_dependency_table *dep_table;
+-	struct phm_ppt_v1_clock_voltage_dependency_table *odn_dep_table;
+-
+-	if (table_info == NULL)
+-		return;
+-
+-	for (i=0; i<data->dpm_table.sclk_table.count; i++) {
+-		if (odn_table->odn_core_clock_dpm_levels.entries[i].clock !=
+-					data->dpm_table.sclk_table.dpm_levels[i].value) {
+-			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_SCLK;
+-			break;
+-		}
+-	}
+-
+-	for (i=0; i<data->dpm_table.mclk_table.count; i++) {
+-		if (odn_table->odn_memory_clock_dpm_levels.entries[i].clock !=
+-					data->dpm_table.mclk_table.dpm_levels[i].value) {
+-			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_MCLK;
+-			break;
+-		}
+-	}
+-
+-	dep_table = table_info->vdd_dep_on_mclk;
+-	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dependency_on_mclk);
+-
+-	for (i=0; i < dep_table->count; i++) {
+-		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
+-			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_MCLK;
+-			return;
+-		}
+-	}
+-
+-	dep_table = table_info->vdd_dep_on_sclk;
+-	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dependency_on_sclk);
+-	for (i=0; i < dep_table->count; i++) {
+-		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
+-			data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_SCLK;
+-			return;
+-		}
+-	}
+-	if (data->need_update_smu7_dpm_table & DPMTABLE_OD_UPDATE_VDDC) {
+-		data->need_update_smu7_dpm_table &= ~DPMTABLE_OD_UPDATE_VDDC;
+-		data->need_update_smu7_dpm_table |= DPMTABLE_OD_UPDATE_SCLK | DPMTABLE_OD_UPDATE_MCLK;
+-	}
+-}
+-
+ static int smu7_odn_edit_dpm_table(struct pp_hwmgr *hwmgr,
+ 					enum PP_OD_DPM_TABLE_COMMAND type,
+ 					long *input, uint32_t size)
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index f49e0d3..0e3f3bb 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -2414,6 +2414,40 @@ static int vega10_populate_and_upload_avfs_fuse_override(struct pp_hwmgr *hwmgr)
+ 	return result;
+ }
+ 
++static void vega10_check_dpm_table_updated(struct pp_hwmgr *hwmgr)
++{
++	struct vega10_hwmgr *data = hwmgr->backend;
++	struct vega10_odn_dpm_table *odn_table = &(data->odn_dpm_table);
++	struct phm_ppt_v2_information *table_info = hwmgr->pptable;
++	struct phm_ppt_v1_clock_voltage_dependency_table *dep_table;
++	struct phm_ppt_v1_clock_voltage_dependency_table *odn_dep_table;
++	uint32_t i;
++
++	dep_table = table_info->vdd_dep_on_mclk;
++	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dep_on_mclk);
++
++	for (i = 0; i < dep_table->count; i++) {
++		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
++			data->need_update_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_MCLK;
++			return;
++		}
++	}
++
++	dep_table = table_info->vdd_dep_on_sclk;
++	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dep_on_sclk);
++	for (i = 0; i < dep_table->count; i++) {
++		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
++			data->need_update_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_SCLK;
++			return;
++		}
++	}
++
++	if (data->need_update_dpm_table & DPMTABLE_OD_UPDATE_VDDC) {
++		data->need_update_dpm_table &= ~DPMTABLE_OD_UPDATE_VDDC;
++		data->need_update_dpm_table |= DPMTABLE_OD_UPDATE_SCLK | DPMTABLE_OD_UPDATE_MCLK;
++	}
++}
++
+ /**
+ * Initializes the SMC table and uploads it
+ *
+@@ -2430,6 +2464,7 @@ static int vega10_init_smc_table(struct pp_hwmgr *hwmgr)
+ 	PPTable_t *pp_table = &(data->smc_state_table.pp_table);
+ 	struct pp_atomfwctrl_voltage_table voltage_table;
+ 	struct pp_atomfwctrl_bios_boot_up_values boot_up_values;
++	struct vega10_odn_dpm_table *odn_table = &(data->odn_dpm_table);
+ 
+ 	result = vega10_setup_default_dpm_tables(hwmgr);
+ 	PP_ASSERT_WITH_CODE(!result,
+@@ -2437,8 +2472,14 @@ static int vega10_init_smc_table(struct pp_hwmgr *hwmgr)
+ 			return result);
+ 
+ 	/* initialize ODN table */
+-	if (hwmgr->od_enabled)
+-		vega10_odn_initial_default_setting(hwmgr);
++	if (hwmgr->od_enabled) {
++		if (odn_table->max_vddc) {
++			data->need_update_dpm_table |= DPMTABLE_OD_UPDATE_SCLK | DPMTABLE_OD_UPDATE_MCLK;
++			vega10_check_dpm_table_updated(hwmgr);
++		} else {
++			vega10_odn_initial_default_setting(hwmgr);
++		}
++	}
+ 
+ 	pp_atomfwctrl_get_voltage_table_v4(hwmgr, VOLTAGE_TYPE_VDDC,
+ 			VOLTAGE_OBJ_SVID2,  &voltage_table);
+@@ -4694,40 +4735,6 @@ static bool vega10_check_clk_voltage_valid(struct pp_hwmgr *hwmgr,
+ 	return true;
+ }
+ 
+-static void vega10_check_dpm_table_updated(struct pp_hwmgr *hwmgr)
+-{
+-	struct vega10_hwmgr *data = hwmgr->backend;
+-	struct vega10_odn_dpm_table *odn_table = &(data->odn_dpm_table);
+-	struct phm_ppt_v2_information *table_info = hwmgr->pptable;
+-	struct phm_ppt_v1_clock_voltage_dependency_table *dep_table;
+-	struct phm_ppt_v1_clock_voltage_dependency_table *odn_dep_table;
+-	uint32_t i;
+-
+-	dep_table = table_info->vdd_dep_on_mclk;
+-	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dep_on_mclk);
+-
+-	for (i = 0; i < dep_table->count; i++) {
+-		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
+-			data->need_update_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_MCLK;
+-			return;
+-		}
+-	}
+-
+-	dep_table = table_info->vdd_dep_on_sclk;
+-	odn_dep_table = (struct phm_ppt_v1_clock_voltage_dependency_table *)&(odn_table->vdd_dep_on_sclk);
+-	for (i = 0; i < dep_table->count; i++) {
+-		if (dep_table->entries[i].vddc != odn_dep_table->entries[i].vddc) {
+-			data->need_update_dpm_table |= DPMTABLE_OD_UPDATE_VDDC | DPMTABLE_OD_UPDATE_SCLK;
+-			return;
+-		}
+-	}
+-
+-	if (data->need_update_dpm_table & DPMTABLE_OD_UPDATE_VDDC) {
+-		data->need_update_dpm_table &= ~DPMTABLE_OD_UPDATE_VDDC;
+-		data->need_update_dpm_table |= DPMTABLE_OD_UPDATE_SCLK | DPMTABLE_OD_UPDATE_MCLK;
+-	}
+-}
+-
+ static void vega10_odn_update_soc_table(struct pp_hwmgr *hwmgr,
+ 						enum PP_OD_DPM_TABLE_COMMAND type)
+ {
+-- 
+2.7.4
+

@@ -1,0 +1,42 @@
+From fda1e5d264009086c45e41cf7f7c28916cd91803 Mon Sep 17 00:00:00 2001
+From: "Zheng, XueLai(Eric)" <XueLai.Zheng@amd.com>
+Date: Tue, 8 May 2018 12:25:15 -0400
+Subject: [PATCH 4778/5725] drm/amd/display: support ACrYCb2101010
+
+Signed-off-by: XueLai(Eric), Zheng <XueLai.Zheng@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc_hw_types.h      | 1 +
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_hw_types.h b/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
+index 7e5a41f..f285d37 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
+@@ -199,6 +199,7 @@ enum surface_pixel_format {
+ 	SURFACE_PIXEL_FORMAT_VIDEO_420_YCrCb,
+ 	SURFACE_PIXEL_FORMAT_VIDEO_420_10bpc_YCbCr,
+ 	SURFACE_PIXEL_FORMAT_VIDEO_420_10bpc_YCrCb,
++		SURFACE_PIXEL_FORMAT_SUBSAMPLE_END,
+ 	SURFACE_PIXEL_FORMAT_INVALID
+ 
+ 	/*grow 444 video here if necessary */
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+index c28085b..93f52c5 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+@@ -166,7 +166,7 @@ void hubp1_program_size_and_rotation(
+ 	/* Program data and meta surface pitch (calculation from addrlib)
+ 	 * 444 or 420 luma
+ 	 */
+-	if (format >= SURFACE_PIXEL_FORMAT_VIDEO_BEGIN) {
++	if (format >= SURFACE_PIXEL_FORMAT_VIDEO_BEGIN && format < SURFACE_PIXEL_FORMAT_SUBSAMPLE_END) {
+ 		ASSERT(plane_size->video.chroma_pitch != 0);
+ 		/* Chroma pitch zero can cause system hang! */
+ 
+-- 
+2.7.4
+

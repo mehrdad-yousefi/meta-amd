@@ -1,0 +1,54 @@
+From 26ffc5f64ceecc1c00079e626a03917726f54fd3 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Fri, 4 May 2018 15:20:15 +0800
+Subject: [PATCH 5130/5725] drm/amd/powerplay: init vega20 uvd/vce powergate
+ status on dpm setup
+
+This is essentially necessary when uvd/vce dpm is not enabled yet.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 06471d1..a82a3df 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -932,6 +932,21 @@ static int vega20_init_max_sustainable_clocks(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
++static void vega20_init_powergate_state(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++		(struct vega20_hwmgr *)(hwmgr->backend);
++
++	data->uvd_power_gated = true;
++	data->vce_power_gated = true;
++
++	if (data->smu_features[GNLD_DPM_UVD].enabled)
++		data->uvd_power_gated = false;
++
++	if (data->smu_features[GNLD_DPM_VCE].enabled)
++		data->vce_power_gated = false;
++}
++
+ static int vega20_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
+ {
+ 	int result = 0;
+@@ -954,6 +969,9 @@ static int vega20_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
+ 			"[EnableDPMTasks] Failed to enable all smu features!",
+ 			return result);
+ 
++	/* Initialize UVD/VCE powergating state */
++	vega20_init_powergate_state(hwmgr);
++
+ 	result = vega20_setup_default_dpm_tables(hwmgr);
+ 	PP_ASSERT_WITH_CODE(!result,
+ 			"[EnableDPMTasks] Failed to setup default DPM tables!",
+-- 
+2.7.4
+

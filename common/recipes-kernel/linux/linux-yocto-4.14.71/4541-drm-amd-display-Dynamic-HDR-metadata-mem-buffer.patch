@@ -1,0 +1,46 @@
+From a27b9e7b6de6661523d380138e3913c1fa28cc9a Mon Sep 17 00:00:00 2001
+From: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Date: Tue, 8 May 2018 16:03:58 -0400
+Subject: [PATCH 4541/5725] drm/amd/display: Dynamic HDR metadata mem buffer
+
+Basic framework:
+- caps for reporting dynamic HDR metadata support
+- allocation of frame buffer memory and storage
+
+Signed-off-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc.h        | 1 +
+ drivers/gpu/drm/amd/display/dc/dc_stream.h | 2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 81a576f..693d828 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -68,6 +68,7 @@ struct dc_caps {
+ 	uint32_t max_planes;
+ 	uint32_t max_downscale_ratio;
+ 	uint32_t i2c_speed_in_khz;
++	uint32_t dmdata_alloc_size;
+ 	unsigned int max_cursor_size;
+ 	unsigned int max_video_width;
+ 	int linear_pitch_alignment;
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_stream.h b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+index aefc76b..9468c2f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_stream.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+@@ -65,6 +65,8 @@ struct dc_stream_state {
+ 	struct audio_info audio_info;
+ 
+ 	struct dc_info_packet hdr_static_metadata;
++	PHYSICAL_ADDRESS_LOC dmdata_address;
++
+ 	struct dc_transfer_func *out_transfer_func;
+ 	struct colorspace_transform gamut_remap_matrix;
+ 	struct dc_csc_transform csc_color_matrix;
+-- 
+2.7.4
+

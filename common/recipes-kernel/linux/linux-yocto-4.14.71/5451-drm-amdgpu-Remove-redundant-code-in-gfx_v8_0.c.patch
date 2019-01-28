@@ -1,0 +1,54 @@
+From c12637d9c69a5f16d7251d58e38b24d180386913 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 20 Sep 2018 17:06:22 +0800
+Subject: [PATCH 5451/5725] drm/amdgpu: Remove redundant code in gfx_v8_0.c
+
+the CG related registers have been programed in golden setting
+PG register default value is 0.
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Hang Zhou <hang.zhou@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c | 20 --------------------
+ 1 file changed, 20 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index a632c8d..6c026d76 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -4207,31 +4207,11 @@ static int gfx_v8_0_rlc_load_microcode(struct amdgpu_device *adev)
+ static int gfx_v8_0_rlc_resume(struct amdgpu_device *adev)
+ {
+ 	int r;
+-	u32 tmp;
+ 
+ 	gfx_v8_0_rlc_stop(adev);
+-
+-	/* disable CG */
+-	tmp = RREG32(mmRLC_CGCG_CGLS_CTRL);
+-	tmp &= ~(RLC_CGCG_CGLS_CTRL__CGCG_EN_MASK |
+-		 RLC_CGCG_CGLS_CTRL__CGLS_EN_MASK);
+-	WREG32(mmRLC_CGCG_CGLS_CTRL, tmp);
+-	if (adev->asic_type == CHIP_POLARIS11 ||
+-	    adev->asic_type == CHIP_POLARIS10 ||
+-	    adev->asic_type == CHIP_POLARIS12 ||
+-	    adev->asic_type == CHIP_VEGAM) {
+-		tmp = RREG32(mmRLC_CGCG_CGLS_CTRL_3D);
+-		tmp &= ~0x3;
+-		WREG32(mmRLC_CGCG_CGLS_CTRL_3D, tmp);
+-	}
+-
+-	/* disable PG */
+-	WREG32(mmRLC_PG_CNTL, 0);
+-
+ 	gfx_v8_0_rlc_reset(adev);
+ 	gfx_v8_0_init_pg(adev);
+ 
+-
+ 	if (adev->firmware.load_type == AMDGPU_FW_LOAD_DIRECT) {
+ 		/* legacy rlc firmware loading */
+ 		r = gfx_v8_0_rlc_load_microcode(adev);
+-- 
+2.7.4
+

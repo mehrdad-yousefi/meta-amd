@@ -1,0 +1,32 @@
+From 515913d67a154575286b2454ecdf9727b49c96fe Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 18 Jul 2018 16:26:28 -0400
+Subject: [PATCH 5099/5725] drm/amdgpu: add emit trap for vcn jpeg
+
+Add emit trap command in jpeg emit fence call.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Acked-by: Leo Liu <leo.liu at amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index a45dcd8..4221312 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -1355,6 +1355,10 @@ static void vcn_v1_0_jpeg_ring_emit_fence(struct amdgpu_ring *ring, u64 addr, u6
+ 	amdgpu_ring_write(ring,
+ 		PACKETJ(0, 0, 0, PACKETJ_TYPE0));
+ 	amdgpu_ring_write(ring, 0x1);
++
++	/* emit trap */
++	amdgpu_ring_write(ring, PACKETJ(0, 0, 0, PACKETJ_TYPE7));
++	amdgpu_ring_write(ring, 0);
+ }
+ 
+ /**
+-- 
+2.7.4
+

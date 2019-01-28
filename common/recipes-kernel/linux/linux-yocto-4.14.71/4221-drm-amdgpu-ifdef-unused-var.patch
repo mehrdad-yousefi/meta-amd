@@ -1,0 +1,30 @@
+From 6e63106288eac2d18bcbcb24deb87a7053bb550e Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Tue, 17 Apr 2018 10:20:30 -0400
+Subject: [PATCH 4221/5725] drm/amdgpu: ifdef unused var
+
+Code that's using it is guarded with #if 0. Do the same for unused var.
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 263d3ab..b05fe26 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -806,7 +806,9 @@ static int gmc_v9_0_gart_init(struct amdgpu_device *adev)
+ 
+ static unsigned gmc_v9_0_get_vbios_fb_size(struct amdgpu_device *adev)
+ {
++#if 0
+ 	u32 d1vga_control = RREG32_SOC15(DCE, 0, mmD1VGA_CONTROL);
++#endif
+ 	unsigned size;
+ 
+ 	/*
+-- 
+2.7.4
+

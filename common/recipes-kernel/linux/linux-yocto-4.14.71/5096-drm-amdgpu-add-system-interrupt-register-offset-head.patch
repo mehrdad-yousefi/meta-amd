@@ -1,0 +1,31 @@
+From 846c6438f6db289a3f7a1580fe49d27cb6acef70 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 18 Jul 2018 16:13:29 -0400
+Subject: [PATCH 5096/5725] drm/amdgpu: add system interrupt register offset
+ header
+
+Add new register offset for enabling system interrupt.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Acked-by: Leo Liu <leo.liu at amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_offset.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_offset.h b/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_offset.h
+index fe0cbaa..216a401 100644
+--- a/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_offset.h
++++ b/drivers/gpu/drm/amd/include/asic_reg/vcn/vcn_1_0_offset.h
+@@ -307,6 +307,8 @@
+ #define mmUVD_LMI_CTRL2_BASE_IDX                                                                       1
+ #define mmUVD_MASTINT_EN                                                                               0x0540
+ #define mmUVD_MASTINT_EN_BASE_IDX                                                                      1
++#define mmUVD_SYS_INT_EN                                                                               0x0541
++#define mmUVD_SYS_INT_EN_BASE_IDX                                                                      1
+ #define mmJPEG_CGC_CTRL                                                                                0x0565
+ #define mmJPEG_CGC_CTRL_BASE_IDX                                                                       1
+ #define mmUVD_LMI_CTRL                                                                                 0x0566
+-- 
+2.7.4
+

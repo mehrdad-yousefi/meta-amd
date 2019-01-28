@@ -1,0 +1,31 @@
+From e0c9c35342db9ece530982054a5541786c6c87f8 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 19 Mar 2018 18:00:47 -0400
+Subject: [PATCH 4147/5725] drm/amdgpu: Fix unbalanced memory accounting in
+ error case
+
+When the userptr BO has already been created, unreffing the BO will
+unreserve the memory limit. Don't do it twice.
+
+Change-Id: Ibdcd972ef9177756d83b9bebf0244200e7099748
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 9061f44..b3112fb 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1297,6 +1297,8 @@ int amdgpu_amdkfd_gpuvm_alloc_memory_of_gpu(
+ 
+ allocate_init_user_pages_failed:
+ 	amdgpu_bo_unref(&bo);
++	/* Don't unreserve system mem limit twice */
++	goto err_reserve_limit;
+ err_bo_create:
+ 	if (!sg)
+ 		unreserve_system_mem_limit(adev, size, alloc_domain);
+-- 
+2.7.4
+

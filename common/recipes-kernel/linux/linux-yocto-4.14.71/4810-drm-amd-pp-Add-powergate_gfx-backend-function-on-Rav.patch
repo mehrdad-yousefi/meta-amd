@@ -1,0 +1,31 @@
+From 9db5e96710aea6f3ee3f1114c44042c4120809b8 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 5 Jun 2018 13:55:04 +0800
+Subject: [PATCH 4810/5725] drm/amd/pp: Add powergate_gfx backend function on
+ Raven
+
+Raven support gfx off feature instand of gfx powergate,
+so use smu10_gfx_off_control as the powergate_gfx backend function.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index b810d9c..07cc98c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -1186,6 +1186,7 @@ static const struct pp_hwmgr_func smu10_hwmgr_funcs = {
+ 	.smus_notify_pwe = smu10_smus_notify_pwe,
+ 	.gfx_off_control = smu10_gfx_off_control,
+ 	.display_clock_voltage_request = smu10_display_clock_voltage_request,
++	.powergate_gfx = smu10_gfx_off_control,
+ };
+ 
+ int smu10_init_function_pointers(struct pp_hwmgr *hwmgr)
+-- 
+2.7.4
+

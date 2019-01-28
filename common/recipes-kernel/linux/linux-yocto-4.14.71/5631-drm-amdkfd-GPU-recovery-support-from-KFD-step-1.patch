@@ -1,0 +1,150 @@
+From 04955c40500e36a943a4b91a00126c3cc6eb42a6 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Wed, 28 Feb 2018 11:46:32 -0500
+Subject: [PATCH 5631/5725] drm/amdkfd: GPU recovery support from KFD (step 1)
+
+Lock KFD and evict existing queues on reset
+
+Change-Id: I0f0526b5beac68bd7a96ead58b95a57d4f7f8b13
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c |  5 ++++
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c  | 43 +++++++++++++++++++++++++++++---
+ drivers/gpu/drm/amd/amdkfd/kfd_events.c  |  5 ++++
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h    |  4 +++
+ 4 files changed, 54 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 1fbde9b..98b000b 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -136,6 +136,11 @@ static int kfd_open(struct inode *inode, struct file *filep)
+ 	if (IS_ERR(process))
+ 		return PTR_ERR(process);
+ 
++	if (kfd_is_locked()) {
++		kfd_unref_process(process);
++		return -EAGAIN;
++	}
++
+ 	dev_dbg(kfd_device, "process %d opened, compat mode (32 bit) - %d\n",
+ 		process->pasid, process->is_32bit_user_mode);
+ 
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index 6f9a8e5..26c6163 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -32,7 +32,13 @@
+ #include "kfd_iommu.h"
+ 
+ #define MQD_SIZE_ALIGNED 768
+-static atomic_t kfd_device_suspended = ATOMIC_INIT(0);
++
++/*
++ * kfd_locked is used to lock the kfd driver during suspend or reset
++ * once locked, kfd driver will stop any further GPU execution.
++ * create process (open) will return -EAGAIN.
++ */
++static atomic_t kfd_locked = ATOMIC_INIT(0);
+ 
+ #ifdef KFD_SUPPORT_IOMMU_V2
+ static const struct kfd_device_info kaveri_device_info = {
+@@ -553,21 +559,52 @@ void kgd2kfd_device_exit(struct kfd_dev *kfd)
+ 
+ int kgd2kfd_pre_reset(struct kfd_dev *kfd)
+ {
++	if (!kfd->init_complete)
++		return 0;
++	kgd2kfd_suspend(kfd);
++
++	/* hold dqm->lock to prevent further execution*/
++	mutex_lock(&kfd->dqm->lock);
++
++	kfd_signal_reset_event(kfd);
+ 	return 0;
+ }
+ 
++/*
++ * Fix me. KFD won't be able to resume existing process for now.
++ * We will keep all existing process in a evicted state and
++ * wait the process to be terminated.
++ */
++
+ int kgd2kfd_post_reset(struct kfd_dev *kfd)
+ {
++	int ret, count;
++
++	if (!kfd->init_complete)
++		return 0;
++
++	mutex_unlock(&kfd->dqm->lock);
++
++	ret = kfd_resume(kfd);
++	if (ret)
++		return ret;
++	count = atomic_dec_return(&kfd_locked);
++	WARN_ONCE(count != 0, "KFD reset ref. error");
+ 	return 0;
+ }
+ 
++bool kfd_is_locked(void)
++{
++	return  (atomic_read(&kfd_locked) > 0);
++}
++
+ void kgd2kfd_suspend(struct kfd_dev *kfd)
+ {
+ 	if (!kfd->init_complete)
+ 		return;
+ 
+ 	/* For first KFD device suspend all the KFD processes */
+-	if (atomic_inc_return(&kfd_device_suspended) == 1)
++	if (atomic_inc_return(&kfd_locked) == 1)
+ 		kfd_suspend_all_processes();
+ 
+ 	kfd->dqm->ops.stop(kfd->dqm);
+@@ -586,7 +623,7 @@ int kgd2kfd_resume(struct kfd_dev *kfd)
+ 	if (ret)
+ 		return ret;
+ 
+-	count = atomic_dec_return(&kfd_device_suspended);
++	count = atomic_dec_return(&kfd_locked);
+ 	WARN_ONCE(count < 0, "KFD suspend / resume ref. error");
+ 	if (count == 0)
+ 		ret = kfd_resume_all_processes();
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_events.c b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+index 644ce9d..09c1c31 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_events.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+@@ -1009,3 +1009,8 @@ void kfd_signal_vm_fault_event(struct kfd_dev *dev, unsigned int pasid,
+ 	mutex_unlock(&p->event_mutex);
+ 	kfd_unref_process(p);
+ }
++
++void kfd_signal_reset_event(struct kfd_dev *dev)
++{
++	/*todo*/
++}
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 319a8b7..97f729c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -1042,10 +1042,14 @@ int kfd_event_destroy(struct kfd_process *p, uint32_t event_id);
+ void kfd_signal_vm_fault_event(struct kfd_dev *dev, unsigned int pasid,
+ 				struct kfd_vm_fault_info *info);
+ 
++void kfd_signal_reset_event(struct kfd_dev *dev);
++
+ void kfd_flush_tlb(struct kfd_process_device *pdd);
+ 
+ int dbgdev_wave_reset_wavefronts(struct kfd_dev *dev, struct kfd_process *p);
+ 
++bool kfd_is_locked(void);
++
+ #define KFD_SCRATCH_KV_FW_VER 413
+ 
+ /* PeerDirect support */
+-- 
+2.7.4
+

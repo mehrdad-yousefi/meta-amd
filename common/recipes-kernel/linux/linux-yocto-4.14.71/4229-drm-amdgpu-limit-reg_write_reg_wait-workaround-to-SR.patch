@@ -1,0 +1,40 @@
+From f3b9f7c97663a6c9f1947ba37088e99c032c1bb8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 17 Apr 2018 14:47:42 +0200
+Subject: [PATCH 4229/5725] drm/amdgpu: limit reg_write_reg_wait workaround to
+ SRIOV v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Turned out that this locks up some bare metal Vega10.
+
+v2: fix stupid typo
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index c407f1f..d04a78b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -4226,7 +4226,12 @@ static void gfx_v9_0_ring_emit_reg_write_reg_wait(struct amdgpu_ring *ring,
+ {
+ 	int usepfp = (ring->funcs->type == AMDGPU_RING_TYPE_GFX);
+ 
+-	gfx_v9_0_wait_reg_mem(ring, usepfp, 0, 1, reg0, reg1, ref, mask, 0x20);
++	if (amdgpu_sriov_vf(ring->adev))
++		gfx_v9_0_wait_reg_mem(ring, usepfp, 0, 1, reg0, reg1,
++				      ref, mask, 0x20);
++	else
++		amdgpu_ring_emit_reg_write_reg_wait_helper(ring, reg0, reg1,
++							   ref, mask);
+ }
+ 
+ static void gfx_v9_0_set_gfx_eop_interrupt_state(struct amdgpu_device *adev,
+-- 
+2.7.4
+

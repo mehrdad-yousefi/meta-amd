@@ -1,0 +1,38 @@
+From 1c8c19ed5de4c19381755c4af40fa8b32d92009e Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sat, 29 Sep 2018 14:52:31 +0800
+Subject: [PATCH 5508/5725] drm/amd/pp: Fix memory leak on CI/AI
+
+On CI/AI, fw was not loaded by smu, but
+smu's fw still need to be released
+when driver fini.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index e9bf118..3bfe0cf 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -109,11 +109,11 @@ static int pp_sw_fini(void *handle)
+ 
+ 	hwmgr_sw_fini(hwmgr);
+ 
+-	if (adev->firmware.load_type == AMDGPU_FW_LOAD_SMU) {
+-		release_firmware(adev->pm.fw);
+-		adev->pm.fw = NULL;
++	if (adev->firmware.load_type == AMDGPU_FW_LOAD_SMU)
+ 		amdgpu_ucode_fini_bo(adev);
+-	}
++
++	release_firmware(adev->pm.fw);
++	adev->pm.fw = NULL;
+ 
+ 	return 0;
+ }
+-- 
+2.7.4
+

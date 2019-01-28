@@ -1,0 +1,47 @@
+From 1c0ca771836d1cd9e113f1b7787c61de08ec1efa Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Thu, 5 Apr 2018 15:20:15 -0400
+Subject: [PATCH 4209/5725] drm/amd/display: Add back code to allow for
+ rounding error
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/modules/freesync/freesync.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+index 4887c88..abd5c93 100644
+--- a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
++++ b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+@@ -896,6 +896,17 @@ bool mod_freesync_is_valid_range(struct mod_freesync *mod_freesync,
+ 	unsigned long long nominal_field_rate_in_uhz =
+ 			mod_freesync_calc_nominal_field_rate(stream);
+ 
++	/* Allow for some rounding error of actual video timing by taking ceil.
++	 * For example, 144 Hz mode timing may actually be 143.xxx Hz when
++	 * calculated from pixel rate and vertical/horizontal totals, but
++	 * this should be allowed instead of blocking FreeSync.
++	 */
++	nominal_field_rate_in_uhz = div_u64(nominal_field_rate_in_uhz, 1000000);
++	min_refresh_cap_in_uhz /= 1000000;
++	max_refresh_cap_in_uhz /= 1000000;
++	min_refresh_request_in_uhz /= 1000000;
++	max_refresh_request_in_uhz /= 1000000;
++
+ 	// Check nominal is within range
+ 	if (nominal_field_rate_in_uhz > max_refresh_cap_in_uhz ||
+ 		nominal_field_rate_in_uhz < min_refresh_cap_in_uhz)
+@@ -921,7 +932,7 @@ bool mod_freesync_is_valid_range(struct mod_freesync *mod_freesync,
+ 
+ 	// For variable range, check for at least 10 Hz range
+ 	if ((max_refresh_request_in_uhz != min_refresh_request_in_uhz) &&
+-		(max_refresh_request_in_uhz - min_refresh_request_in_uhz < 10000000))
++		(max_refresh_request_in_uhz - min_refresh_request_in_uhz < 10))
+ 		return false;
+ 
+ 	return true;
+-- 
+2.7.4
+

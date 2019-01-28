@@ -1,0 +1,41 @@
+From 92afd579eca0ee3c8f354c7019256545d86f018b Mon Sep 17 00:00:00 2001
+From: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Date: Thu, 4 Oct 2018 12:13:53 -0400
+Subject: [PATCH 5595/5725] drm/amd/display: rename
+ cstate_pstate_watermarks_st1
+
+cstate_pstate_watermarks_st1 -> cstate_pstate_watermarks_st
+
+Signed-off-by: vikrant mhaske <vikrant.mhaske@amd.com>
+Signed-off-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/inc/hw/mem_input.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/mem_input.h b/drivers/gpu/drm/amd/display/dc/inc/hw/mem_input.h
+index da89c2e..06df02d 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/mem_input.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/mem_input.h
+@@ -31,7 +31,7 @@
+ #include "dml/display_mode_structs.h"
+ 
+ struct dchub_init_data;
+-struct cstate_pstate_watermarks_st {
++struct cstate_pstate_watermarks_st1 {
+ 	uint32_t cstate_exit_ns;
+ 	uint32_t cstate_enter_plus_exit_ns;
+ 	uint32_t pstate_change_ns;
+@@ -40,7 +40,7 @@ struct cstate_pstate_watermarks_st {
+ struct dcn_watermarks {
+ 	uint32_t pte_meta_urgent_ns;
+ 	uint32_t urgent_ns;
+-	struct cstate_pstate_watermarks_st cstate_pstate;
++	struct cstate_pstate_watermarks_st1 cstate_pstate;
+ };
+ 
+ struct dcn_watermark_set {
+-- 
+2.7.4
+

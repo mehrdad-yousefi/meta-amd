@@ -1,0 +1,48 @@
+From c086d59d8a6165a5cc5298af314ce3274476b5ae Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 20 Sep 2018 15:11:08 +0800
+Subject: [PATCH 5479/5725] drm/amd/pp: Fix fan's RPM setting not work on
+ VI/Vega10
+
+set the target rpm value to wrong register.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_thermal.c   | 2 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c | 6 +++---
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_thermal.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_thermal.c
+index 44527755..eef086c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_thermal.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_thermal.c
+@@ -272,7 +272,7 @@ int smu7_fan_ctrl_set_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t speed)
+ 	tach_period = 60 * crystal_clock_freq * 10000 / (8 * speed);
+ 
+ 	PHM_WRITE_VFPF_INDIRECT_FIELD(hwmgr->device, CGS_IND_REG__SMC,
+-				CG_TACH_STATUS, TACH_PERIOD, tach_period);
++				CG_TACH_CTRL, TARGET_PERIOD, tach_period);
+ 
+ 	return smu7_fan_ctrl_set_static_mode(hwmgr, FDO_PWM_MODE_STATIC_RPM);
+ }
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c
+index 407762b..538de6c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c
+@@ -322,9 +322,9 @@ int vega10_fan_ctrl_set_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t speed)
+ 	if (!result) {
+ 		crystal_clock_freq = amdgpu_asic_get_xclk((struct amdgpu_device *)hwmgr->adev);
+ 		tach_period = 60 * crystal_clock_freq * 10000 / (8 * speed);
+-		WREG32_SOC15(THM, 0, mmCG_TACH_STATUS,
+-				REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_TACH_STATUS),
+-					CG_TACH_STATUS, TACH_PERIOD,
++		WREG32_SOC15(THM, 0, mmCG_TACH_CTRL,
++				REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_TACH_CTRL),
++					CG_TACH_CTRL, TARGET_PERIOD,
+ 					tach_period));
+ 	}
+ 	return vega10_fan_ctrl_set_static_mode(hwmgr, FDO_PWM_MODE_STATIC_RPM);
+-- 
+2.7.4
+

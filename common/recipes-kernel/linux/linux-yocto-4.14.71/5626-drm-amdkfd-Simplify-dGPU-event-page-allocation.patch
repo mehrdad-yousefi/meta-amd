@@ -1,0 +1,284 @@
+From e3f7969f17cb2d91a977887af3dcd87c39f388ff Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 19 Mar 2018 18:02:07 -0400
+Subject: [PATCH 5626/5725] drm/amdkfd: Simplify dGPU event page allocation
+
+Deal with all the events page allocation in kfd_chardev.c and remove
+unnecessary checks for APU. This will also potentially allow mixed
+configurations of dGPUs with APUs.
+
+Explicitly set the events page in the ioctl instead of doing it
+implicitly in kfd_event_create. This also fixes a potential memory
+leak if the events page was already set in a previous call. This
+will now fail.
+
+Explicitly remember how the events page was allocated so it can be
+freed correctly.
+
+Change-Id: I77ecd0b699c20d2e9a1ff7226e387df143ad6a5b
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 84 +++++++++++++++++++-------------
+ drivers/gpu/drm/amd/amdkfd/kfd_events.c  | 69 +++++++++++---------------
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h    |  4 +-
+ 3 files changed, 80 insertions(+), 77 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index e0d1577..978f329 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -976,55 +976,69 @@ static int kfd_ioctl_create_event(struct file *filp, struct kfd_process *p,
+ 					void *data)
+ {
+ 	struct kfd_ioctl_create_event_args *args = data;
+-	struct kfd_dev *kfd;
+-	struct kfd_process_device *pdd;
+-	int err = -EINVAL;
+-	void *mem, *kern_addr = NULL;
+-
+-	pr_debug("Event page offset 0x%llx\n", args->event_page_offset);
++	int err;
+ 
++	/* For dGPUs the event page is allocated in user mode. The
++	 * handle is passed to KFD with the first call to this IOCTL
++	 * through the event_page_offset field.
++	 */
+ 	if (args->event_page_offset) {
++		struct kfd_dev *kfd;
++		struct kfd_process_device *pdd;
++		void *mem, *kern_addr;
++
++		if (p->signal_page) {
++			pr_err("Event page is already set\n");
++			return -EINVAL;
++		}
++
+ 		kfd = kfd_device_by_id(GET_GPU_ID(args->event_page_offset));
+ 		if (!kfd) {
+ 			pr_err("Getting device by id failed in %s\n", __func__);
+-			return -EFAULT;
++			return -EINVAL;
+ 		}
+-		if (!kfd->device_info->needs_iommu_device) {
+-			mutex_lock(&p->mutex);
+-			pdd = kfd_bind_process_to_device(kfd, p);
+-			if (IS_ERR(pdd)) {
+-				err = PTR_ERR(pdd);
+-				goto out_upwrite;
+-			}
+-			mem = kfd_process_device_translate_handle(pdd,
++
++		mutex_lock(&p->mutex);
++		pdd = kfd_bind_process_to_device(kfd, p);
++		if (IS_ERR(pdd)) {
++			err = PTR_ERR(pdd);
++			goto out_unlock;
++		}
++
++		mem = kfd_process_device_translate_handle(pdd,
+ 				GET_IDR_HANDLE(args->event_page_offset));
+-			if (!mem) {
+-				pr_err("Can't find BO, offset is 0x%llx\n",
+-						args->event_page_offset);
+-				err = -EFAULT;
+-				goto out_upwrite;
+-			}
+-			mutex_unlock(&p->mutex);
++		if (!mem) {
++			pr_err("Can't find BO, offset is 0x%llx\n",
++			       args->event_page_offset);
++			err = -EINVAL;
++			goto out_unlock;
++		}
++		mutex_unlock(&p->mutex);
+ 
+-			/* Map dGPU gtt BO to kernel */
+-			kfd->kfd2kgd->map_gtt_bo_to_kernel(kfd->kgd,
+-					mem, &kern_addr, NULL);
++		err = kfd->kfd2kgd->map_gtt_bo_to_kernel(kfd->kgd,
++						mem, &kern_addr, NULL);
++		if (err) {
++			pr_err("Failed to map event page to kernel\n");
++			return err;
++		}
++
++		err = kfd_event_page_set(p, kern_addr);
++		if (err) {
++			pr_err("Failed to set event page\n");
++			return err;
+ 		}
+ 	}
+ 
+-	err = kfd_event_create(filp, p,
+-			args->event_type,
+-			args->auto_reset != 0,
+-			args->node_id,
+-			&args->event_id,
+-			&args->event_trigger_data,
+-			&args->event_page_offset,
+-			&args->event_slot_index,
+-			kern_addr);
++
++	err = kfd_event_create(filp, p, args->event_type,
++				args->auto_reset != 0, args->node_id,
++				&args->event_id, &args->event_trigger_data,
++				&args->event_page_offset,
++				&args->event_slot_index);
+ 
+ 	return err;
+ 
+-out_upwrite:
++out_unlock:
+ 	mutex_unlock(&p->mutex);
+ 	return err;
+ }
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_events.c b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+index a92ca78..d002016 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_events.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+@@ -51,8 +51,8 @@ struct kfd_event_waiter {
+  */
+ struct kfd_signal_page {
+ 	uint64_t *kernel_address;
+-	uint64_t handle;
+ 	uint64_t __user *user_address;
++	bool need_to_free_pages;
+ };
+ 
+ 
+@@ -80,6 +80,7 @@ static struct kfd_signal_page *allocate_signal_page(struct kfd_process *p)
+ 	       KFD_SIGNAL_EVENT_LIMIT * 8);
+ 
+ 	page->kernel_address = backing_store;
++	page->need_to_free_pages = true;
+ 	pr_debug("Allocated new event signal page at %p, for process %p\n",
+ 			page, p);
+ 
+@@ -112,29 +113,6 @@ static int allocate_event_notification_slot(struct kfd_process *p,
+ 	return 0;
+ }
+ 
+-static struct kfd_signal_page *allocate_signal_page_dgpu(
+-	struct kfd_process *p, uint64_t *kernel_address, uint64_t handle)
+-{
+-	struct kfd_signal_page *my_page;
+-
+-	my_page = kzalloc(sizeof(*my_page), GFP_KERNEL);
+-	if (!my_page)
+-		return NULL;
+-
+-	/* Initialize all events to unsignaled */
+-	memset(kernel_address, (uint8_t) UNSIGNALED_EVENT_SLOT,
+-	       KFD_SIGNAL_EVENT_LIMIT * 8);
+-
+-	my_page->kernel_address = kernel_address;
+-	my_page->handle = handle;
+-	my_page->user_address = NULL;
+-
+-	pr_debug("Allocated new event signal page at %p, for process %p\n",
+-			my_page, p);
+-
+-	return my_page;
+-}
+-
+ /*
+  * Assumes that p->event_mutex is held and of course that p is not going
+  * away (current or locked).
+@@ -284,9 +262,9 @@ static void shutdown_signal_page(struct kfd_process *p)
+ 	struct kfd_signal_page *page = p->signal_page;
+ 
+ 	if (page) {
+-		if (page->user_address)
++		if (page->need_to_free_pages)
+ 			free_pages((unsigned long)page->kernel_address,
+-					get_order(KFD_SIGNAL_EVENT_LIMIT * 8));
++				   get_order(KFD_SIGNAL_EVENT_LIMIT * 8));
+ 		kfree(page);
+ 	}
+ }
+@@ -308,11 +286,32 @@ static bool event_can_be_cpu_signaled(const struct kfd_event *ev)
+ 	return ev->type == KFD_EVENT_TYPE_SIGNAL;
+ }
+ 
++int kfd_event_page_set(struct kfd_process *p, void *kernel_address)
++{
++	struct kfd_signal_page *page;
++
++	if (p->signal_page)
++		return -EBUSY;
++
++	page = kzalloc(sizeof(*page), GFP_KERNEL);
++	if (!page)
++		return -ENOMEM;
++
++	/* Initialize all events to unsignaled */
++	memset(kernel_address, (uint8_t) UNSIGNALED_EVENT_SLOT,
++	       KFD_SIGNAL_EVENT_LIMIT * 8);
++
++	page->kernel_address = kernel_address;
++
++	p->signal_page = page;
++
++	return 0;
++}
++
+ int kfd_event_create(struct file *devkfd, struct kfd_process *p,
+ 		     uint32_t event_type, bool auto_reset, uint32_t node_id,
+ 		     uint32_t *event_id, uint32_t *event_trigger_data,
+-		     uint64_t *event_page_offset, uint32_t *event_slot_index,
+-		     void *kern_addr)
++		     uint64_t *event_page_offset, uint32_t *event_slot_index)
+ {
+ 	int ret = 0;
+ 	struct kfd_event *ev = kzalloc(sizeof(*ev), GFP_KERNEL);
+@@ -326,19 +325,10 @@ int kfd_event_create(struct file *devkfd, struct kfd_process *p,
+ 
+ 	init_waitqueue_head(&ev->wq);
+ 
+-	mutex_lock(&p->event_mutex);
+-
+-	if (kern_addr && !p->signal_page) {
+-		p->signal_page = allocate_signal_page_dgpu(p, kern_addr,
+-							   *event_page_offset);
+-		if (!p->signal_page) {
+-			ret = -ENOMEM;
+-			goto out;
+-		}
+-	}
+-
+ 	*event_page_offset = 0;
+ 
++	mutex_lock(&p->event_mutex);
++
+ 	switch (event_type) {
+ 	case KFD_EVENT_TYPE_SIGNAL:
+ 	case KFD_EVENT_TYPE_DEBUG:
+@@ -361,7 +351,6 @@ int kfd_event_create(struct file *devkfd, struct kfd_process *p,
+ 		kfree(ev);
+ 	}
+ 
+-out:
+ 	mutex_unlock(&p->event_mutex);
+ 
+ 	return ret;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index be66eae..38aa868 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -1054,11 +1054,11 @@ void kfd_signal_iommu_event(struct kfd_dev *dev,
+ void kfd_signal_hw_exception_event(unsigned int pasid);
+ int kfd_set_event(struct kfd_process *p, uint32_t event_id);
+ int kfd_reset_event(struct kfd_process *p, uint32_t event_id);
++int kfd_event_page_set(struct kfd_process *p, void *kernel_address);
+ int kfd_event_create(struct file *devkfd, struct kfd_process *p,
+ 		     uint32_t event_type, bool auto_reset, uint32_t node_id,
+ 		     uint32_t *event_id, uint32_t *event_trigger_data,
+-		     uint64_t *event_page_offset, uint32_t *event_slot_index,
+-		     void *kern_addr);
++		     uint64_t *event_page_offset, uint32_t *event_slot_index);
+ int kfd_event_destroy(struct kfd_process *p, uint32_t event_id);
+ 
+ void kfd_signal_vm_fault_event(struct kfd_dev *dev, unsigned int pasid,
+-- 
+2.7.4
+

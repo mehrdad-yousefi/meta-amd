@@ -1,0 +1,52 @@
+From ee84fcc04f1147bf6b0285b3bd778cb4a6e808a2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 21 Aug 2018 16:47:01 +0200
+Subject: [PATCH 5197/5725] drm/amdgpu: move setting the GART addr into TTM
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Move setting the GART addr for window based copies into the TTM code who
+uses it.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_job.c | 2 --
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 5 ++++-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
+index 994b569..f72d959 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
+@@ -83,8 +83,6 @@ int amdgpu_job_alloc_with_ib(struct amdgpu_device *adev, unsigned size,
+ 	r = amdgpu_ib_get(adev, NULL, size, &(*job)->ibs[0]);
+ 	if (r)
+ 		kfree(*job);
+-	else
+-		(*job)->vm_pd_addr = adev->gart.table_addr;
+ 
+ 	return r;
+ }
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index b741827..f9233be 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -2247,7 +2247,10 @@ int amdgpu_copy_buffer(struct amdgpu_ring *ring, uint64_t src_offset,
+ 	if (r)
+ 		return r;
+ 
+-	job->vm_needs_flush = vm_needs_flush;
++	if (vm_needs_flush) {
++		job->vm_pd_addr = adev->gart.table_addr;
++		job->vm_needs_flush = true;
++	}
+ 	if (resv) {
+ 		r = amdgpu_sync_resv(adev, &job->sync, resv,
+ 				     AMDGPU_FENCE_OWNER_UNDEFINED,
+-- 
+2.7.4
+

@@ -1,0 +1,36 @@
+From 06219f25742fa32e4eb5822e0eaa1752804ebc42 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 17 May 2018 13:03:05 -0500
+Subject: [PATCH 4489/5725] drm/amdgpu: Take vcn encode rings into account in
+ idle work
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Take the encode rings into account in the idle work handler.
+
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index be15303..ab4aa04 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -208,6 +208,11 @@ static void amdgpu_vcn_idle_work_handler(struct work_struct *work)
+ 	struct amdgpu_device *adev =
+ 		container_of(work, struct amdgpu_device, vcn.idle_work.work);
+ 	unsigned fences = amdgpu_fence_count_emitted(&adev->vcn.ring_dec);
++	unsigned i;
++
++	for (i = 0; i < adev->vcn.num_enc_rings; ++i) {
++		fences += amdgpu_fence_count_emitted(&adev->vcn.ring_enc[i]);
++	}
+ 
+ 	if (fences == 0) {
+ 		if (adev->pm.dpm_enabled) {
+-- 
+2.7.4
+

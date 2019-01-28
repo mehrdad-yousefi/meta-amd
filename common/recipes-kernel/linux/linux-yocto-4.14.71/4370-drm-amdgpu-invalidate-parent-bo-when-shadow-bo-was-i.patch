@@ -1,0 +1,42 @@
+From d5aeec65a69b4be760b53124c9027a7786d92203 Mon Sep 17 00:00:00 2001
+From: Chunming Zhou <david1.zhou@amd.com>
+Date: Tue, 24 Apr 2018 13:54:10 +0800
+Subject: [PATCH 4370/5725] drm/amdgpu: invalidate parent bo when shadow bo was
+ invalidated
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Shadow BO is located on GTT and its parent (PT and PD) BO could located on VRAM.
+In some case, the BO on GTT could be evicted but the parent did not. This may
+cause the shadow BO not be put in the evict list and could not be invalidate
+correctly.
+v2: suggested by Christian
+
+Change-Id: Iad10d9a3031fa2b243879b9e58ee4d8c527eb433
+Signed-off-by: Chunming Zhou <david1.zhou@amd.com>
+Reported-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index dd84ed4..336abd4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2282,6 +2282,10 @@ void amdgpu_vm_bo_invalidate(struct amdgpu_device *adev,
+ {
+ 	struct amdgpu_vm_bo_base *bo_base;
+ 
++	/* shadow bo doesn't have bo base, its validation needs its parent */
++	if (bo->parent && bo->parent->shadow == bo)
++		bo = bo->parent;
++
+ 	list_for_each_entry(bo_base, &bo->va, bo_list) {
+ 		struct amdgpu_vm *vm = bo_base->vm;
+ 
+-- 
+2.7.4
+

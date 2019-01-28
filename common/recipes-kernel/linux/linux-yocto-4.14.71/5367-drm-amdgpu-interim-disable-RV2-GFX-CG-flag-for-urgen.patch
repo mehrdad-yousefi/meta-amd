@@ -1,0 +1,36 @@
+From 97e8f44def63dd86a495df0796a0b4b55fc27b73 Mon Sep 17 00:00:00 2001
+From: Likun Gao <Likun.Gao@amd.com>
+Date: Tue, 13 Nov 2018 14:01:59 +0800
+Subject: [PATCH 5367/5725] drm/amdgpu: interim disable RV2 GFX CG flag for
+ urgent use
+
+interim disable AMD_CG_SUPPORT_GFX_CGCG, AMD_CG_SUPPORT_GFX_MGCG, and
+AMD_CG_SUPPORT_GFX_3D_CGCG on RV2 as SMU firmware newer than 37.16.0 will result
+to RLC safe mode fail.
+
+Signed-off-by: Likun Gao <Likun.Gao@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index c4daf1f..3c4f940 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -703,12 +703,9 @@ static int soc15_common_early_init(void *handle)
+ 			adev->external_rev_id = 0x1;
+ 
+ 		if (adev->rev_id >= 0x8) {
+-			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
+-				AMD_CG_SUPPORT_GFX_MGLS |
++			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGLS |
+ 				AMD_CG_SUPPORT_GFX_CP_LS |
+-				AMD_CG_SUPPORT_GFX_3D_CGCG |
+ 				AMD_CG_SUPPORT_GFX_3D_CGLS |
+-				AMD_CG_SUPPORT_GFX_CGCG |
+ 				AMD_CG_SUPPORT_GFX_CGLS |
+ 				AMD_CG_SUPPORT_BIF_LS |
+ 				AMD_CG_SUPPORT_HDP_LS |
+-- 
+2.7.4
+

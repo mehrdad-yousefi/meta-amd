@@ -1,0 +1,48 @@
+From 70c8b518c22a49a9dd6caf85720dfb66c7dd7bb4 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 19 Apr 2018 14:22:24 -0500
+Subject: [PATCH 4244/5725] drm/amdgpu/pm: document pp_dpm_sclk pp_dpm_mclk
+ pp_dpm_pcie (v2)
+
+Used for manually masking dpm states.
+
+v2: drop comment about current state (Rex)
+
+Acked-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index b659f4b3..4480212 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -540,6 +540,23 @@ static ssize_t amdgpu_get_pp_od_clk_voltage(struct device *dev,
+ 
+ }
+ 
++/**
++ * DOC: pp_dpm_sclk pp_dpm_mclk pp_dpm_pcie
++ *
++ * The amdgpu driver provides a sysfs API for adjusting what power levels
++ * are enabled for a given power state.  The files pp_dpm_sclk, pp_dpm_mclk,
++ * and pp_dpm_pcie are used for this.
++ *
++ * Reading back the files will show you the available power levels within
++ * the power state and the clock information for those levels.
++ *
++ * To manually adjust these states, first select manual using
++ * power_dpm_force_performance_level.  Writing a string of the level
++ * numbers to the file will select which levels you want to enable.
++ * E.g., writing 456 to the file will enable levels 4, 5, and 6.
++ *
++ */
++
+ static ssize_t amdgpu_get_pp_dpm_sclk(struct device *dev,
+ 		struct device_attribute *attr,
+ 		char *buf)
+-- 
+2.7.4
+

@@ -1,0 +1,67 @@
+From 0e22eaa796f07e46d6fbb3d4c5a0eb37314ba483 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Wed, 11 Jul 2018 17:30:25 -0500
+Subject: [PATCH 4948/5725] drm/amdgpu/pp: remove dead vega12 code
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Commented out.
+
+Reviewed-by: Rex Zhu <rezhu@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ .../gpu/drm/amd/powerplay/smumgr/vega12_smumgr.c   | 29 ----------------------
+ 1 file changed, 29 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega12_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vega12_smumgr.c
+index 7d9b40e..508a262 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega12_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega12_smumgr.c
+@@ -343,29 +343,6 @@ static int vega12_set_tools_address(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
+-#if 0 /* tentatively remove */
+-static int vega12_verify_smc_interface(struct pp_hwmgr *hwmgr)
+-{
+-	uint32_t smc_driver_if_version;
+-
+-	PP_ASSERT_WITH_CODE(!vega12_send_msg_to_smc(hwmgr,
+-			PPSMC_MSG_GetDriverIfVersion),
+-			"Attempt to get SMC IF Version Number Failed!",
+-			return -EINVAL);
+-	vega12_read_arg_from_smc(hwmgr, &smc_driver_if_version);
+-
+-	if (smc_driver_if_version != SMU9_DRIVER_IF_VERSION) {
+-		pr_err("Your firmware(0x%x) doesn't match \
+-			SMU9_DRIVER_IF_VERSION(0x%x). \
+-			Please update your firmware!\n",
+-			smc_driver_if_version, SMU9_DRIVER_IF_VERSION);
+-		return -EINVAL;
+-	}
+-
+-	return 0;
+-}
+-#endif
+-
+ static int vega12_smu_init(struct pp_hwmgr *hwmgr)
+ {
+ 	struct vega12_smumgr *priv;
+@@ -517,12 +494,6 @@ static int vega12_start_smu(struct pp_hwmgr *hwmgr)
+ 			"SMC is not running!",
+ 			return -EINVAL);
+ 
+-#if 0 /* tentatively remove */
+-	PP_ASSERT_WITH_CODE(!vega12_verify_smc_interface(hwmgr),
+-			"Failed to verify SMC interface!",
+-			return -EINVAL);
+-#endif
+-
+ 	vega12_set_tools_address(hwmgr);
+ 
+ 	return 0;
+-- 
+2.7.4
+

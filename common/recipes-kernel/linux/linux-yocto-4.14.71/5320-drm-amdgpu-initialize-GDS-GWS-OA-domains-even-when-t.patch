@@ -1,0 +1,91 @@
+From 6017a0c490126e47b42b285cf0d02036910aba38 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 20:59:27 +0200
+Subject: [PATCH 5320/5725] drm/amdgpu: initialize GDS/GWS/OA domains even when
+ they are zero sized
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Stops crashing on SI.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 48 +++++++++++++--------------------
+ 1 file changed, 18 insertions(+), 30 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 1d79941..e8e36df 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -2031,34 +2031,25 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 	amdgpu_ssg_init(adev);
+ 
+ 	/* Initialize various on-chip memory pools */
+-	/* GDS Memory */
+-	if (adev->gds.mem.total_size) {
+-		r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_GDS,
+-				   adev->gds.mem.total_size);
+-		if (r) {
+-			DRM_ERROR("Failed initializing GDS heap.\n");
+-			return r;
+-		}
++	r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_GDS,
++			   adev->gds.mem.total_size);
++	if (r) {
++		DRM_ERROR("Failed initializing GDS heap.\n");
++		return r;
+ 	}
+ 
+-	/* GWS */
+-	if (adev->gds.gws.total_size) {
+-		r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_GWS,
+-				   adev->gds.gws.total_size);
+-		if (r) {
+-			DRM_ERROR("Failed initializing gws heap.\n");
+-			return r;
+-		}
++	r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_GWS,
++			   adev->gds.gws.total_size);
++	if (r) {
++		DRM_ERROR("Failed initializing gws heap.\n");
++		return r;
+ 	}
+ 
+-	/* OA */
+-	if (adev->gds.oa.total_size) {
+-		r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_OA,
+-				   adev->gds.oa.total_size);
+-		if (r) {
+-			DRM_ERROR("Failed initializing oa heap.\n");
+-			return r;
+-		}
++	r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_OA,
++			   adev->gds.oa.total_size);
++	if (r) {
++		DRM_ERROR("Failed initializing oa heap.\n");
++		return r;
+ 	}
+ 
+ 	/* Register debugfs entries for amdgpu_ttm */
+@@ -2098,12 +2089,9 @@ void amdgpu_ttm_fini(struct amdgpu_device *adev)
+ 
+ 	ttm_bo_clean_mm(&adev->mman.bdev, TTM_PL_VRAM);
+ 	ttm_bo_clean_mm(&adev->mman.bdev, TTM_PL_TT);
+-	if (adev->gds.mem.total_size)
+-		ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_GDS);
+-	if (adev->gds.gws.total_size)
+-		ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_GWS);
+-	if (adev->gds.oa.total_size)
+-		ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_OA);
++	ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_GDS);
++	ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_GWS);
++	ttm_bo_clean_mm(&adev->mman.bdev, AMDGPU_PL_OA);
+ 	ttm_bo_device_release(&adev->mman.bdev);
+ 	amdgpu_ttm_global_fini(adev);
+ 	adev->mman.initialized = false;
+-- 
+2.7.4
+

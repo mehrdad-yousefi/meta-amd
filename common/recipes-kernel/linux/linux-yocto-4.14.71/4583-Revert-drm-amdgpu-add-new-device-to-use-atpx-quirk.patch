@@ -1,0 +1,35 @@
+From 606f715671e0a895f6c810ff1a1273ac2a3eaff3 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 24 May 2018 14:40:12 -0500
+Subject: [PATCH 4583/5725] Revert "drm/amdgpu: add new device to use atpx
+ quirk"
+
+This reverts commit 6c24a85d236eb2348d2e221993769fd93c168f65.
+
+This was a workaround for a bug in the HDA driver that prevented
+the HDA audio chip from going into runtime pm which prevented
+the GPU from going into runtime pm.
+
+Bug: https://bugs.freedesktop.org/show_bug.cgi?id=106597
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
+index 7a22755..0a30c36 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
+@@ -567,7 +567,6 @@ static const struct amdgpu_px_quirk amdgpu_px_quirk_list[] = {
+ 	/* HG _PR3 doesn't seem to work on this A+A weston board */
+ 	{ 0x1002, 0x6900, 0x1002, 0x0124, AMDGPU_PX_QUIRK_FORCE_ATPX },
+ 	{ 0x1002, 0x6900, 0x1028, 0x0812, AMDGPU_PX_QUIRK_FORCE_ATPX },
+-	{ 0x1002, 0x6900, 0x1028, 0x0813, AMDGPU_PX_QUIRK_FORCE_ATPX },
+ 	{ 0x1002, 0x699F, 0x1028, 0x0814, AMDGPU_PX_QUIRK_FORCE_ATPX },
+ 	{ 0, 0, 0, 0, 0 },
+ };
+-- 
+2.7.4
+

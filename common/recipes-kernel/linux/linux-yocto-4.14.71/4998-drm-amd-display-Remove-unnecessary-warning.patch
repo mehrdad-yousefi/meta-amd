@@ -1,0 +1,38 @@
+From 4e70f912cb5af747c25732d1376fc0a1ffd37e10 Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Wed, 4 Jul 2018 11:19:53 -0400
+Subject: [PATCH 4998/5725] drm/amd/display: Remove unnecessary warning
+
+[why]
+The warning message floods the dmesg log on Tonga even
+though it is expected to have a pix_clk set to zero,
+when the pipe is not active.
+[how]
+remove the assert
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c
+index ec32213..74c05e8 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c
+@@ -149,10 +149,6 @@ static uint32_t get_max_pixel_clock_for_all_paths(
+ 			max_pix_clk =
+ 				pipe_ctx->stream_res.pix_clk_params.requested_pix_clk;
+ 	}
+-
+-	if (max_pix_clk == 0)
+-		ASSERT(0);
+-
+ 	return max_pix_clk;
+ }
+ 
+-- 
+2.7.4
+

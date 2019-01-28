@@ -1,0 +1,73 @@
+From 45d3b650600862799fab1e5c0f9badb35611bbf6 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Tue, 2 Oct 2018 11:44:50 -0400
+Subject: [PATCH 5525/5725] drm/amdgpu/vcn:fix dpg pause mode hang issue
+
+Use mmUVD_SCRATCH2 tracking decode write point.
+It will help avoid dpg pause mode hang issue.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu <leo.liu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 4 ++--
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c   | 8 ++++++++
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index e1a85f2..7fda071 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -263,7 +263,7 @@ static int amdgpu_vcn_pause_dpg_mode(struct amdgpu_device *adev,
+ 
+ 				ring = &adev->vcn.ring_dec;
+ 				WREG32_SOC15(UVD, 0, mmUVD_RBC_RB_WPTR,
+-					     lower_32_bits(ring->wptr) | 0x80000000);
++						   RREG32_SOC15(UVD, 0, mmUVD_SCRATCH2));
+ 				SOC15_WAIT_ON_RREG(UVD, 0, mmUVD_POWER_STATUS,
+ 						   UVD_PGFSM_CONFIG__UVDM_UVDU_PWR_ON,
+ 						   UVD_POWER_STATUS__UVD_POWER_STATUS_MASK, ret_code);
+@@ -320,7 +320,7 @@ static int amdgpu_vcn_pause_dpg_mode(struct amdgpu_device *adev,
+ 
+ 				ring = &adev->vcn.ring_dec;
+ 				WREG32_SOC15(UVD, 0, mmUVD_RBC_RB_WPTR,
+-					     lower_32_bits(ring->wptr) | 0x80000000);
++						   RREG32_SOC15(UVD, 0, mmUVD_SCRATCH2));
+ 				SOC15_WAIT_ON_RREG(UVD, 0, mmUVD_POWER_STATUS,
+ 						   UVD_PGFSM_CONFIG__UVDM_UVDU_PWR_ON,
+ 						   UVD_POWER_STATUS__UVD_POWER_STATUS_MASK, ret_code);
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 9441ec4..0ff3ff6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -873,6 +873,8 @@ static int vcn_v1_0_start_spg_mode(struct amdgpu_device *adev)
+ 	/* Initialize the ring buffer's read and write pointers */
+ 	WREG32_SOC15(UVD, 0, mmUVD_RBC_RB_RPTR, 0);
+ 
++	WREG32_SOC15(UVD, 0, mmUVD_SCRATCH2, 0);
++
+ 	ring->wptr = RREG32_SOC15(UVD, 0, mmUVD_RBC_RB_RPTR);
+ 	WREG32_SOC15(UVD, 0, mmUVD_RBC_RB_WPTR,
+ 			lower_32_bits(ring->wptr));
+@@ -1049,6 +1051,8 @@ static int vcn_v1_0_start_dpg_mode(struct amdgpu_device *adev)
+ 	/* Initialize the ring buffer's read and write pointers */
+ 	WREG32_SOC15(UVD, 0, mmUVD_RBC_RB_RPTR, 0);
+ 
++	WREG32_SOC15(UVD, 0, mmUVD_SCRATCH2, 0);
++
+ 	ring->wptr = RREG32_SOC15(UVD, 0, mmUVD_RBC_RB_RPTR);
+ 	WREG32_SOC15(UVD, 0, mmUVD_RBC_RB_WPTR,
+ 								lower_32_bits(ring->wptr));
+@@ -1215,6 +1219,10 @@ static void vcn_v1_0_dec_ring_set_wptr(struct amdgpu_ring *ring)
+ {
+ 	struct amdgpu_device *adev = ring->adev;
+ 
++	if (adev->pg_flags & AMD_PG_SUPPORT_VCN_DPG)
++		WREG32_SOC15(UVD, 0, mmUVD_SCRATCH2,
++			lower_32_bits(ring->wptr) | 0x80000000);
++
+ 	WREG32_SOC15(UVD, 0, mmUVD_RBC_RB_WPTR, lower_32_bits(ring->wptr));
+ }
+ 
+-- 
+2.7.4
+

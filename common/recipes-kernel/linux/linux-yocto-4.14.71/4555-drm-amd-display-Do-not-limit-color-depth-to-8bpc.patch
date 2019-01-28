@@ -1,0 +1,34 @@
+From b1cd5f8f0f995ea4aebb84a6c5a08607f20a9c5e Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Wed, 16 May 2018 16:46:18 -0400
+Subject: [PATCH 4555/5725] drm/amd/display: Do not limit color depth to 8bpc
+
+Delete if statement that would force any display's color depth higher
+than 8 bpc to 8
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 0e24164..48bd8f2 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -2145,12 +2145,6 @@ convert_color_depth_from_display_info(const struct drm_connector *connector)
+ {
+ 	uint32_t bpc = connector->display_info.bpc;
+ 
+-	/* Limited color depth to 8bit
+-	 * TODO: Still need to handle deep color
+-	 */
+-	if (bpc > 8)
+-		bpc = 8;
+-
+ 	switch (bpc) {
+ 	case 0:
+ 		/* Temporary Work around, DRM don't parse color depth for
+-- 
+2.7.4
+

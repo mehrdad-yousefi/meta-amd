@@ -1,0 +1,34 @@
+From 52a5d19741832052f7549c0d06acc7262f5b9f2f Mon Sep 17 00:00:00 2001
+From: Ravi Kumar <ravi1.kumar@amd.com>
+Date: Sun, 4 Nov 2018 13:37:53 +0530
+Subject: [PATCH 5700/5725] Removed DKMS installed KFD check for kernel
+ version.
+
+Signed-off-by: Ravi Kumar <ravi1.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c | 6 ------
+ 1 file changed, 6 deletions(-)
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+old mode 100644
+new mode 100755
+index f27bcd0..1aff1f6
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -96,12 +96,6 @@ void amdgpu_amdkfd_device_probe(struct amdgpu_device *adev)
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+-                if (adev->asic_type == CHIP_RAVEN) {
+-                        dev_dbg(adev->dev, "DKMS installed kfd does not support Raven for kernel < 4.16\n");
+-                        return;
+-                }
+-#endif
+ 		kfd2kgd = amdgpu_amdkfd_gfx_9_0_get_functions();
+ 		break;
+ 	default:
+-- 
+2.7.4
+

@@ -1,0 +1,44 @@
+From aafb5e0746d9b3ef99f0b986743661009ccf4bd7 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 19 Jul 2018 18:40:25 +0800
+Subject: [PATCH 5144/5725] drm/amd/powerplay: avoid enabling/disabling uvd/vce
+ dpm twice
+
+For vega20, there are two UVD rings which share one powerplay instance.
+Under some case(two rings used parallel), the uvd dpm is disabled twice
+which causes the SMC hang.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Rex Zhu <rezhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index ad6ce14..c4302bc 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -2464,6 +2464,9 @@ static void vega20_power_gate_vce(struct pp_hwmgr *hwmgr, bool bgate)
+ {
+ 	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
+ 
++	if (data->vce_power_gated == bgate)
++		return ;
++
+ 	data->vce_power_gated = bgate;
+ 	vega20_enable_disable_vce_dpm(hwmgr, !bgate);
+ }
+@@ -2472,6 +2475,9 @@ static void vega20_power_gate_uvd(struct pp_hwmgr *hwmgr, bool bgate)
+ {
+ 	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
+ 
++	if (data->uvd_power_gated == bgate)
++		return ;
++
+ 	data->uvd_power_gated = bgate;
+ 	vega20_enable_disable_uvd_dpm(hwmgr, !bgate);
+ }
+-- 
+2.7.4
+

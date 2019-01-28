@@ -1,0 +1,52 @@
+From 9eeff2bb210e18fce442e9ff62ab050bc7bbe5e2 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Fri, 4 May 2018 18:59:38 -0400
+Subject: [PATCH 4301/5725] drm/amdkfd: Don't use kmap_atomic
+
+kmap_atomic is an optimization that's only useful for CONFIG_HIGHMEM
+which isn't applicable on x86_64. It also requires a lot more care
+because it disabled page faults. This causes problems with
+copy_from_user in the atomic section unless pages are faulted in
+explicitly.
+
+Since KFD only supports 64-bit kernels, we don't need to handle the
+complication of HIGHMEM and kmap_atomic. Use plain kmap instead.
+
+Bug: SWDEV-138474
+
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+
+Change-Id: I6ecbd7c10fb8b589dc1ab8af8795ff3e6d416db1
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index bb38da1..01a253c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -2133,7 +2133,7 @@ static int kfd_copy_userptr_bos(struct cma_iter *si, struct cma_iter *di,
+ 
+ 		for (i = 0; i < nl; i++) {
+ 			unsigned int n;
+-			void *kaddr = kmap_atomic(process_pages[i]);
++			void *kaddr = kmap(process_pages[i]);
+ 
+ 			if (cma_write) {
+ 				n = copy_from_user(kaddr+offset_in_page,
+@@ -2144,7 +2144,7 @@ static int kfd_copy_userptr_bos(struct cma_iter *si, struct cma_iter *di,
+ 						 kaddr+offset_in_page,
+ 						 copy_size);
+ 			}
+-			kunmap_atomic(kaddr);
++			kunmap(kaddr);
+ 			if (n) {
+ 				ret = -EFAULT;
+ 				break;
+-- 
+2.7.4
+

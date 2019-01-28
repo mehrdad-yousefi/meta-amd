@@ -1,0 +1,30 @@
+From 743886aa9e9b1f819edf6f5f83e9ad38b02d1d13 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Mon, 28 May 2018 18:09:52 -0400
+Subject: [PATCH 4761/5725] drm/amd/display: remove invalid assert when no
+ max_pixel_clk is found
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 8a51b9e..07633a1 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -1761,9 +1761,6 @@ static uint32_t get_max_pixel_clock_for_all_paths(
+ 				pipe_ctx->stream_res.pix_clk_params.requested_pix_clk;
+ 	}
+ 
+-	if (max_pix_clk == 0)
+-		ASSERT(0);
+-
+ 	return max_pix_clk;
+ }
+ 
+-- 
+2.7.4
+

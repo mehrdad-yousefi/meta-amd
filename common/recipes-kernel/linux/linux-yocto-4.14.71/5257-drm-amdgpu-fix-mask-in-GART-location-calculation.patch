@@ -1,0 +1,36 @@
+From 8c66cbb3b487a63c8c2b7f77b5a39a0d81cad60a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 10:17:24 +0200
+Subject: [PATCH 5257/5725] drm/amdgpu: fix mask in GART location calculation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We need to mask the lower bits not the upper one.
+
+Fixes: ec210e3226dc0 drm/amdgpu: put GART away from VRAM v2
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Acked-by: James Zhu <James.Zhu@amd.com>
+Tested-by: James Zhu <James.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+index c6bcc47..068f0c6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+@@ -138,7 +138,7 @@ void amdgpu_gmc_gart_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc)
+ 	else
+ 		mc->gart_start = mc->mc_mask - mc->gart_size + 1;
+ 
+-	mc->gart_start &= four_gb - 1;
++	mc->gart_start &= ~(four_gb - 1);
+ 	mc->gart_end = mc->gart_start + mc->gart_size - 1;
+ 	dev_info(adev->dev, "GART: %lluM 0x%016llX - 0x%016llX\n",
+ 			mc->gart_size >> 20, mc->gart_start, mc->gart_end);
+-- 
+2.7.4
+

@@ -1,0 +1,129 @@
+From 65bcf58ed2b71e9d4b9cf5c2c5b64532631d2a72 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Fri, 23 Mar 2018 16:20:41 -0500
+Subject: [PATCH 4622/5725] drm/amdgpu : Doorbell assignment for 8 sdma user
+ queue per engine
+
+Change-Id: I941c5a5e3f7885b77e2ee9efea511b62d3a72d9e
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h             | 14 ++++-----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c      | 38 +++++++++++++++----------
+ drivers/gpu/drm/amd/include/kgd_kfd_interface.h |  6 ++--
+ 3 files changed, 33 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index f683cb5..89572c1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -541,16 +541,16 @@ typedef enum _AMDGPU_DOORBELL64_ASSIGNMENT
+ 	AMDGPU_DOORBELL64_GFX_RING0               = 0x8b,
+ 
+ 	/*
+-	 * Other graphics doorbells can be allocated here: from 0x8c to 0xef
++	 * Other graphics doorbells can be allocated here: from 0x8c to 0xdf
+ 	 * Graphics voltage island aperture 1
+-	 * default non-graphics QWORD index is 0xF0 - 0xFF inclusive
++	 * default non-graphics QWORD index is 0xe0 - 0xFF inclusive
+ 	 */
+ 
+-	/* sDMA engines */
+-	AMDGPU_DOORBELL64_sDMA_ENGINE0            = 0xF0,
+-	AMDGPU_DOORBELL64_sDMA_HI_PRI_ENGINE0     = 0xF1,
+-	AMDGPU_DOORBELL64_sDMA_ENGINE1            = 0xF2,
+-	AMDGPU_DOORBELL64_sDMA_HI_PRI_ENGINE1     = 0xF3,
++	/* sDMA engines  reserved from 0xe0 -oxef  */
++	AMDGPU_DOORBELL64_sDMA_ENGINE0            = 0xE0,
++	AMDGPU_DOORBELL64_sDMA_HI_PRI_ENGINE0     = 0xE1,
++	AMDGPU_DOORBELL64_sDMA_ENGINE1            = 0xE8,
++	AMDGPU_DOORBELL64_sDMA_HI_PRI_ENGINE1     = 0xE9,
+ 
+ 	/* Interrupt handler */
+ 	AMDGPU_DOORBELL64_IH                      = 0xF4,  /* For legacy interrupt ring buffer */
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index 893c492..a9f2657 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -141,7 +141,7 @@ static void amdgpu_doorbell_get_kfd_info(struct amdgpu_device *adev,
+ 
+ void amdgpu_amdkfd_device_init(struct amdgpu_device *adev)
+ {
+-	int i;
++	int i, n;
+ 	int last_valid_bit;
+ 
+ 	if (adev->kfd) {
+@@ -183,7 +183,15 @@ void amdgpu_amdkfd_device_init(struct amdgpu_device *adev)
+ 				&gpu_resources.doorbell_physical_address,
+ 				&gpu_resources.doorbell_aperture_size,
+ 				&gpu_resources.doorbell_start_offset);
+-		if (adev->asic_type >= CHIP_VEGA10) {
++
++		if (adev->asic_type < CHIP_VEGA10) {
++			kgd2kfd->device_init(adev->kfd, &gpu_resources);
++			return;
++		}
++
++		n = (adev->asic_type < CHIP_VEGA20) ? 2 : 8;
++
++		for (i = 0; i < n; i += 2) {
+ 			/* On SOC15 the BIF is involved in routing
+ 			 * doorbells using the low 12 bits of the
+ 			 * address. Communicate the assignments to
+@@ -191,20 +199,20 @@ void amdgpu_amdkfd_device_init(struct amdgpu_device *adev)
+ 			 * process in case of 64-bit doorbells so we
+ 			 * can use each doorbell assignment twice.
+ 			 */
+-			gpu_resources.sdma_doorbell[0][0] =
+-				AMDGPU_DOORBELL64_sDMA_ENGINE0;
+-			gpu_resources.sdma_doorbell[0][1] =
+-				AMDGPU_DOORBELL64_sDMA_ENGINE0 + 0x200;
+-			gpu_resources.sdma_doorbell[1][0] =
+-				AMDGPU_DOORBELL64_sDMA_ENGINE1;
+-			gpu_resources.sdma_doorbell[1][1] =
+-				AMDGPU_DOORBELL64_sDMA_ENGINE1 + 0x200;
+-			/* Doorbells 0x0f0-0ff and 0x2f0-2ff are reserved for
+-			 * SDMA, IH and VCN. So don't use them for the CP.
+-			 */
+-			gpu_resources.reserved_doorbell_mask = 0x1f0;
+-			gpu_resources.reserved_doorbell_val  = 0x0f0;
++			gpu_resources.sdma_doorbell[0][i] =
++				AMDGPU_DOORBELL64_sDMA_ENGINE0 + (i >> 1);
++			gpu_resources.sdma_doorbell[0][i+1] =
++				AMDGPU_DOORBELL64_sDMA_ENGINE0 + 0x200 + (i >> 1);
++			gpu_resources.sdma_doorbell[1][i] =
++				AMDGPU_DOORBELL64_sDMA_ENGINE1 + (i >> 1);
++			gpu_resources.sdma_doorbell[1][i+1] =
++				AMDGPU_DOORBELL64_sDMA_ENGINE1 + 0x200 + (i >> 1);
+ 		}
++		/* Doorbells 0x0e0-0ff and 0x2e0-2ff are reserved for
++		 * SDMA, IH and VCN. So don't use them for the CP.
++		 */
++		gpu_resources.reserved_doorbell_mask = 0x1e0;
++		gpu_resources.reserved_doorbell_val  = 0x0e0;
+ 
+ 		kgd2kfd->device_init(adev->kfd, &gpu_resources);
+ 	}
+diff --git a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+index fabcf1ef..0069b26 100644
+--- a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+@@ -124,10 +124,10 @@ struct kgd2kfd_shared_resources {
+ 	 * is reserved: (D & reserved_doorbell_mask) == reserved_doorbell_val
+ 	 *
+ 	 * KFD currently uses 1024 (= 0x3ff) doorbells per process. If
+-	 * doorbells 0x0f0-0x0f7 and 0x2f-0x2f7 are reserved, that means
+-	 * mask would be set to 0x1f8 and val set to 0x0f0.
++	 * doorbells 0x0e0-0x0ff and 0x2e0-0x2ff are reserved, that means
++	 * mask would be set to 0x1e0 and val set to 0x0e0.
+ 	 */
+-	unsigned int sdma_doorbell[2][2];
++	unsigned int sdma_doorbell[2][8];
+ 	unsigned int reserved_doorbell_mask;
+ 	unsigned int reserved_doorbell_val;
+ 
+-- 
+2.7.4
+

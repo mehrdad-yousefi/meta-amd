@@ -1,0 +1,44 @@
+From 5f926114b36c3955224cdd57da8125559f8d3d8a Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sat, 6 Oct 2018 00:11:25 +0800
+Subject: [PATCH 5520/5725] drm/amdgpu: Always enable fan sensors for read
+
+don't need to set fan1_enable to read fan sensors.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index 9a487d2..811e09f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -1179,11 +1179,6 @@ static ssize_t amdgpu_hwmon_get_fan1_input(struct device *dev,
+ 	struct amdgpu_device *adev = dev_get_drvdata(dev);
+ 	int err;
+ 	u32 speed = 0;
+-	u32 pwm_mode;
+-
+-	pwm_mode = amdgpu_dpm_get_fan_control_mode(adev);
+-	if (pwm_mode != AMD_FAN_CTRL_MANUAL)
+-		return -ENODATA;
+ 
+ 	/* Can't adjust fan when the card is off */
+ 	if  ((adev->flags & AMD_IS_PX) &&
+@@ -1246,11 +1241,6 @@ static ssize_t amdgpu_hwmon_get_fan1_target(struct device *dev,
+ 	struct amdgpu_device *adev = dev_get_drvdata(dev);
+ 	int err;
+ 	u32 rpm = 0;
+-	u32 pwm_mode;
+-
+-	pwm_mode = amdgpu_dpm_get_fan_control_mode(adev);
+-	if (pwm_mode != AMD_FAN_CTRL_MANUAL)
+-		return -ENODATA;
+ 
+ 	/* Can't adjust fan when the card is off */
+ 	if  ((adev->flags & AMD_IS_PX) &&
+-- 
+2.7.4
+

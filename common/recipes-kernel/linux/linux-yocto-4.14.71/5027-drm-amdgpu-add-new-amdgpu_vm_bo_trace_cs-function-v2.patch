@@ -1,0 +1,116 @@
+From 976785ec319cfadd17f5ead410d84bec162dbcb4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 27 Jul 2018 16:56:34 +0200
+Subject: [PATCH 5027/5725] drm/amdgpu: add new amdgpu_vm_bo_trace_cs()
+ function v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This allows us to trace all VM ranges which should be valid inside a CS.
+
+v2: dump mappings without BO as well
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming  Zhou <david1.zhou@amd.com>
+Reviewed-and-tested-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com> (v1)
+Reviewed-by: Huang Rui <ray.huang@amd.com> (v1)
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c    |  2 ++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h |  5 +++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c    | 29 +++++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h    |  1 +
+ 4 files changed, 37 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index fae6b58..08cb8f5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1225,6 +1225,7 @@ static void amdgpu_cs_post_dependencies(struct amdgpu_cs_parser *p)
+ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ 			    union drm_amdgpu_cs *cs)
+ {
++	struct amdgpu_fpriv *fpriv = p->filp->driver_priv;
+ 	struct amdgpu_ring *ring = p->ring;
+ 	struct drm_sched_entity *entity = &p->ctx->rings[ring->idx].entity;
+ 	enum drm_sched_priority priority;
+@@ -1277,6 +1278,7 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ 	amdgpu_job_free_resources(job);
+ 
+ 	trace_amdgpu_cs_ioctl(job);
++	amdgpu_vm_bo_trace_cs(&fpriv->vm, &p->ticket);
+ 	priority = job->base.s_priority;
+ 	drm_sched_entity_push_job(&job->base, entity);
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+index 11f262f..7206a00 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+@@ -314,6 +314,11 @@ DEFINE_EVENT(amdgpu_vm_mapping, amdgpu_vm_bo_mapping,
+ 	    TP_ARGS(mapping)
+ );
+ 
++DEFINE_EVENT(amdgpu_vm_mapping, amdgpu_vm_bo_cs,
++	    TP_PROTO(struct amdgpu_bo_va_mapping *mapping),
++	    TP_ARGS(mapping)
++);
++
+ TRACE_EVENT(amdgpu_vm_set_ptes,
+ 	    TP_PROTO(uint64_t pe, uint64_t addr, unsigned count,
+ 		     uint32_t incr, uint64_t flags),
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 852956c..5de844d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2357,6 +2357,35 @@ struct amdgpu_bo_va_mapping *amdgpu_vm_bo_lookup_mapping(struct amdgpu_vm *vm,
+ }
+ 
+ /**
++ * amdgpu_vm_bo_trace_cs - trace all reserved mappings
++ *
++ * @vm: the requested vm
++ * @ticket: CS ticket
++ *
++ * Trace all mappings of BOs reserved during a command submission.
++ */
++void amdgpu_vm_bo_trace_cs(struct amdgpu_vm *vm, struct ww_acquire_ctx *ticket)
++{
++	struct amdgpu_bo_va_mapping *mapping;
++
++	if (!trace_amdgpu_vm_bo_cs_enabled())
++		return;
++
++	for (mapping = amdgpu_vm_it_iter_first(&vm->va, 0, U64_MAX); mapping;
++	     mapping = amdgpu_vm_it_iter_next(mapping, 0, U64_MAX)) {
++		if (mapping->bo_va && mapping->bo_va->base.bo) {
++			struct amdgpu_bo *bo;
++
++			bo = mapping->bo_va->base.bo;
++			if (READ_ONCE(bo->tbo.resv->lock.ctx) != ticket)
++				continue;
++		}
++
++		trace_amdgpu_vm_bo_cs(mapping);
++	}
++}
++
++/**
+  * amdgpu_vm_bo_rmv - remove a bo to a specific vm
+  *
+  * @adev: amdgpu_device pointer
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 9f70db6..a5cf0cc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -324,6 +324,7 @@ int amdgpu_vm_bo_clear_mappings(struct amdgpu_device *adev,
+ 				uint64_t saddr, uint64_t size);
+ struct amdgpu_bo_va_mapping *amdgpu_vm_bo_lookup_mapping(struct amdgpu_vm *vm,
+ 							 uint64_t addr);
++void amdgpu_vm_bo_trace_cs(struct amdgpu_vm *vm, struct ww_acquire_ctx *ticket);
+ void amdgpu_vm_bo_rmv(struct amdgpu_device *adev,
+ 		      struct amdgpu_bo_va *bo_va);
+ void amdgpu_vm_adjust_size(struct amdgpu_device *adev, uint32_t vm_size,
+-- 
+2.7.4
+

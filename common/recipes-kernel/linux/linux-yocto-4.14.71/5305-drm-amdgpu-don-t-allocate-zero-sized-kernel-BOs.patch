@@ -1,0 +1,35 @@
+From ca1acca379a1fffbc8d021d5c17228ce33fff3bc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 21:03:37 +0200
+Subject: [PATCH 5305/5725] drm/amdgpu: don't allocate zero sized kernel BOs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Just free the BO if the size should be zero.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index a4092d9..d96c9a9 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -277,6 +277,11 @@ int amdgpu_bo_create_reserved(struct amdgpu_device *adev,
+ 	bool free = false;
+ 	int r;
+ 
++	if (!size) {
++		amdgpu_bo_unref(bo_ptr);
++		return 0;
++	}
++
+ 	memset(&bp, 0, sizeof(bp));
+ 	bp.size = size;
+ 	bp.byte_align = align;
+-- 
+2.7.4
+

@@ -1,0 +1,157 @@
+From ca5e5df1c09f70fd8998caaf1c9155a5c1a42361 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 23 Apr 2018 23:22:36 -0400
+Subject: [PATCH 4282/5725] drm/amdkfd: remove unused parameter from
+ quiesce_mm/resume_mm
+
+Change-Id: Ib17d9f51e8fd154460cee8a3ee71fc88edaeef80
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c |  4 ++--
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c          | 30 +++++-------------------
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h            |  9 ++++---
+ drivers/gpu/drm/amd/include/kgd_kfd_interface.h  |  4 ++--
+ 4 files changed, 14 insertions(+), 33 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 11165a7..dfa909f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1936,7 +1936,7 @@ int amdgpu_amdkfd_evict_userptr(struct kgd_mem *mem,
+ 	evicted_bos = atomic_inc_return(&process_info->evicted_bos);
+ 	if (evicted_bos == 1) {
+ 		/* First eviction, stop the queues */
+-		r = kgd2kfd->quiesce_mm(NULL, mm);
++		r = kgd2kfd->quiesce_mm(mm);
+ 		if (r)
+ 			pr_err("Failed to quiesce KFD\n");
+ 		schedule_delayed_work(&process_info->work, 1);
+@@ -2226,7 +2226,7 @@ static void amdgpu_amdkfd_restore_userptr_worker(struct work_struct *work)
+ 	    evicted_bos)
+ 		goto unlock_out;
+ 	evicted_bos = 0;
+-	if (kgd2kfd->resume_mm(NULL, mm)) {
++	if (kgd2kfd->resume_mm(mm)) {
+ 		pr_err("%s: Failed to resume KFD\n", __func__);
+ 		/* No recovery from this failure. Probably the CP is
+ 		 * hanging. No point trying again.
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index dc5017ff..5b22ae0 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -678,10 +678,9 @@ void kgd2kfd_interrupt(struct kfd_dev *kfd, const void *ih_ring_entry)
+ 	spin_unlock(&kfd->interrupt_lock);
+ }
+ 
+-int kgd2kfd_quiesce_mm(struct kfd_dev *kfd, struct mm_struct *mm)
++int kgd2kfd_quiesce_mm(struct mm_struct *mm)
+ {
+ 	struct kfd_process *p;
+-	struct kfd_process_device *pdd;
+ 	int r;
+ 
+ 	/* Because we are called from arbitrary context (workqueue) as opposed
+@@ -690,26 +689,17 @@ int kgd2kfd_quiesce_mm(struct kfd_dev *kfd, struct mm_struct *mm)
+ 	 */
+ 	p = kfd_lookup_process_by_mm(mm);
+ 	if (!p)
+-		return -ENODEV;
++		return -ESRCH;
+ 
+-	if (kfd) {
+-		r = -ENODEV;
+-		pdd = kfd_get_process_device_data(kfd, p);
+-		if (pdd)
+-			r = kfd->dqm->ops.evict_process_queues(kfd->dqm,
+-							       &pdd->qpd);
+-	} else {
+-		r = kfd_process_evict_queues(p);
+-	}
++	r = kfd_process_evict_queues(p);
+ 
+ 	kfd_unref_process(p);
+ 	return r;
+ }
+ 
+-int kgd2kfd_resume_mm(struct kfd_dev *kfd, struct mm_struct *mm)
++int kgd2kfd_resume_mm(struct mm_struct *mm)
+ {
+ 	struct kfd_process *p;
+-	struct kfd_process_device *pdd;
+ 	int r;
+ 
+ 	/* Because we are called from arbitrary context (workqueue) as opposed
+@@ -718,17 +708,9 @@ int kgd2kfd_resume_mm(struct kfd_dev *kfd, struct mm_struct *mm)
+ 	 */
+ 	p = kfd_lookup_process_by_mm(mm);
+ 	if (!p)
+-		return -ENODEV;
++		return -ESRCH;
+ 
+-	if (kfd) {
+-		r = -ENODEV;
+-		pdd = kfd_get_process_device_data(kfd, p);
+-		if (pdd)
+-			r = kfd->dqm->ops.restore_process_queues(kfd->dqm,
+-								 &pdd->qpd);
+-	} else {
+-		r = kfd_process_restore_queues(p);
+-	}
++	r = kfd_process_restore_queues(p);
+ 
+ 	kfd_unref_process(p);
+ 	return r;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 25e8e5a..e810a15 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -630,11 +630,10 @@ struct qcm_process_device {
+ /* Approx. time before evicting the process again */
+ #define PROCESS_ACTIVE_TIME_MS 10
+ 
++int kgd2kfd_quiesce_mm(struct mm_struct *mm);
++int kgd2kfd_resume_mm(struct mm_struct *mm);
+ int kgd2kfd_schedule_evict_and_restore_process(struct mm_struct *mm,
+ 					       struct dma_fence *fence);
+-int kfd_process_evict_queues(struct kfd_process *p);
+-int kfd_process_restore_queues(struct kfd_process *p);
+-
+ 
+ /* 8 byte handle containing GPU ID in the most significant 4 bytes and
+  * idr_handle in the least significant 4 bytes
+@@ -804,6 +803,8 @@ struct kfd_process *kfd_get_process(const struct task_struct *task);
+ struct kfd_process *kfd_lookup_process_by_pasid(unsigned int pasid);
+ struct kfd_process *kfd_lookup_process_by_mm(const struct mm_struct *mm);
+ void kfd_unref_process(struct kfd_process *p);
++int kfd_process_evict_queues(struct kfd_process *p);
++int kfd_process_restore_queues(struct kfd_process *p);
+ void kfd_suspend_all_processes(void);
+ int kfd_resume_all_processes(void);
+ 
+@@ -971,8 +972,6 @@ int pqm_get_wave_state(struct process_queue_manager *pqm,
+ 		       void __user *ctl_stack,
+ 		       u32 *ctl_stack_used_size,
+ 		       u32 *save_area_used_size);
+-int kgd2kfd_quiesce_mm(struct kfd_dev *kfd, struct mm_struct *mm);
+-int kgd2kfd_resume_mm(struct kfd_dev *kfd, struct mm_struct *mm);
+ 
+ int amdkfd_fence_wait_timeout(unsigned int *fence_addr,
+ 				unsigned int fence_value,
+diff --git a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+index 5060052..dd0b3c7 100644
+--- a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+@@ -443,8 +443,8 @@ struct kgd2kfd_calls {
+ 	void (*interrupt)(struct kfd_dev *kfd, const void *ih_ring_entry);
+ 	void (*suspend)(struct kfd_dev *kfd);
+ 	int (*resume)(struct kfd_dev *kfd);
+-	int (*quiesce_mm)(struct kfd_dev *kfd, struct mm_struct *mm);
+-	int (*resume_mm)(struct kfd_dev *kfd, struct mm_struct *mm);
++	int (*quiesce_mm)(struct mm_struct *mm);
++	int (*resume_mm)(struct mm_struct *mm);
+ 	int (*schedule_evict_and_restore_process)(struct mm_struct *mm,
+ 			struct dma_fence *fence);
+ 	int  (*pre_reset)(struct kfd_dev *kfd);
+-- 
+2.7.4
+

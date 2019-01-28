@@ -1,0 +1,31 @@
+From 5c91e0c2198e17566bf5a9592101fba669315324 Mon Sep 17 00:00:00 2001
+From: Aaron Liu <aaron.liu@amd.com>
+Date: Thu, 12 Jul 2018 18:51:41 +0800
+Subject: [PATCH 4663/5725] Revert "drm/amdgpu: band aid validating VM PTs"
+
+This reverts commit 8c04c9cab535ab38a2ccf4d99ce172e75d6ce316.
+
+Reason for revert is still performance drop(5%-10%), ref to SWDEV-156548
+
+Change-Id: Icaf9c1a98ddd56ab199af6e148c9286742acfad3
+Signed-off-by: Aaron Liu <aaron.liu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index a74cd1d..3fb0340 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1081,7 +1081,7 @@ int amdgpu_vm_update_directories(struct amdgpu_device *adev,
+ 					   struct amdgpu_vm_bo_base,
+ 					   vm_status);
+ 		bo_base->moved = false;
+-		list_del_init(&bo_base->vm_status);
++		list_move(&bo_base->vm_status, &vm->idle);
+ 
+ 		bo = bo_base->bo->parent;
+ 		if (!bo)
+-- 
+2.7.4
+

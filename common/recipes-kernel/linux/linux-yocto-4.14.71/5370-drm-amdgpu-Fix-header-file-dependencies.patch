@@ -1,0 +1,44 @@
+From 4129bca9481188d365ef6ed9747e853880d47289 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Tue, 6 Feb 2018 20:32:32 -0500
+Subject: [PATCH 5370/5725] drm/amdgpu: Fix header file dependencies
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h | 1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h   | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index 6ea3827..6467c9c 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -26,6 +26,7 @@
+ 
+ #include <drm/amdgpu_drm.h>
+ #include <drm/gpu_scheduler.h>
++#include <drm/drm_print.h>
+ 
+ /* max number of rings */
+ #define AMDGPU_MAX_RINGS		21
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 2cc41ef..6adc59b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -32,6 +32,7 @@
+ #endif
+ #include <linux/rbtree.h>
+ #include <drm/gpu_scheduler.h>
++#include <drm/drm_file.h>
+ 
+ #include "amdgpu_sync.h"
+ #include "amdgpu_ring.h"
+-- 
+2.7.4
+

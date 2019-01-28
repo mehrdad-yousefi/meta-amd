@@ -1,0 +1,290 @@
+From 7f1a0453dd8fef5ca6a1679f628abc21e6d38f1b Mon Sep 17 00:00:00 2001
+From: SivapiriyanKumarasamy <sivapiriyan.kumarasamy@amd.com>
+Date: Tue, 11 Sep 2018 17:48:07 -0400
+Subject: [PATCH 5584/5725] drm/amd/display: Add support for Freesync 2 HDR and
+ Content to Display Mapping
+
+[Why]
+Freesync 2 HDR and support for HDR content
+outside the range of the HDR display
+require implementation on Dal 3 to better match
+Dal2.
+
+[How]
+Add support for Freesync HDR and mapping
+of source content to display ranges for better
+representation of HDR content.
+
+Signed-off-by: SivapiriyanKumarasamy <sivapiriyan.kumarasamy@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ .../drm/amd/display/amdgpu_dm/amdgpu_dm_color.c    |   2 +-
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_cm_common.c |   2 +-
+ .../drm/amd/display/modules/color/color_gamma.c    | 175 ++++++++++++++++++++-
+ .../drm/amd/display/modules/color/color_gamma.h    |  11 +-
+ 4 files changed, 186 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c
+index be19e68..216e48c 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_color.c
+@@ -164,7 +164,7 @@ int amdgpu_dm_set_regamma_lut(struct dm_crtc_state *crtc)
+ 	 */
+ 	stream->out_transfer_func->type = TF_TYPE_DISTRIBUTED_POINTS;
+ 	ret = mod_color_calculate_regamma_params(stream->out_transfer_func,
+-						 gamma, true, adev->asic_type <= CHIP_RAVEN);
++						 gamma, true, adev->asic_type <= CHIP_RAVEN, NULL);
+ 	dc_gamma_release(&gamma);
+ 	if (!ret) {
+ 		stream->out_transfer_func->type = old_type;
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_cm_common.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_cm_common.c
+index 5d95a99..97c05993 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_cm_common.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_cm_common.c
+@@ -268,7 +268,7 @@ bool cm_helper_translate_curve_to_hw_format(
+ 	memset(lut_params, 0, sizeof(struct pwl_params));
+ 	memset(seg_distr, 0, sizeof(seg_distr));
+ 
+-	if (output_tf->tf == TRANSFER_FUNCTION_PQ) {
++	if (output_tf->tf == TRANSFER_FUNCTION_PQ || output_tf->tf == TRANSFER_FUNCTION_GAMMA22) {
+ 		/* 32 segments
+ 		 * segments are from 2^-25 to 2^7
+ 		 */
+diff --git a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+index 16f7ea8..423e8c1 100644
+--- a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
++++ b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+@@ -308,6 +308,18 @@ static struct fixed31_32 translate_from_linear_space(
+ 			a1);
+ }
+ 
++static struct fixed31_32 calculate_gamma22(struct fixed31_32 arg)
++{
++	struct fixed31_32 gamma = dc_fixpt_from_fraction(22, 10);
++
++	return translate_from_linear_space(arg,
++			dc_fixpt_zero,
++			dc_fixpt_zero,
++			dc_fixpt_zero,
++			dc_fixpt_zero,
++			gamma);
++}
++
+ static struct fixed31_32 translate_to_linear_space(
+ 	struct fixed31_32 arg,
+ 	struct fixed31_32 a0,
+@@ -711,6 +723,160 @@ static void build_regamma(struct pwl_float_data_ex *rgb_regamma,
+ 	}
+ }
+ 
++static void hermite_spline_eetf(struct fixed31_32 input_x,
++				struct fixed31_32 max_display,
++				struct fixed31_32 min_display,
++				struct fixed31_32 max_content,
++				struct fixed31_32 *out_x)
++{
++	struct fixed31_32 min_lum_pq;
++	struct fixed31_32 max_lum_pq;
++	struct fixed31_32 max_content_pq;
++	struct fixed31_32 ks;
++	struct fixed31_32 E1;
++	struct fixed31_32 E2;
++	struct fixed31_32 E3;
++	struct fixed31_32 t;
++	struct fixed31_32 t2;
++	struct fixed31_32 t3;
++	struct fixed31_32 two;
++	struct fixed31_32 three;
++	struct fixed31_32 temp1;
++	struct fixed31_32 temp2;
++	struct fixed31_32 a = dc_fixpt_from_fraction(15, 10);
++	struct fixed31_32 b = dc_fixpt_from_fraction(5, 10);
++	struct fixed31_32 epsilon = dc_fixpt_from_fraction(1, 1000000); // dc_fixpt_epsilon is a bit too small
++
++	if (dc_fixpt_eq(max_content, dc_fixpt_zero)) {
++		*out_x = dc_fixpt_zero;
++		return;
++	}
++
++	compute_pq(input_x, &E1);
++	compute_pq(dc_fixpt_div(min_display, max_content), &min_lum_pq);
++	compute_pq(dc_fixpt_div(max_display, max_content), &max_lum_pq);
++	compute_pq(dc_fixpt_one, &max_content_pq); // always 1? DAL2 code is weird
++	a = dc_fixpt_div(dc_fixpt_add(dc_fixpt_one, b), max_content_pq); // (1+b)/maxContent
++	ks = dc_fixpt_sub(dc_fixpt_mul(a, max_lum_pq), b); // a * max_lum_pq - b
++
++	if (dc_fixpt_lt(E1, ks))
++		E2 = E1;
++	else if (dc_fixpt_le(ks, E1) && dc_fixpt_le(E1, dc_fixpt_one)) {
++		if (dc_fixpt_lt(epsilon, dc_fixpt_sub(dc_fixpt_one, ks)))
++			// t = (E1 - ks) / (1 - ks)
++			t = dc_fixpt_div(dc_fixpt_sub(E1, ks),
++					dc_fixpt_sub(dc_fixpt_one, ks));
++		else
++			t = dc_fixpt_zero;
++
++		two = dc_fixpt_from_int(2);
++		three = dc_fixpt_from_int(3);
++
++		t2 = dc_fixpt_mul(t, t);
++		t3 = dc_fixpt_mul(t2, t);
++		temp1 = dc_fixpt_mul(two, t3);
++		temp2 = dc_fixpt_mul(three, t2);
++
++		// (2t^3 - 3t^2 + 1) * ks
++		E2 = dc_fixpt_mul(ks, dc_fixpt_add(dc_fixpt_one,
++				dc_fixpt_sub(temp1, temp2)));
++
++		// (-2t^3 + 3t^2) * max_lum_pq
++		E2 = dc_fixpt_add(E2, dc_fixpt_mul(max_lum_pq,
++				dc_fixpt_sub(temp2, temp1)));
++
++		temp1 = dc_fixpt_mul(two, t2);
++		temp2 = dc_fixpt_sub(dc_fixpt_one, ks);
++
++		// (t^3 - 2t^2 + t) * (1-ks)
++		E2 = dc_fixpt_add(E2, dc_fixpt_mul(temp2,
++				dc_fixpt_add(t, dc_fixpt_sub(t3, temp1))));
++	}
++
++	temp1 = dc_fixpt_sub(dc_fixpt_one, E2);
++	temp2 = dc_fixpt_mul(temp1, temp1);
++	temp2 = dc_fixpt_mul(temp2, temp2);
++	// temp2 = (1-E2)^4
++
++	E3 =  dc_fixpt_add(E2, dc_fixpt_mul(min_lum_pq, temp2));
++	compute_de_pq(E3, out_x);
++
++	*out_x = dc_fixpt_div(*out_x, dc_fixpt_div(max_display, max_content));
++}
++
++static bool build_freesync_hdr(struct pwl_float_data_ex *rgb_regamma,
++		uint32_t hw_points_num,
++		const struct hw_x_point *coordinate_x,
++		const struct freesync_hdr_tf_params *fs_params)
++{
++	uint32_t i;
++	struct pwl_float_data_ex *rgb = rgb_regamma;
++	const struct hw_x_point *coord_x = coordinate_x;
++	struct fixed31_32 scaledX = dc_fixpt_zero;
++	struct fixed31_32 scaledX1 = dc_fixpt_zero;
++	struct fixed31_32 max_display = dc_fixpt_from_int(fs_params->max_display);
++	struct fixed31_32 min_display = dc_fixpt_from_fraction(fs_params->min_display, 10000);
++	struct fixed31_32 max_content = dc_fixpt_from_int(fs_params->max_content);
++	struct fixed31_32 min_content = dc_fixpt_from_fraction(fs_params->min_content, 10000);
++	struct fixed31_32 clip = dc_fixpt_one;
++	struct fixed31_32 output;
++	bool use_eetf = false;
++	struct fixed31_32 sdr_white_level = dc_fixpt_from_int(fs_params->sdr_white_level);
++
++	if (fs_params == NULL || fs_params->max_content == 0 ||
++			fs_params->max_display == 0)
++		return false;
++
++	if (fs_params->min_display > 1000) // cap at 0.1 at the bottom
++		min_display = dc_fixpt_from_fraction(1, 10);
++	if (fs_params->max_display < 100) // cap at 100 at the top
++		max_display = dc_fixpt_from_int(100);
++
++	if (fs_params->min_content < fs_params->min_display)
++		use_eetf = true;
++	else
++		min_content = min_display;
++
++	if (fs_params->max_content > fs_params->max_display)
++		use_eetf = true;
++	else
++		max_content = max_display;
++
++	rgb += 32; // first 32 points have problems with fixed point, too small
++	coord_x += 32;
++	for (i = 32; i <= hw_points_num; i++) {
++		if (use_eetf) {
++			/*max content is equal 1 */
++			scaledX1 = dc_fixpt_div(coord_x->x,
++					dc_fixpt_div(max_content, sdr_white_level));
++			hermite_spline_eetf(scaledX1, max_display, min_display,
++					max_content, &scaledX);
++		} else
++			scaledX = dc_fixpt_div(coord_x->x,
++					dc_fixpt_div(max_display, sdr_white_level));
++
++		if (dc_fixpt_lt(scaledX, clip)) {
++			if (dc_fixpt_lt(scaledX, dc_fixpt_zero))
++				output = dc_fixpt_zero;
++			else
++				output = calculate_gamma22(scaledX);
++
++			rgb->r = output;
++			rgb->g = output;
++			rgb->b = output;
++		} else {
++			rgb->r = clip;
++			rgb->g = clip;
++			rgb->b = clip;
++		}
++
++		++coord_x;
++		++rgb;
++	}
++
++	return true;
++}
++
+ static void build_degamma(struct pwl_float_data_ex *curve,
+ 		uint32_t hw_points_num,
+ 		const struct hw_x_point *coordinate_x, bool is_2_4)
+@@ -1358,7 +1524,8 @@ static bool map_regamma_hw_to_x_user(
+ #define _EXTRA_POINTS 3
+ 
+ bool mod_color_calculate_regamma_params(struct dc_transfer_func *output_tf,
+-		const struct dc_gamma *ramp, bool mapUserRamp, bool canRomBeUsed)
++		const struct dc_gamma *ramp, bool mapUserRamp, bool canRomBeUsed,
++		const struct freesync_hdr_tf_params *fs_params)
+ {
+ 	struct dc_transfer_func_distributed_points *tf_pts = &output_tf->tf_pts;
+ 	struct dividers dividers;
+@@ -1423,6 +1590,12 @@ bool mod_color_calculate_regamma_params(struct dc_transfer_func *output_tf,
+ 				MAX_HW_POINTS,
+ 				coordinates_x,
+ 				output_tf->sdr_ref_white_level);
++	} else if (tf == TRANSFER_FUNCTION_GAMMA22 &&
++			fs_params != NULL) {
++		build_freesync_hdr(rgb_regamma,
++				MAX_HW_POINTS,
++				coordinates_x,
++				fs_params);
+ 	} else {
+ 		tf_pts->end_exponent = 0;
+ 		tf_pts->x_point_at_y1_red = 1;
+diff --git a/drivers/gpu/drm/amd/display/modules/color/color_gamma.h b/drivers/gpu/drm/amd/display/modules/color/color_gamma.h
+index 63ccb9c..a6e164d 100644
+--- a/drivers/gpu/drm/amd/display/modules/color/color_gamma.h
++++ b/drivers/gpu/drm/amd/display/modules/color/color_gamma.h
+@@ -73,12 +73,21 @@ struct regamma_lut {
+ 	};
+ };
+ 
++struct freesync_hdr_tf_params {
++	unsigned int sdr_white_level;
++	unsigned int min_content; // luminance in 1/10000 nits
++	unsigned int max_content; // luminance in nits
++	unsigned int min_display; // luminance in 1/10000 nits
++	unsigned int max_display; // luminance in nits
++};
++
+ void setup_x_points_distribution(void);
+ void precompute_pq(void);
+ void precompute_de_pq(void);
+ 
+ bool mod_color_calculate_regamma_params(struct dc_transfer_func *output_tf,
+-		const struct dc_gamma *ramp, bool mapUserRamp, bool canRomBeUsed);
++		const struct dc_gamma *ramp, bool mapUserRamp, bool canRomBeUsed,
++		const struct freesync_hdr_tf_params *fs_params);
+ 
+ bool mod_color_calculate_degamma_params(struct dc_transfer_func *output_tf,
+ 		const struct dc_gamma *ramp, bool mapUserRamp);
+-- 
+2.7.4
+

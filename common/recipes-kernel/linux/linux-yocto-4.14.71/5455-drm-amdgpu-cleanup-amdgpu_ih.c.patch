@@ -1,0 +1,435 @@
+From 474676b862cb6bc3c85dd701c6614787c7a6261e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Sun, 16 Sep 2018 20:13:21 +0200
+Subject: [PATCH 5455/5725] drm/amdgpu: cleanup amdgpu_ih.c
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Cleanup amdgpu_ih.c to be able to handle multiple interrupt rings.
+
+Change-Id: I19a1eb3131e4a193d933033708f8f328c78e9ff0
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c  | 152 ++++++++++++++------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h  |   8 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c |   2 +-
+ drivers/gpu/drm/amd/amdgpu/cik_ih.c     |   4 +-
+ drivers/gpu/drm/amd/amdgpu/cz_ih.c      |   4 +-
+ drivers/gpu/drm/amd/amdgpu/iceland_ih.c |   4 +-
+ drivers/gpu/drm/amd/amdgpu/si_ih.c      |   4 +-
+ drivers/gpu/drm/amd/amdgpu/tonga_ih.c   |   4 +-
+ drivers/gpu/drm/amd/amdgpu/vega10_ih.c  |   4 +-
+ 9 files changed, 84 insertions(+), 102 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c
+index 4ed8621..15fb0f9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.c
+@@ -27,43 +27,19 @@
+ #include "amdgpu_amdkfd.h"
+ 
+ /**
+- * amdgpu_ih_ring_alloc - allocate memory for the IH ring
+- *
+- * @adev: amdgpu_device pointer
+- *
+- * Allocate a ring buffer for the interrupt controller.
+- * Returns 0 for success, errors for failure.
+- */
+-static int amdgpu_ih_ring_alloc(struct amdgpu_device *adev)
+-{
+-	int r;
+-
+-	/* Allocate ring buffer */
+-	if (adev->irq.ih.ring_obj == NULL) {
+-		r = amdgpu_bo_create_kernel(adev, adev->irq.ih.ring_size,
+-					    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GTT,
+-					    &adev->irq.ih.ring_obj,
+-					    &adev->irq.ih.gpu_addr,
+-					    (void **)&adev->irq.ih.ring);
+-		if (r) {
+-			DRM_ERROR("amdgpu: failed to create ih ring buffer (%d).\n", r);
+-			return r;
+-		}
+-	}
+-	return 0;
+-}
+-
+-/**
+  * amdgpu_ih_ring_init - initialize the IH state
+  *
+  * @adev: amdgpu_device pointer
++ * @ih: ih ring to initialize
++ * @ring_size: ring size to allocate
++ * @use_bus_addr: true when we can use dma_alloc_coherent
+  *
+  * Initializes the IH state and allocates a buffer
+  * for the IH ring buffer.
+  * Returns 0 for success, errors for failure.
+  */
+-int amdgpu_ih_ring_init(struct amdgpu_device *adev, unsigned ring_size,
+-			bool use_bus_addr)
++int amdgpu_ih_ring_init(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih,
++			unsigned ring_size, bool use_bus_addr)
+ {
+ 	u32 rb_bufsz;
+ 	int r;
+@@ -71,70 +47,76 @@ int amdgpu_ih_ring_init(struct amdgpu_device *adev, unsigned ring_size,
+ 	/* Align ring size */
+ 	rb_bufsz = order_base_2(ring_size / 4);
+ 	ring_size = (1 << rb_bufsz) * 4;
+-	adev->irq.ih.ring_size = ring_size;
+-	adev->irq.ih.ptr_mask = adev->irq.ih.ring_size - 1;
+-	adev->irq.ih.rptr = 0;
+-	adev->irq.ih.use_bus_addr = use_bus_addr;
+-
+-	if (adev->irq.ih.use_bus_addr) {
+-		if (!adev->irq.ih.ring) {
+-			/* add 8 bytes for the rptr/wptr shadows and
+-			 * add them to the end of the ring allocation.
+-			 */
+-			adev->irq.ih.ring = pci_alloc_consistent(adev->pdev,
+-								 adev->irq.ih.ring_size + 8,
+-								 &adev->irq.ih.rb_dma_addr);
+-			if (adev->irq.ih.ring == NULL)
+-				return -ENOMEM;
+-			memset((void *)adev->irq.ih.ring, 0, adev->irq.ih.ring_size + 8);
+-			adev->irq.ih.wptr_offs = (adev->irq.ih.ring_size / 4) + 0;
+-			adev->irq.ih.rptr_offs = (adev->irq.ih.ring_size / 4) + 1;
+-		}
+-		return 0;
++	ih->ring_size = ring_size;
++	ih->ptr_mask = ih->ring_size - 1;
++	ih->rptr = 0;
++	ih->use_bus_addr = use_bus_addr;
++
++	if (use_bus_addr) {
++		if (ih->ring)
++			return 0;
++
++		/* add 8 bytes for the rptr/wptr shadows and
++		 * add them to the end of the ring allocation.
++		 */
++		ih->ring = dma_alloc_coherent(adev->dev, ih->ring_size + 8,
++					      &ih->rb_dma_addr, GFP_KERNEL);
++		if (ih->ring == NULL)
++			return -ENOMEM;
++
++		memset((void *)ih->ring, 0, ih->ring_size + 8);
++		ih->wptr_offs = (ih->ring_size / 4) + 0;
++		ih->rptr_offs = (ih->ring_size / 4) + 1;
+ 	} else {
+-		r = amdgpu_device_wb_get(adev, &adev->irq.ih.wptr_offs);
++		r = amdgpu_device_wb_get(adev, &ih->wptr_offs);
++		if (r)
++			return r;
++
++		r = amdgpu_device_wb_get(adev, &ih->rptr_offs);
+ 		if (r) {
+-			dev_err(adev->dev, "(%d) ih wptr_offs wb alloc failed\n", r);
++			amdgpu_device_wb_free(adev, ih->wptr_offs);
+ 			return r;
+ 		}
+ 
+-		r = amdgpu_device_wb_get(adev, &adev->irq.ih.rptr_offs);
++		r = amdgpu_bo_create_kernel(adev, ih->ring_size, PAGE_SIZE,
++					    AMDGPU_GEM_DOMAIN_GTT,
++					    &ih->ring_obj, &ih->gpu_addr,
++					    (void **)&ih->ring);
+ 		if (r) {
+-			amdgpu_device_wb_free(adev, adev->irq.ih.wptr_offs);
+-			dev_err(adev->dev, "(%d) ih rptr_offs wb alloc failed\n", r);
++			amdgpu_device_wb_free(adev, ih->rptr_offs);
++			amdgpu_device_wb_free(adev, ih->wptr_offs);
+ 			return r;
+ 		}
+-
+-		return amdgpu_ih_ring_alloc(adev);
+ 	}
++	return 0;
+ }
+ 
+ /**
+  * amdgpu_ih_ring_fini - tear down the IH state
+  *
+  * @adev: amdgpu_device pointer
++ * @ih: ih ring to tear down
+  *
+  * Tears down the IH state and frees buffer
+  * used for the IH ring buffer.
+  */
+-void amdgpu_ih_ring_fini(struct amdgpu_device *adev)
++void amdgpu_ih_ring_fini(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih)
+ {
+-	if (adev->irq.ih.use_bus_addr) {
+-		if (adev->irq.ih.ring) {
+-			/* add 8 bytes for the rptr/wptr shadows and
+-			 * add them to the end of the ring allocation.
+-			 */
+-			pci_free_consistent(adev->pdev, adev->irq.ih.ring_size + 8,
+-					    (void *)adev->irq.ih.ring,
+-					    adev->irq.ih.rb_dma_addr);
+-			adev->irq.ih.ring = NULL;
+-		}
++	if (ih->use_bus_addr) {
++		if (!ih->ring)
++			return;
++
++		/* add 8 bytes for the rptr/wptr shadows and
++		 * add them to the end of the ring allocation.
++		 */
++		dma_free_coherent(adev->dev, ih->ring_size + 8,
++				  (void *)ih->ring, ih->rb_dma_addr);
++		ih->ring = NULL;
+ 	} else {
+-		amdgpu_bo_free_kernel(&adev->irq.ih.ring_obj,
+-				      &adev->irq.ih.gpu_addr,
+-				      (void **)&adev->irq.ih.ring);
+-		amdgpu_device_wb_free(adev, adev->irq.ih.wptr_offs);
+-		amdgpu_device_wb_free(adev, adev->irq.ih.rptr_offs);
++		amdgpu_bo_free_kernel(&ih->ring_obj, &ih->gpu_addr,
++				      (void **)&ih->ring);
++		amdgpu_device_wb_free(adev, ih->wptr_offs);
++		amdgpu_device_wb_free(adev, ih->rptr_offs);
+ 	}
+ }
+ 
+@@ -142,56 +124,56 @@ void amdgpu_ih_ring_fini(struct amdgpu_device *adev)
+  * amdgpu_ih_process - interrupt handler
+  *
+  * @adev: amdgpu_device pointer
++ * @ih: ih ring to process
+  *
+  * Interrupt hander (VI), walk the IH ring.
+  * Returns irq process return code.
+  */
+-int amdgpu_ih_process(struct amdgpu_device *adev)
++int amdgpu_ih_process(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih)
+ {
+ 	struct amdgpu_iv_entry entry;
+ 	u32 wptr;
+ 
+-	if (!adev->irq.ih.enabled || adev->shutdown)
++	if (!ih->enabled || adev->shutdown)
+ 		return IRQ_NONE;
+ 
+ 	wptr = amdgpu_ih_get_wptr(adev);
+ 
+ restart_ih:
+ 	/* is somebody else already processing irqs? */
+-	if (atomic_xchg(&adev->irq.ih.lock, 1))
++	if (atomic_xchg(&ih->lock, 1))
+ 		return IRQ_NONE;
+ 
+-	DRM_DEBUG("%s: rptr %d, wptr %d\n", __func__, adev->irq.ih.rptr, wptr);
++	DRM_DEBUG("%s: rptr %d, wptr %d\n", __func__, ih->rptr, wptr);
+ 
+ 	/* Order reading of wptr vs. reading of IH ring data */
+ 	rmb();
+ 
+-	while (adev->irq.ih.rptr != wptr) {
+-		u32 ring_index = adev->irq.ih.rptr >> 2;
++	while (ih->rptr != wptr) {
++		u32 ring_index = ih->rptr >> 2;
+ 
+ 		/* Prescreening of high-frequency interrupts */
+ 		if (!amdgpu_ih_prescreen_iv(adev)) {
+-			adev->irq.ih.rptr &= adev->irq.ih.ptr_mask;
++			ih->rptr &= ih->ptr_mask;
+ 			continue;
+ 		}
+ 
+ 		/* Before dispatching irq to IP blocks, send it to amdkfd */
+ 		amdgpu_amdkfd_interrupt(adev,
+-				(const void *) &adev->irq.ih.ring[ring_index]);
++					(const void *) &ih->ring[ring_index]);
+ 
+-		entry.iv_entry = (const uint32_t *)
+-			&adev->irq.ih.ring[ring_index];
++		entry.iv_entry = (const uint32_t *)&ih->ring[ring_index];
+ 		amdgpu_ih_decode_iv(adev, &entry);
+-		adev->irq.ih.rptr &= adev->irq.ih.ptr_mask;
++		ih->rptr &= ih->ptr_mask;
+ 
+ 		amdgpu_irq_dispatch(adev, &entry);
+ 	}
+ 	amdgpu_ih_set_rptr(adev);
+-	atomic_set(&adev->irq.ih.lock, 0);
++	atomic_set(&ih->lock, 0);
+ 
+ 	/* make sure wptr hasn't changed while processing */
+ 	wptr = amdgpu_ih_get_wptr(adev);
+-	if (wptr != adev->irq.ih.rptr)
++	if (wptr != ih->rptr)
+ 		goto restart_ih;
+ 
+ 	return IRQ_HANDLED;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
+index 0d5b3f5..3e55f98 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
+@@ -82,9 +82,9 @@ struct amdgpu_ih_funcs {
+ #define amdgpu_ih_decode_iv(adev, iv) (adev)->irq.ih_funcs->decode_iv((adev), (iv))
+ #define amdgpu_ih_set_rptr(adev) (adev)->irq.ih_funcs->set_rptr((adev))
+ 
+-int amdgpu_ih_ring_init(struct amdgpu_device *adev, unsigned ring_size,
+-			bool use_bus_addr);
+-void amdgpu_ih_ring_fini(struct amdgpu_device *adev);
+-int amdgpu_ih_process(struct amdgpu_device *adev);
++int amdgpu_ih_ring_init(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih,
++			unsigned ring_size, bool use_bus_addr);
++void amdgpu_ih_ring_fini(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih);
++int amdgpu_ih_process(struct amdgpu_device *adev, struct amdgpu_ih_ring *ih);
+ 
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c
+index 2d29753..ba004fe 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_irq.c
+@@ -163,7 +163,7 @@ irqreturn_t amdgpu_irq_handler(int irq, void *arg)
+ 	struct amdgpu_device *adev = dev->dev_private;
+ 	irqreturn_t ret;
+ 
+-	ret = amdgpu_ih_process(adev);
++	ret = amdgpu_ih_process(adev, &adev->irq.ih);
+ 	if (ret == IRQ_HANDLED)
+ 		pm_runtime_mark_last_busy(dev->dev);
+ 	return ret;
+diff --git a/drivers/gpu/drm/amd/amdgpu/cik_ih.c b/drivers/gpu/drm/amd/amdgpu/cik_ih.c
+index e75183e..c37c4b7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/cik_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/cik_ih.c
+@@ -318,7 +318,7 @@ static int cik_ih_sw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	r = amdgpu_ih_ring_init(adev, 64 * 1024, false);
++	r = amdgpu_ih_ring_init(adev, &adev->irq.ih, 64 * 1024, false);
+ 	if (r)
+ 		return r;
+ 
+@@ -332,7 +332,7 @@ static int cik_ih_sw_fini(void *handle)
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+ 	amdgpu_irq_fini(adev);
+-	amdgpu_ih_ring_fini(adev);
++	amdgpu_ih_ring_fini(adev, &adev->irq.ih);
+ 	amdgpu_irq_remove_domain(adev);
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/cz_ih.c b/drivers/gpu/drm/amd/amdgpu/cz_ih.c
+index 9385da1..306e0bd 100644
+--- a/drivers/gpu/drm/amd/amdgpu/cz_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/cz_ih.c
+@@ -297,7 +297,7 @@ static int cz_ih_sw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	r = amdgpu_ih_ring_init(adev, 64 * 1024, false);
++	r = amdgpu_ih_ring_init(adev, &adev->irq.ih, 64 * 1024, false);
+ 	if (r)
+ 		return r;
+ 
+@@ -311,7 +311,7 @@ static int cz_ih_sw_fini(void *handle)
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+ 	amdgpu_irq_fini(adev);
+-	amdgpu_ih_ring_fini(adev);
++	amdgpu_ih_ring_fini(adev, &adev->irq.ih);
+ 	amdgpu_irq_remove_domain(adev);
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/iceland_ih.c b/drivers/gpu/drm/amd/amdgpu/iceland_ih.c
+index 45ef0a8..9005dee 100644
+--- a/drivers/gpu/drm/amd/amdgpu/iceland_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/iceland_ih.c
+@@ -297,7 +297,7 @@ static int iceland_ih_sw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	r = amdgpu_ih_ring_init(adev, 64 * 1024, false);
++	r = amdgpu_ih_ring_init(adev, &adev->irq.ih, 64 * 1024, false);
+ 	if (r)
+ 		return r;
+ 
+@@ -311,7 +311,7 @@ static int iceland_ih_sw_fini(void *handle)
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+ 	amdgpu_irq_fini(adev);
+-	amdgpu_ih_ring_fini(adev);
++	amdgpu_ih_ring_fini(adev, &adev->irq.ih);
+ 	amdgpu_irq_remove_domain(adev);
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/si_ih.c b/drivers/gpu/drm/amd/amdgpu/si_ih.c
+index 97711d3..acdf607 100644
+--- a/drivers/gpu/drm/amd/amdgpu/si_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/si_ih.c
+@@ -170,7 +170,7 @@ static int si_ih_sw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	r = amdgpu_ih_ring_init(adev, 64 * 1024, false);
++	r = amdgpu_ih_ring_init(adev, &adev->irq.ih, 64 * 1024, false);
+ 	if (r)
+ 		return r;
+ 
+@@ -182,7 +182,7 @@ static int si_ih_sw_fini(void *handle)
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+ 	amdgpu_irq_fini(adev);
+-	amdgpu_ih_ring_fini(adev);
++	amdgpu_ih_ring_fini(adev, &adev->irq.ih);
+ 
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/amd/amdgpu/tonga_ih.c b/drivers/gpu/drm/amd/amdgpu/tonga_ih.c
+index a79a377..83fdf81 100644
+--- a/drivers/gpu/drm/amd/amdgpu/tonga_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/tonga_ih.c
+@@ -317,7 +317,7 @@ static int tonga_ih_sw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	r = amdgpu_ih_ring_init(adev, 64 * 1024, true);
++	r = amdgpu_ih_ring_init(adev, &adev->irq.ih, 64 * 1024, true);
+ 	if (r)
+ 		return r;
+ 
+@@ -334,7 +334,7 @@ static int tonga_ih_sw_fini(void *handle)
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+ 	amdgpu_irq_fini(adev);
+-	amdgpu_ih_ring_fini(adev);
++	amdgpu_ih_ring_fini(adev, &adev->irq.ih);
+ 	amdgpu_irq_remove_domain(adev);
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/vega10_ih.c b/drivers/gpu/drm/amd/amdgpu/vega10_ih.c
+index d0d23a6..2f14516 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vega10_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/vega10_ih.c
+@@ -380,7 +380,7 @@ static int vega10_ih_sw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	r = amdgpu_ih_ring_init(adev, 256 * 1024, true);
++	r = amdgpu_ih_ring_init(adev, &adev->irq.ih, 256 * 1024, true);
+ 	if (r)
+ 		return r;
+ 
+@@ -397,7 +397,7 @@ static int vega10_ih_sw_fini(void *handle)
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+ 	amdgpu_irq_fini(adev);
+-	amdgpu_ih_ring_fini(adev);
++	amdgpu_ih_ring_fini(adev, &adev->irq.ih);
+ 
+ 	return 0;
+ }
+-- 
+2.7.4
+

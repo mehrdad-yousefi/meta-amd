@@ -1,0 +1,61 @@
+From 5d8d5b66b50ce307973db42a622b5239b49add24 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sat, 29 Sep 2018 15:57:31 +0800
+Subject: [PATCH 5517/5725] drm/amdgpu: Add fw load in gfx_v8 and sdma_v3
+
+gfx and sdma can be initialized before smu.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c  | 11 +++++++++++
+ drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c |  8 ++++++++
+ 2 files changed, 19 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 7a8e211..f9e5990 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -4179,9 +4179,20 @@ static void gfx_v8_0_rlc_start(struct amdgpu_device *adev)
+ 
+ static int gfx_v8_0_rlc_resume(struct amdgpu_device *adev)
+ {
++	int r;
++
+ 	gfx_v8_0_rlc_stop(adev);
+ 	gfx_v8_0_rlc_reset(adev);
+ 	gfx_v8_0_init_pg(adev);
++
++	if (adev->powerplay.pp_funcs->load_firmware) {
++		r = adev->powerplay.pp_funcs->load_firmware(adev->powerplay.pp_handle);
++		if (r) {
++			pr_err("firmware loading failed\n");
++			return r;
++		}
++	}
++
+ 	gfx_v8_0_rlc_start(adev);
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
+index 24b5252..573284f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
+@@ -796,6 +796,14 @@ static int sdma_v3_0_start(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
++	if (adev->powerplay.pp_funcs->load_firmware) {
++		r = adev->powerplay.pp_funcs->load_firmware(adev->powerplay.pp_handle);
++		if (r) {
++			pr_err("firmware loading failed\n");
++			return r;
++		}
++	}
++
+ 	/* disable sdma engine before programing it */
+ 	sdma_v3_0_ctx_switch_enable(adev, false);
+ 	sdma_v3_0_enable(adev, false);
+-- 
+2.7.4
+

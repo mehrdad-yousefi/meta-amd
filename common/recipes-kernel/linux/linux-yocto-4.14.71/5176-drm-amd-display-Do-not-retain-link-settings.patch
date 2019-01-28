@@ -1,0 +1,53 @@
+From 45be44a0f066d38f9fa9075cd161dc3102f49eee Mon Sep 17 00:00:00 2001
+From: Samson Tam <Samson.Tam@amd.com>
+Date: Mon, 30 Jul 2018 12:22:35 -0400
+Subject: [PATCH 5176/5725] drm/amd/display: Do not retain link settings
+
+Do not retrain link settings if lane count and link rate are both
+unknown.  Causes driver to be stuck reading VBIOS register after
+removing emulated connection.
+
+Signed-off-by: Samson Tam <Samson.Tam@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 16beef9..8f4a288 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -52,6 +52,8 @@
+ #include "dm_helpers.h"
+ #include "mem_input.h"
+ #include "hubp.h"
++
++#include "dc_link_dp.h"
+ #define DC_LOGGER \
+ 	dc->ctx->logger
+ 
+@@ -434,8 +436,17 @@ void dc_link_set_preferred_link_settings(struct dc *dc,
+ 					 struct dc_link_settings *link_setting,
+ 					 struct dc_link *link)
+ {
+-	link->preferred_link_setting = *link_setting;
+-	dp_retrain_link_dp_test(link, link_setting, false);
++	struct dc_link_settings store_settings = *link_setting;
++	struct dc_stream_state *link_stream =
++		link->dc->current_state->res_ctx.pipe_ctx[0].stream;
++
++	link->preferred_link_setting = store_settings;
++	if (link_stream)
++		decide_link_settings(link_stream, &store_settings);
++
++	if ((store_settings.lane_count != LANE_COUNT_UNKNOWN) &&
++		(store_settings.link_rate != LINK_RATE_UNKNOWN))
++		dp_retrain_link_dp_test(link, &store_settings, false);
+ }
+ 
+ void dc_link_enable_hpd(const struct dc_link *link)
+-- 
+2.7.4
+

@@ -1,0 +1,49 @@
+From fff3b6983608a0e513eb2e874325827207e3f485 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 25 Apr 2018 17:53:13 -0400
+Subject: [PATCH 4287/5725] drm/amdkfd: Fix pm_debugfs_runlist
+
+Guard it with #if defined(CONFIG_DEBUG_FS) and take the pm->lock while
+dumping the runlist IB.
+
+Change-Id: If52078d2003c34b44e8f19996c0263d6211dea13
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+index c6f3218..cd380ad 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+@@ -400,17 +400,25 @@ void pm_release_ib(struct packet_manager *pm)
+ 	mutex_unlock(&pm->lock);
+ }
+ 
++#if defined(CONFIG_DEBUG_FS)
++
+ int pm_debugfs_runlist(struct seq_file *m, void *data)
+ {
+ 	struct packet_manager *pm = data;
+ 
++	mutex_lock(&pm->lock);
++
+ 	if (!pm->allocated) {
+ 		seq_puts(m, "  No active runlist\n");
+-		return 0;
++		goto out;
+ 	}
+ 
+ 	seq_hex_dump(m, "  ", DUMP_PREFIX_OFFSET, 32, 4,
+ 		     pm->ib_buffer_obj->cpu_ptr, pm->ib_size_bytes, false);
+ 
++out:
++	mutex_unlock(&pm->lock);
+ 	return 0;
+ }
++
++#endif
+-- 
+2.7.4
+

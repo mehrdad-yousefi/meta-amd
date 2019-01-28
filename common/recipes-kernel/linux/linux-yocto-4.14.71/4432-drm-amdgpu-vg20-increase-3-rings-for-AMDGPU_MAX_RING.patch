@@ -1,0 +1,33 @@
+From 7faf936d871beae746523b381734780ec7051f30 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Mon, 23 Apr 2018 19:11:46 -0400
+Subject: [PATCH 4432/5725] drm/amdgpu/vg20:increase 3 rings for
+ AMDGPU_MAX_RINGS
+
+For Vega20, there are two UVD Hardware. One more UVD hardware
+adds one decode ring and two encode rings. So AMDGPU_MAX_RINGS
+need increase by 3.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index 79ca5b7..dce4b82 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -28,7 +28,7 @@
+ #include <drm/gpu_scheduler.h>
+ 
+ /* max number of rings */
+-#define AMDGPU_MAX_RINGS		18
++#define AMDGPU_MAX_RINGS		21
+ #define AMDGPU_MAX_GFX_RINGS		1
+ #define AMDGPU_MAX_COMPUTE_RINGS	8
+ #define AMDGPU_MAX_VCE_RINGS		3
+-- 
+2.7.4
+

@@ -1,0 +1,48 @@
+From e79cbfc78a628087d4840631e9f0778ae6798d25 Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Thu, 31 May 2018 14:44:18 -0400
+Subject: [PATCH 4788/5725] drm/amd/display: Convert 10kHz clks from PPLib into
+ kHz
+
+The driver is expecting clock frequency in kHz, while SMU returns
+the values in 10kHz, which causes the bandwidth validation to fail
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
+index 08a0328..4f86f6f 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
+@@ -267,8 +267,9 @@ static void pp_to_dc_clock_levels_with_voltage(
+ 			DC_DECODE_PP_CLOCK_TYPE(dc_clk_type));
+ 
+ 	for (i = 0; i < clk_level_info->num_levels; i++) {
+-		DRM_INFO("DM_PPLIB:\t %d\n", pp_clks->data[i].clocks_in_khz);
+-		clk_level_info->data[i].clocks_in_khz = pp_clks->data[i].clocks_in_khz;
++		DRM_INFO("DM_PPLIB:\t %d in 10kHz\n", pp_clks->data[i].clocks_in_khz);
++		/* translate 10kHz to kHz */
++		clk_level_info->data[i].clocks_in_khz = pp_clks->data[i].clocks_in_khz * 10;
+ 		clk_level_info->data[i].voltage_in_mv = pp_clks->data[i].voltage_in_mv;
+ 	}
+ }
+@@ -430,8 +431,9 @@ bool dm_pp_get_static_clocks(
+ 		return false;
+ 
+ 	static_clk_info->max_clocks_state = pp_clk_info.max_clocks_state;
+-	static_clk_info->max_mclk_khz = pp_clk_info.max_memory_clock;
+-	static_clk_info->max_sclk_khz = pp_clk_info.max_engine_clock;
++	/* translate 10kHz to kHz */
++	static_clk_info->max_mclk_khz = pp_clk_info.max_memory_clock * 10;
++	static_clk_info->max_sclk_khz = pp_clk_info.max_engine_clock * 10;
+ 
+ 	return true;
+ }
+-- 
+2.7.4
+

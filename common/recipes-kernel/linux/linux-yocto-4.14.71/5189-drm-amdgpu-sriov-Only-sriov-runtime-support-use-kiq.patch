@@ -1,0 +1,55 @@
+From 31e80a31227132bf2918e9df1fbafd84854bfbc2 Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Tue, 21 Aug 2018 18:51:38 +0800
+Subject: [PATCH 5189/5725] drm/amdgpu/sriov: Only sriov runtime support use
+ kiq
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+For sriov, don't use kiq in exclusive mode, as don't know how long time
+it will take, some times it will occur exclusive timeout.
+
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index ff9868a..4b54027 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -320,9 +320,6 @@ signed long  amdgpu_kiq_reg_write_reg_wait(struct amdgpu_device *adev,
+ 	struct amdgpu_kiq *kiq = &adev->gfx.kiq;
+ 	struct amdgpu_ring *ring = &kiq->ring;
+ 
+-	if (!ring->ready)
+-		return -EINVAL;
+-
+ 	spin_lock_irqsave(&kiq->ring_lock, flags);
+ 
+ 	amdgpu_ring_alloc(ring, 32);
+@@ -389,10 +386,14 @@ static void gmc_v9_0_flush_gpu_tlb(struct amdgpu_device *adev,
+ 		struct amdgpu_vmhub *hub = &adev->vmhub[i];
+ 		u32 tmp = gmc_v9_0_get_invalidate_req(vmid);
+ 
+-		r = amdgpu_kiq_reg_write_reg_wait(adev, hub->vm_inv_eng0_req + eng,
+-			hub->vm_inv_eng0_ack + eng, tmp, 1 << vmid);
+-		if (!r)
+-			continue;
++		if (adev->gfx.kiq.ring.ready &&
++		    (amdgpu_sriov_runtime(adev) ||
++		     !amdgpu_sriov_vf(adev))) {
++			r = amdgpu_kiq_reg_write_reg_wait(adev, hub->vm_inv_eng0_req + eng,
++				hub->vm_inv_eng0_ack + eng, tmp, 1 << vmid);
++			if (!r)
++				continue;
++		}
+ 
+ 		spin_lock(&adev->gmc.invalidate_lock);
+ 
+-- 
+2.7.4
+

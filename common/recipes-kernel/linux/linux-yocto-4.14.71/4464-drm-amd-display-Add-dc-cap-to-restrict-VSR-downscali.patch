@@ -1,0 +1,73 @@
+From 481b210e42288c12e4a6a5f73282345f3df79caa Mon Sep 17 00:00:00 2001
+From: Xingyue Tao <xingyue.tao@amd.com>
+Date: Thu, 19 Apr 2018 16:23:12 -0400
+Subject: [PATCH 4464/5725] drm/amd/display: Add dc cap to restrict VSR
+ downscaling src size
+
+- Adds int max_downscale_src_width in dc struct
+- Checks and does not support if downscale size is more than 4k (width > 3840)
+
+Signed-off-by: Xingyue Tao <xingyue.tao@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc.h                   |  1 +
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c      | 16 +++++++++++-----
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c |  1 +
+ 3 files changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 28c6210..2023080 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -203,6 +203,7 @@ struct dc_debug {
+ 	bool clock_trace;
+ 	bool validation_trace;
+ 	bool bandwidth_calcs_trace;
++	int max_downscale_src_width;
+ 
+ 	/* stutter efficiency related */
+ 	bool disable_stutter;
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+index 20796da..2da1389 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+@@ -145,12 +145,18 @@ bool dpp_get_optimal_number_of_taps(
+ 	else
+ 		pixel_width = scl_data->viewport.width;
+ 
+-	/* Some ASICs does not support  FP16 scaling, so we reject modes require this*/
+ 	if (scl_data->viewport.width  != scl_data->h_active &&
+-		scl_data->viewport.height != scl_data->v_active &&
+-		dpp->caps->dscl_data_proc_format == DSCL_DATA_PRCESSING_FIXED_FORMAT &&
+-		scl_data->format == PIXEL_FORMAT_FP16)
+-		return false;
++		scl_data->viewport.height != scl_data->v_active) {
++
++		/* Some ASICs does not support  FP16 scaling, so we reject modes require this*/
++		if (dpp->caps->dscl_data_proc_format == DSCL_DATA_PRCESSING_FIXED_FORMAT &&
++			scl_data->format == PIXEL_FORMAT_FP16)
++			return false;
++
++		if (dpp->ctx->dc->debug.max_downscale_src_width != 0 &&
++			scl_data->viewport.width > dpp->ctx->dc->debug.max_downscale_src_width)
++			return false;
++	}
+ 
+ 	/* TODO: add lb check */
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index 16c84e9..f69f3a5 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -447,6 +447,7 @@ static const struct dc_debug debug_defaults_drv = {
+ 		.performance_trace = false,
+ 		.az_endpoint_mute_only = true,
+ 		.recovery_enabled = false, /*enable this by default after testing.*/
++		.max_downscale_src_width = 3840,
+ };
+ 
+ static const struct dc_debug debug_defaults_diags = {
+-- 
+2.7.4
+

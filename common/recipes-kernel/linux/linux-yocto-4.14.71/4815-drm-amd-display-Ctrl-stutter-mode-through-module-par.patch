@@ -1,0 +1,33 @@
+From b18ae154414b9d1079c21859969537282f74d916 Mon Sep 17 00:00:00 2001
+From: rex zhu <rex.zhu@amd.com>
+Date: Wed, 27 Jun 2018 18:19:08 +0800
+Subject: [PATCH 4815/5725] drm/amd/display: Ctrl stutter mode through module
+ parameter
+
+use ppfeaturemask to enable/disable stutter mode.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index f51c1f2..7579008 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -1660,7 +1660,7 @@ static int amdgpu_dm_initialize_drm_device(struct amdgpu_device *adev)
+                 /*
+                  * Temporary disable until pplib/smu interaction is implemented
+                  */
+-                dm->dc->debug.disable_stutter = true;
++                dm->dc->debug.disable_stutter = amdgpu_pp_feature_mask & PP_STUTTER_MODE ? false : true;
+                 break;
+ #endif
+         default:
+-- 
+2.7.4
+

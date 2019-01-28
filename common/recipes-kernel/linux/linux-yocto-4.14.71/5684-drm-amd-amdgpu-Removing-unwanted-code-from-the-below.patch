@@ -1,0 +1,32 @@
+From 2e6c51aad5fd03aa9045720b68056ca77f3ab5c7 Mon Sep 17 00:00:00 2001
+From: Kalyan Alle <kalyan.alle@amd.com>
+Date: Wed, 26 Sep 2018 18:27:52 +0530
+Subject: [PATCH 5684/5725] drm/amd/amdgpu: Removing unwanted code from the
+ below files
+
+Removing the unwanted code :
+1. Some of the structure members removed are not used in the code
+2. amdgpu_gem_prime_foreign_bo is not used anywhere in the amdgpu driver code
+3. amdgpu_ttm_bind , not used in the code.
+
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 9ec224c..ba5fe07 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1871,7 +1871,7 @@ static int kfd_create_cma_system_bo(struct kfd_dev *kdev, struct kfd_bo *bo,
+ 
+ 	INIT_LIST_HEAD(&cbo->list);
+ 	if (bo->mem_type == KFD_IOC_ALLOC_MEM_FLAGS_VRAM)
+-		bo_size = min(*size, MAX_SYSTEM_BO_SIZE);
++		bo_size = min_t(uint64_t, *size, MAX_SYSTEM_BO_SIZE);
+ 	else if (bo->cpuva) {
+ 		ret = kfd_create_sg_table_from_userptr_bo(bo, offset,
+ 							  cma_write, mm, task,
+-- 
+2.7.4
+

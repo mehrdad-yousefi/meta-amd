@@ -1,0 +1,112 @@
+From 5dba7a6b54662db60c5a3ca8b5ca7e60de405cd2 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Mon, 27 Aug 2018 11:31:08 -0400
+Subject: [PATCH 5297/5725] drm/amd/display: Fix 3D stereo issues.
+
+We were not providing the correct pixel clocks to DML for marks
+calculation.
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c        | 6 +++++-
+ drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c        | 5 +++--
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c       | 5 ++++-
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c | 3 +++
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c   | 2 ++
+ 5 files changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c b/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c
+index 160d11a..9ebe30b 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c
+@@ -2881,6 +2881,7 @@ static void populate_initial_data(
+ 
+ 	/* Pipes without underlay after */
+ 	for (i = 0; i < pipe_count; i++) {
++		unsigned int pixel_clock_khz;
+ 		if (!pipe[i].stream || pipe[i].bottom_pipe)
+ 			continue;
+ 
+@@ -2889,7 +2890,10 @@ static void populate_initial_data(
+ 		data->lpt_en[num_displays + 4] = false;
+ 		data->h_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.h_total);
+ 		data->v_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.v_total);
+-		data->pixel_rate[num_displays + 4] = bw_frc_to_fixed(pipe[i].stream->timing.pix_clk_khz, 1000);
++		pixel_clock_khz = pipe[i].stream->timing.pix_clk_khz;
++		if (pipe[i].stream->timing.timing_3d_format == TIMING_3D_FORMAT_HW_FRAME_PACKING)
++			pixel_clock_khz *= 2;
++		data->pixel_rate[num_displays + 4] = bw_frc_to_fixed(pixel_clock_khz, 1000);
+ 		if (pipe[i].plane_state) {
+ 			data->src_width[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.viewport.width);
+ 			data->pitch_in_pixels[num_displays + 4] = data->src_width[num_displays + 4];
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+index 32b3413..80ec09e 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+@@ -852,8 +852,9 @@ bool dcn_validate_bandwidth(
+ 		v->v_sync_plus_back_porch[input_idx] = pipe->stream->timing.v_total
+ 				- v->vactive[input_idx]
+ 				- pipe->stream->timing.v_front_porch;
+-		v->pixel_clock[input_idx] = pipe->stream->timing.pix_clk_khz / 1000.0f;
+-
++		v->pixel_clock[input_idx] = pipe->stream->timing.pix_clk_khz/1000.0;
++		if (pipe->stream->timing.timing_3d_format == TIMING_3D_FORMAT_HW_FRAME_PACKING)
++			v->pixel_clock[input_idx] *= 2;
+ 		if (!pipe->plane_state) {
+ 			v->dcc_enable[input_idx] = dcn_bw_yes;
+ 			v->source_pixel_format[input_idx] = dcn_bw_rgb_sub_32;
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 8c6695a..b2f6711 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -344,6 +344,9 @@ bool resource_are_streams_timing_synchronizable(
+ 			|| !dc_is_dp_signal(stream2->signal)))
+ 		return false;
+ 
++	if (stream1->view_format != stream2->view_format)
++		return false;
++
+ 	return true;
+ }
+ static bool is_dp_and_hdmi_sharable(
+@@ -354,7 +357,7 @@ static bool is_dp_and_hdmi_sharable(
+ 		return false;
+ 
+ 	if (stream1->clamping.c_depth != COLOR_DEPTH_888 ||
+-	    stream2->clamping.c_depth != COLOR_DEPTH_888)
++		stream2->clamping.c_depth != COLOR_DEPTH_888)
+ 		return false;
+ 
+ 	return true;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+index 49c5c70..cfca786 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+@@ -796,6 +796,9 @@ static void get_pixel_clock_parameters(
+ 	if (stream->timing.pixel_encoding == PIXEL_ENCODING_YCBCR420) {
+ 		pixel_clk_params->requested_pix_clk  = pixel_clk_params->requested_pix_clk / 2;
+ 	}
++	if (stream->timing.timing_3d_format == TIMING_3D_FORMAT_HW_FRAME_PACKING)
++		pixel_clk_params->requested_pix_clk *= 2;
++
+ }
+ 
+ void dce110_resource_build_pipe_hw_param(struct pipe_ctx *pipe_ctx)
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index 2cc4719..e44031e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -979,6 +979,8 @@ static void get_pixel_clock_parameters(
+ 
+ 	if (stream->timing.pixel_encoding == PIXEL_ENCODING_YCBCR420)
+ 		pixel_clk_params->requested_pix_clk  /= 2;
++	if (stream->timing.timing_3d_format == TIMING_3D_FORMAT_HW_FRAME_PACKING)
++		pixel_clk_params->requested_pix_clk *= 2;
+ 
+ }
+ 
+-- 
+2.7.4
+

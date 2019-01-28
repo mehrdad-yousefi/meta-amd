@@ -1,0 +1,32 @@
+From 69719a8432c68269ea93ba45111914cd63977cad Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Thu, 20 Sep 2018 13:26:18 +0200
+Subject: [PATCH 5453/5725] drm/amdgpu: drop extra newline in amdgpu_iv trace
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+That is superflous here.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+index 8c2dab2..aab0e93 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+@@ -103,7 +103,7 @@ TRACE_EVENT(amdgpu_iv,
+ 			   __entry->src_data[2] = iv->src_data[2];
+ 			   __entry->src_data[3] = iv->src_data[3];
+ 			   ),
+-	    TP_printk("client_id:%u src_id:%u ring:%u vmid:%u timestamp: %llu pasid:%u src_data: %08x %08x %08x %08x\n",
++	    TP_printk("client_id:%u src_id:%u ring:%u vmid:%u timestamp: %llu pasid:%u src_data: %08x %08x %08x %08x",
+ 		      __entry->client_id, __entry->src_id,
+ 		      __entry->ring_id, __entry->vmid,
+ 		      __entry->timestamp, __entry->pasid,
+-- 
+2.7.4
+

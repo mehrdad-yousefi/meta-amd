@@ -1,0 +1,34 @@
+From ca13e30f3cfc6165bb7787e09308925b000b7f2a Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Fri, 15 Jun 2018 17:22:38 -0500
+Subject: [PATCH 5290/5725] drm/amd/powerplay:update smu10_verify_smc* to
+ raven2 compatible
+
+Check the raven2 version number as well.
+
+Change-Id: Ic6a6439eb849c90b57a4df4e58fea372a3ac5bcc
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+index bb07d43..6f961de 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+@@ -177,7 +177,8 @@ static int smu10_verify_smc_interface(struct pp_hwmgr *hwmgr)
+ 			PPSMC_MSG_GetDriverIfVersion);
+ 	smc_driver_if_version = smu10_read_arg_from_smc(hwmgr);
+ 
+-	if (smc_driver_if_version != SMU10_DRIVER_IF_VERSION) {
++	if ((smc_driver_if_version != SMU10_DRIVER_IF_VERSION) &&
++	    (smc_driver_if_version != SMU10_DRIVER_IF_VERSION + 1)) {
+ 		pr_err("Attempt to read SMC IF Version Number Failed!\n");
+ 		return -EINVAL;
+ 	}
+-- 
+2.7.4
+

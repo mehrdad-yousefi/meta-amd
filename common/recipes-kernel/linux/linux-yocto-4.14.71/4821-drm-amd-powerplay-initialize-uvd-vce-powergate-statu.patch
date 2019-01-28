@@ -1,0 +1,79 @@
+From 275cbd63bbdfc138ee1fdb583a8494c116b33185 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 11 Jun 2018 16:25:14 +0800
+Subject: [PATCH 4821/5725] drm/amd/powerplay: initialize uvd/vce powergate
+ status v4
+
+On UVD/VCE dpm enabled/disabled, the powergate status will be
+set as false/true. So that we will not try to ungate/gate them(
+enable/disable their dpm) again.
+
+v2: added check for uvd/vce powergate status before gating
+v3: fix typo in description
+v4: warning fix (Alex)
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 23 ++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index b27978b..39235f0 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -778,6 +778,21 @@ static int vega12_set_allowed_featuresmask(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
++static void vega12_init_powergate_state(struct pp_hwmgr *hwmgr)
++{
++	struct vega12_hwmgr *data =
++			(struct vega12_hwmgr *)(hwmgr->backend);
++
++	data->uvd_power_gated = true;
++	data->vce_power_gated = true;
++
++	if (data->smu_features[GNLD_DPM_UVD].enabled)
++		data->uvd_power_gated = false;
++
++	if (data->smu_features[GNLD_DPM_VCE].enabled)
++		data->vce_power_gated = false;
++}
++
+ static int vega12_enable_all_smu_features(struct pp_hwmgr *hwmgr)
+ {
+ 	struct vega12_hwmgr *data =
+@@ -802,6 +817,8 @@ static int vega12_enable_all_smu_features(struct pp_hwmgr *hwmgr)
+ 		}
+ 	}
+ 
++	vega12_init_powergate_state(hwmgr);
++
+ 	return 0;
+ }
+ 
+@@ -1986,6 +2003,9 @@ static void vega12_power_gate_vce(struct pp_hwmgr *hwmgr, bool bgate)
+ {
+ 	struct vega12_hwmgr *data = (struct vega12_hwmgr *)(hwmgr->backend);
+ 
++	if (data->vce_power_gated == bgate)
++		return;
++
+ 	data->vce_power_gated = bgate;
+ 	vega12_enable_disable_vce_dpm(hwmgr, !bgate);
+ }
+@@ -1994,6 +2014,9 @@ static void vega12_power_gate_uvd(struct pp_hwmgr *hwmgr, bool bgate)
+ {
+ 	struct vega12_hwmgr *data = (struct vega12_hwmgr *)(hwmgr->backend);
+ 
++	if (data->uvd_power_gated == bgate)
++		return;
++
+ 	data->uvd_power_gated = bgate;
+ 	vega12_enable_disable_uvd_dpm(hwmgr, !bgate);
+ }
+-- 
+2.7.4
+

@@ -1,0 +1,92 @@
+From 6792074f8f9c1a9704c0ec618b7218283fed9a3e Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 8 Oct 2018 12:41:19 +0800
+Subject: [PATCH 5573/5725] drm/amd/powerplay: update PPtable with DC BTC and
+ Tvr SocLimit fields
+
+Update the PPtable structure to fit the latest SMC firmware.
+
+Change-Id: I97db5955085efa1ecf44ae23d26fdcc70ec2fc9a
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Feifei Xu <Feifei.Xu@amd.com>
+---
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c    | 10 ++++++----
+ drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h         | 13 ++++++++-----
+ 2 files changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+index e717404..e5f7f82 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+@@ -100,9 +100,8 @@ static void dump_pptable(PPTable_t *pptable)
+ 	pr_info("PpmTemperatureThreshold = %d\n", pptable->PpmTemperatureThreshold);
+ 
+ 	pr_info("MemoryOnPackage = 0x%02x\n", pptable->MemoryOnPackage);
+-	pr_info("padding8_limits[0] = 0x%02x\n", pptable->padding8_limits[0]);
+-	pr_info("padding8_limits[1] = 0x%02x\n", pptable->padding8_limits[1]);
+-	pr_info("padding8_limits[2] = 0x%02x\n", pptable->padding8_limits[2]);
++	pr_info("padding8_limits = 0x%02x\n", pptable->padding8_limits);
++	pr_info("Tvr_SocLimit = %d\n", pptable->Tvr_SocLimit);
+ 
+ 	pr_info("UlvVoltageOffsetSoc = %d\n", pptable->UlvVoltageOffsetSoc);
+ 	pr_info("UlvVoltageOffsetGfx = %d\n", pptable->UlvVoltageOffsetGfx);
+@@ -539,7 +538,10 @@ static void dump_pptable(PPTable_t *pptable)
+ 	pr_info("FanGainVrMem0 = %d\n", pptable->FanGainVrMem0);
+ 	pr_info("FanGainVrMem0 = %d\n", pptable->FanGainVrMem0);
+ 
+-	for (i = 0; i < 12; i++)
++	pr_info("DcBtcGb[AVFS_VOLTAGE_GFX] = 0x%x\n", pptable->DcBtcGb[AVFS_VOLTAGE_GFX]);
++	pr_info("DcBtcGb[AVFS_VOLTAGE_SOC] = 0x%x\n", pptable->DcBtcGb[AVFS_VOLTAGE_SOC]);
++
++	for (i = 0; i < 11; i++)
+ 		pr_info("Reserved[%d] = 0x%x\n", i, pptable->Reserved[i]);
+ 
+ 	for (i = 0; i < 3; i++)
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+index c72cfab..2998a49 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+@@ -165,7 +165,7 @@
+ #define FEATURE_DS_FCLK_MASK            (1 << FEATURE_DS_FCLK_BIT            )
+ #define FEATURE_DS_MP1CLK_MASK          (1 << FEATURE_DS_MP1CLK_BIT          )
+ #define FEATURE_DS_MP0CLK_MASK          (1 << FEATURE_DS_MP0CLK_BIT          )
+-
++#define FEATURE_XGMI_MASK               (1 << FEATURE_XGMI_BIT               )
+ 
+ #define DPM_OVERRIDE_DISABLE_SOCCLK_PID             0x00000001
+ #define DPM_OVERRIDE_DISABLE_UCLK_PID               0x00000002
+@@ -391,8 +391,8 @@ typedef struct {
+   uint16_t PpmTemperatureThreshold;
+ 
+   uint8_t  MemoryOnPackage;
+-  uint8_t  padding8_limits[3];
+-
++  uint8_t  padding8_limits;
++  uint16_t Tvr_SocLimit;
+ 
+   uint16_t  UlvVoltageOffsetSoc;
+   uint16_t  UlvVoltageOffsetGfx;
+@@ -501,7 +501,7 @@ typedef struct {
+   uint8_t           DcBtcEnabled[AVFS_VOLTAGE_COUNT];
+   uint8_t           Padding8_GfxBtc[2];
+ 
+-  uint16_t          DcBtcMin[AVFS_VOLTAGE_COUNT];
++  int16_t           DcBtcMin[AVFS_VOLTAGE_COUNT];
+   uint16_t          DcBtcMax[AVFS_VOLTAGE_COUNT];
+ 
+ 
+@@ -526,7 +526,10 @@ typedef struct {
+ 
+   uint16_t     FanGainVrMem0;
+   uint16_t     FanGainVrMem1;
+-  uint32_t     Reserved[12];
++
++  uint16_t     DcBtcGb[AVFS_VOLTAGE_COUNT];
++
++  uint32_t     Reserved[11];
+ 
+   uint32_t     Padding32[3];
+ 
+-- 
+2.7.4
+

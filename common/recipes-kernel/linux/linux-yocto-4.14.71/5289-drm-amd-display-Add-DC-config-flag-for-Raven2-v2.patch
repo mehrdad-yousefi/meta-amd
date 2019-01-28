@@ -1,0 +1,51 @@
+From 19d5cf8af2b5b1f5d494451536790dba7d6d9f79 Mon Sep 17 00:00:00 2001
+From: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Date: Mon, 22 Jan 2018 17:40:50 -0500
+Subject: [PATCH 5289/5725] drm/amd/display: Add DC config flag for Raven2 (v2)
+
+Add DRM_AMD_DC_DCN1_01 config flag for Raven2
+
+v2: Make DC select DRM_AMD_DC_DCN1_01 (Alex)
+
+Change-Id: Ifdc0114678612a522c035bffd9809b3fc1caa1a7
+Signed-off-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/Kconfig | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/Kconfig b/drivers/gpu/drm/amd/display/Kconfig
+index 6a824ac..27a0db5 100644
+--- a/drivers/gpu/drm/amd/display/Kconfig
++++ b/drivers/gpu/drm/amd/display/Kconfig
+@@ -4,11 +4,23 @@ menu "Display Engine Configuration"
+ config DRM_AMD_DC
+ 	bool "AMD DC - Enable new display engine"
+ 	default y
++	select DRM_AMD_DC_DCN1_0 if X86 && !(KCOV_INSTRUMENT_ALL && KCOV_ENABLE_COMPARISONS)
++	select DRM_AMD_DC_DCN1_01 if X86 && !(KCOV_INSTRUMENT_ALL && KCOV_ENABLE_COMPARISONS)
+         help
+           Choose this option if you want to use the new display engine
+           support for AMDGPU.This adds required support for Vega and
+ 	  Raven ASICs.
+ 
++config DRM_AMD_DC_DCN1_0
++       def_bool n
++       help
++         RV family support for display engine
++
++config DRM_AMD_DC_DCN1_01
++       def_bool n
++       help
++         RV2 family for display engine
++
+ config DEBUG_KERNEL_DC
+         bool "Enable kgdb break in DC"
+         depends on DRM_AMD_DC
+-- 
+2.7.4
+

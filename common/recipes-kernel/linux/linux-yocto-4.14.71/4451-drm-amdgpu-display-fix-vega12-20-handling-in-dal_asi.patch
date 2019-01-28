@@ -1,0 +1,45 @@
+From f02c33ab6a3199958c27034641d2c52a5d078b6d Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Wed, 16 May 2018 15:34:19 -0500
+Subject: [PATCH 4451/5725] drm/amdgpu/display: fix vega12/20 handling in
+ dal_asic_id.h
+
+- Remove unused ASICREV_IS_VEGA12_p() macro
+- Fix ASICREV_IS_VEGA12_P() macro to properly check against vega20
+
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/include/dal_asic_id.h | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/include/dal_asic_id.h b/drivers/gpu/drm/amd/display/include/dal_asic_id.h
+index cac069d..25029ed 100644
+--- a/drivers/gpu/drm/amd/display/include/dal_asic_id.h
++++ b/drivers/gpu/drm/amd/display/include/dal_asic_id.h
+@@ -115,19 +115,17 @@
+ /* DCE12 */
+ #define AI_UNKNOWN 0xFF
+ 
+-#define AI_VEGA20_P_A0 40
+-#define ASICREV_IS_VEGA20_P(eChipRev) ((eChipRev >= AI_VEGA20_P_A0) && (eChipRev < AI_UNKNOWN))
+-
+ #define AI_GREENLAND_P_A0 1
+ #define AI_GREENLAND_P_A1 2
+ #define AI_UNKNOWN 0xFF
+ 
+ #define AI_VEGA12_P_A0 20
++#define AI_VEGA20_P_A0 40
+ #define ASICREV_IS_GREENLAND_M(eChipRev)  (eChipRev < AI_VEGA12_P_A0)
+ #define ASICREV_IS_GREENLAND_P(eChipRev)  (eChipRev < AI_VEGA12_P_A0)
+ 
+-#define ASICREV_IS_VEGA12_P(eChipRev) ((eChipRev >= AI_VEGA12_P_A0) && (eChipRev < AI_UNKNOWN))
+-#define ASICREV_IS_VEGA12_p(eChipRev) ((eChipRev >= AI_VEGA12_P_A0) && (eChipRev < AI_UNKNOWN))
++#define ASICREV_IS_VEGA12_P(eChipRev) ((eChipRev >= AI_VEGA12_P_A0) && (eChipRev < AI_VEGA20_P_A0))
++#define ASICREV_IS_VEGA20_P(eChipRev) ((eChipRev >= AI_VEGA20_P_A0) && (eChipRev < AI_UNKNOWN))
+ 
+ /* DCN1_0 */
+ #define INTERNAL_REV_RAVEN_A0             0x00    /* First spin of Raven */
+-- 
+2.7.4
+

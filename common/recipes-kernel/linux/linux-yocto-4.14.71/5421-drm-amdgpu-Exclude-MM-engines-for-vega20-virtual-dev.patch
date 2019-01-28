@@ -1,0 +1,35 @@
+From a171659721f2ea8f287043de4aa4395ee4bf6a1d Mon Sep 17 00:00:00 2001
+From: Frank Min <Frank.Min@amd.com>
+Date: Fri, 27 Apr 2018 03:45:50 +0800
+Subject: [PATCH 5421/5725] drm/amdgpu: Exclude MM engines for vega20 virtual
+ device
+
+Temporary disable UVD/VCE block if is virtual device
+
+Signed-off-by: Frank Min <Frank.Min@amd.com>
+Signed-off-by: Xiangliang Yu <Xiangliang.Yu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 3c4f940..2802c39 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -541,8 +541,10 @@ int soc15_set_ip_blocks(struct amdgpu_device *adev)
+ #endif
+ 		amdgpu_device_ip_block_add(adev, &gfx_v9_0_ip_block);
+ 		amdgpu_device_ip_block_add(adev, &sdma_v4_0_ip_block);
+-		amdgpu_device_ip_block_add(adev, &uvd_v7_0_ip_block);
+-		amdgpu_device_ip_block_add(adev, &vce_v4_0_ip_block);
++		if (!(adev->asic_type == CHIP_VEGA20 && amdgpu_sriov_vf(adev))) {
++			amdgpu_device_ip_block_add(adev, &uvd_v7_0_ip_block);
++			amdgpu_device_ip_block_add(adev, &vce_v4_0_ip_block);
++		}
+ 		break;
+ 	case CHIP_RAVEN:
+ 		amdgpu_device_ip_block_add(adev, &vega10_common_ip_block);
+-- 
+2.7.4
+

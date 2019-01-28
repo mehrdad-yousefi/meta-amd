@@ -1,0 +1,44 @@
+From 4803f1ac1eec36fa9441e700badd270a091e19ca Mon Sep 17 00:00:00 2001
+From: Frank Min <Frank.Min@amd.com>
+Date: Fri, 27 Apr 2018 03:44:11 +0800
+Subject: [PATCH 5420/5725] drm/amdgpu: add vega20 sriov capability detection
+
+Add sriov capability detection for vega20, then can check if device is
+virtual device.
+
+Signed-off-by: Frank Min <Frank.Min@amd.com>
+Signed-off-by: Xiangliang Yu <Xiangliang.Yu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/nbio_v7_4.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/nbio_v7_4.c b/drivers/gpu/drm/amd/amdgpu/nbio_v7_4.c
+index 2e65447..f8cee95 100644
+--- a/drivers/gpu/drm/amd/amdgpu/nbio_v7_4.c
++++ b/drivers/gpu/drm/amd/amdgpu/nbio_v7_4.c
+@@ -205,8 +205,19 @@ static const struct nbio_hdp_flush_reg nbio_v7_4_hdp_flush_reg = {
+ 
+ static void nbio_v7_4_detect_hw_virt(struct amdgpu_device *adev)
+ {
+-	if (is_virtual_machine())	/* passthrough mode exclus sriov mod */
+-		adev->virt.caps |= AMDGPU_PASSTHROUGH_MODE;
++	uint32_t reg;
++
++	reg = RREG32_SOC15(NBIO, 0, mmRCC_IOV_FUNC_IDENTIFIER);
++	if (reg & 1)
++		adev->virt.caps |= AMDGPU_SRIOV_CAPS_IS_VF;
++
++	if (reg & 0x80000000)
++		adev->virt.caps |= AMDGPU_SRIOV_CAPS_ENABLE_IOV;
++
++	if (!reg) {
++		if (is_virtual_machine())	/* passthrough mode exclus sriov mod */
++			adev->virt.caps |= AMDGPU_PASSTHROUGH_MODE;
++	}
+ }
+ 
+ static void nbio_v7_4_init_registers(struct amdgpu_device *adev)
+-- 
+2.7.4
+

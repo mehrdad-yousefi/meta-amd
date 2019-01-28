@@ -1,0 +1,63 @@
+From 79a48ac1e9e80d834e2c06415e4c17a8ad5bce76 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 27 Jul 2018 14:55:09 +0800
+Subject: [PATCH 5073/5725] drm/amdgpu: Ctrl gfx off via amdgpu_gfx_off_ctrl
+
+use amdgpu_gfx_off_ctrl function so driver can arbitrate
+whether the gfx ip can be power off or power on.
+
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 6 ++----
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c      | 6 ++----
+ 2 files changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index aa9cc45..5e47f2a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1878,8 +1878,7 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
+ 					  adev->ip_blocks[i].version->funcs->name, r);
+ 				return r;
+ 			}
+-			if (adev->powerplay.pp_funcs->set_powergating_by_smu)
+-				amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, false);
++			amdgpu_gfx_off_ctrl(adev, false);
+ 			r = adev->ip_blocks[i].version->funcs->hw_fini((void *)adev);
+ 			/* XXX handle errors */
+ 			if (r) {
+@@ -2061,8 +2060,7 @@ static int amdgpu_device_ip_suspend_phase2(struct amdgpu_device *adev)
+ 	}
+ 
+ 	/* call smu to disable gfx off feature first when suspend */
+-	if (adev->powerplay.pp_funcs->set_powergating_by_smu)
+-		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, false);
++	amdgpu_gfx_off_ctrl(adev, false);
+ 
+ 	for (i = adev->num_ip_blocks - 1; i >= 0; i--) {
+ 		if (!adev->ip_blocks[i].status.valid)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 670a564..fe751d2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -3788,13 +3788,11 @@ static int gfx_v9_0_set_powergating_state(void *handle,
+ 		gfx_v9_0_update_gfx_mg_power_gating(adev, enable);
+ 
+ 		/* set gfx off through smu */
+-		if (enable && adev->powerplay.pp_funcs->set_powergating_by_smu)
+-			amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, true);
++		amdgpu_gfx_off_ctrl(adev, true);
+ 		break;
+ 	case CHIP_VEGA12:
+ 		/* set gfx off through smu */
+-		if (enable && adev->powerplay.pp_funcs->set_powergating_by_smu)
+-			amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, true);
++		amdgpu_gfx_off_ctrl(adev, true);
+ 		break;
+ 	default:
+ 		break;
+-- 
+2.7.4
+

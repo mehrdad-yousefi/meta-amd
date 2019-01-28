@@ -1,0 +1,44 @@
+From 4d743fca07bda579cb8d41aae3cc8511acfa80f9 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 28 May 2018 08:53:03 +0800
+Subject: [PATCH 4569/5725] drm/amdgpu: correct SMU11 SYSPLL0 clock id values
+
+The SMU11 SYSPLL0 clock ids were assigned wrong values.
+
+Change-Id: I8dfafcce9e4ed6dabb7025a5a822d1135de6cb8a
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/include/atomfirmware.h | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/atomfirmware.h b/drivers/gpu/drm/amd/include/atomfirmware.h
+index c6c1666..092d800 100644
+--- a/drivers/gpu/drm/amd/include/atomfirmware.h
++++ b/drivers/gpu/drm/amd/include/atomfirmware.h
+@@ -2026,17 +2026,15 @@ enum atom_smu11_syspll_id {
+   SMU11_SYSPLL3_1_ID          = 6,
+ };
+ 
+-
+ enum atom_smu11_syspll0_clock_id {
+-  SMU11_SYSPLL0_SOCCLK_ID   = 0,       //	SOCCLK
+-  SMU11_SYSPLL0_MP0CLK_ID   = 1,       //	MP0CLK
+-  SMU11_SYSPLL0_DCLK_ID     = 2,       //	DCLK
+-  SMU11_SYSPLL0_VCLK_ID     = 3,       //	VCLK
+-  SMU11_SYSPLL0_ECLK_ID     = 4,       //	ECLK
++  SMU11_SYSPLL0_ECLK_ID     = 0,       //	ECLK
++  SMU11_SYSPLL0_SOCCLK_ID   = 1,       //	SOCCLK
++  SMU11_SYSPLL0_MP0CLK_ID   = 2,       //	MP0CLK
++  SMU11_SYSPLL0_DCLK_ID     = 3,       //	DCLK
++  SMU11_SYSPLL0_VCLK_ID     = 4,       //	VCLK
+   SMU11_SYSPLL0_DCEFCLK_ID  = 5,       //	DCEFCLK
+ };
+ 
+-
+ enum atom_smu11_syspll1_0_clock_id {
+   SMU11_SYSPLL1_0_UCLKA_ID   = 0,       // UCLK_a
+ };
+-- 
+2.7.4
+

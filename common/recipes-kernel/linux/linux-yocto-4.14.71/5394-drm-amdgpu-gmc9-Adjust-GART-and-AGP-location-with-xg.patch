@@ -1,0 +1,158 @@
+From 0818807c9a7650ed1d8f54f2029aa2b2b300479c Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 19 Jun 2018 16:11:56 -0500
+Subject: [PATCH 5394/5725] drm/amdgpu/gmc9: Adjust GART and AGP location with
+ xgmi offset
+
+On hives with xgmi enabled, the fb_location aperture is a size
+which defines the total framebuffer size of all nodes in the
+hive.  Each GPU in the hive has the same view via the fb_location
+aperture.  GPU0 starts at offset (0 * segment size),
+GPU1 starts at offset (1 * segment size), etc.
+
+For access to local vram on each GPU, we need to take this offset into
+account. This including on setting up GPUVM page table and GART table
+
+Change-Id: I9efd510bed68fdb9afdfbdc76e1046792471ee78
+Acked-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Slava Abramov <slava.abramov@amd.com>
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c  | 20 ++++++++++----------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h  |  8 ++++++++
+ drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c |  3 +++
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c    |  6 ++++++
+ drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c  |  7 +++++++
+ 5 files changed, 34 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+index fec88f6..77907e2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+@@ -147,8 +147,8 @@ void amdgpu_gmc_gart_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc)
+ 	/* VCE doesn't like it when BOs cross a 4GB segment, so align
+ 	 * the GART base on a 4GB boundary as well.
+ 	 */
+-	size_bf = mc->vram_start;
+-	size_af = adev->gmc.mc_mask + 1 - ALIGN(mc->vram_end + 1, four_gb);
++	size_bf = mc->fb_start;
++	size_af = adev->gmc.mc_mask + 1 - ALIGN(mc->fb_end + 1, four_gb);
+ 
+ 	if (mc->gart_size > max(size_bf, size_af)) {
+ 		dev_warn(adev->dev, "limiting GART\n");
+@@ -184,23 +184,23 @@ void amdgpu_gmc_agp_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc)
+ 	const uint64_t sixteen_gb_mask = ~(sixteen_gb - 1);
+ 	u64 size_af, size_bf;
+ 
+-	if (mc->vram_start > mc->gart_start) {
+-		size_bf = (mc->vram_start & sixteen_gb_mask) -
++	if (mc->fb_start > mc->gart_start) {
++		size_bf = (mc->fb_start & sixteen_gb_mask) -
+ 			ALIGN(mc->gart_end + 1, sixteen_gb);
+-		size_af = mc->mc_mask + 1 - ALIGN(mc->vram_end + 1, sixteen_gb);
++		size_af = mc->mc_mask + 1 - ALIGN(mc->fb_end + 1, sixteen_gb);
+ 	} else {
+-		size_bf = mc->vram_start & sixteen_gb_mask;
++		size_bf = mc->fb_start & sixteen_gb_mask;
+ 		size_af = (mc->gart_start & sixteen_gb_mask) -
+-			ALIGN(mc->vram_end + 1, sixteen_gb);
++			ALIGN(mc->fb_end + 1, sixteen_gb);
+ 	}
+ 
+ 	if (size_bf > size_af) {
+-		mc->agp_start = mc->vram_start > mc->gart_start ?
++		mc->agp_start = mc->fb_start > mc->gart_start ?
+ 			mc->gart_end + 1 : 0;
+ 		mc->agp_size = size_bf;
+ 	} else {
+-		mc->agp_start = (mc->vram_start > mc->gart_start ?
+-			mc->vram_end : mc->gart_end) + 1,
++		mc->agp_start = (mc->fb_start > mc->gart_start ?
++			mc->fb_end : mc->gart_end) + 1,
+ 		mc->agp_size = size_af;
+ 	}
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+index ab767aa..491100f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+@@ -114,6 +114,14 @@ struct amdgpu_gmc {
+ 	u64			gart_end;
+ 	u64			vram_start;
+ 	u64			vram_end;
++	/* FB region , it's same as local vram region in single GPU, in XGMI
++	 * configuration, this region covers all GPUs in the same hive ,
++	 * each GPU in the hive has the same view of this FB region .
++	 * GPU0's vram starts at offset (0 * segment size) ,
++	 * GPU1 starts at offset (1 * segment size), etc.
++	 */
++	u64			fb_start;
++	u64			fb_end;
+ 	unsigned		vram_width;
+ 	u64			real_vram_size;
+ 	int			vram_mtrr;
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c
+index d4170cb..5e9ab8e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_1.c
+@@ -44,6 +44,9 @@ int gfxhub_v1_1_get_xgmi_info(struct amdgpu_device *adev)
+ 			REG_GET_FIELD(xgmi_lfb_cntl, MC_VM_XGMI_LFB_CNTL, PF_LFB_REGION);
+ 		if (adev->gmc.xgmi.physical_node_id > 3)
+ 			return -EINVAL;
++		adev->gmc.xgmi.node_segment_size = REG_GET_FIELD(
++			RREG32_SOC15(GC, 0, mmMC_VM_XGMI_LFB_SIZE),
++			MC_VM_XGMI_LFB_SIZE, PF_LFB_SIZE) << 24;
+ 	}
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index de699ea..a0fd3a7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -770,12 +770,18 @@ static void gmc_v9_0_vram_gtt_location(struct amdgpu_device *adev,
+ 	u64 base = 0;
+ 	if (!amdgpu_sriov_vf(adev))
+ 		base = mmhub_v1_0_get_fb_location(adev);
++	/* add the xgmi offset of the physical node */
++	base += adev->gmc.xgmi.physical_node_id * adev->gmc.xgmi.node_segment_size;
+ 	amdgpu_gmc_vram_location(adev, &adev->gmc, base);
+ 	amdgpu_gmc_gart_location(adev, mc);
+ 	if (!amdgpu_sriov_vf(adev))
+ 		amdgpu_gmc_agp_location(adev, mc);
+ 	/* base offset of vram pages */
+ 	adev->vm_manager.vram_base_offset = gfxhub_v1_0_get_mc_fb_offset(adev);
++
++	/* XXX: add the xgmi offset of the physical node? */
++	adev->vm_manager.vram_base_offset +=
++		adev->gmc.xgmi.physical_node_id * adev->gmc.xgmi.node_segment_size;
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+index cca6c1b..14649f8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+@@ -38,10 +38,17 @@
+ u64 mmhub_v1_0_get_fb_location(struct amdgpu_device *adev)
+ {
+ 	u64 base = RREG32_SOC15(MMHUB, 0, mmMC_VM_FB_LOCATION_BASE);
++	u64 top = RREG32_SOC15(MMHUB, 0, mmMC_VM_FB_LOCATION_TOP);
+ 
+ 	base &= MC_VM_FB_LOCATION_BASE__FB_BASE_MASK;
+ 	base <<= 24;
+ 
++	top &= MC_VM_FB_LOCATION_TOP__FB_TOP_MASK;
++	top <<= 24;
++
++	adev->gmc.fb_start = base;
++	adev->gmc.fb_end = top;
++
+ 	return base;
+ }
+ 
+-- 
+2.7.4
+

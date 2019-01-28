@@ -1,0 +1,36 @@
+From 9fde38ed94d85441a2aa4848d2d6b79103b17d07 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Mon, 20 Aug 2018 20:19:18 +0800
+Subject: [PATCH 5187/5725] drm/amdgpu: Fix compile warning
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+In function ‘gfx_v9_0_check_fw_write_wait’:
+warning: enumeration value ‘CHIP_TAHITI’ not handled in switch [-Wswitch]
+
+Always add default case in case there is no match
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 7a95547..29a7727 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -532,6 +532,8 @@ static void gfx_v9_0_check_fw_write_wait(struct amdgpu_device *adev)
+ 		    (adev->gfx.mec_feature_version >= 42))
+ 			adev->gfx.mec_fw_write_wait = true;
+ 		break;
++	default:
++		break;
+ 	}
+ }
+ 
+-- 
+2.7.4
+

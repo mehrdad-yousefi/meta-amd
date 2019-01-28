@@ -1,0 +1,30 @@
+From 8f0f9d21c529385b3f2bf3e85df28f920d7204fb Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Thu, 24 May 2018 15:36:57 +0800
+Subject: [PATCH 4576/5725] drm/gfx9: Update gc goldensetting for vega20.
+
+Update mmCB_DCC_CONFIG register goldensetting.
+
+Change-Id: I45082847c55cc49b1f829f939a0aaac3b0024fb0
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index dcb916b..ea348fe 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -111,6 +111,7 @@ static const struct soc15_reg_golden golden_settings_gc_9_0_vg10[] =
+ 
+ static const struct soc15_reg_golden golden_settings_gc_9_0_vg20[] =
+ {
++	SOC15_REG_GOLDEN_VALUE(GC, 0, mmCB_DCC_CONFIG, 0x0f000080, 0x04000080),
+ 	SOC15_REG_GOLDEN_VALUE(GC, 0, mmCB_HW_CONTROL_2, 0x0f000000, 0x0a000000),
+ 	SOC15_REG_GOLDEN_VALUE(GC, 0, mmCB_HW_CONTROL_3, 0x30000000, 0x10000000),
+ 	SOC15_REG_GOLDEN_VALUE(GC, 0, mmGB_ADDR_CONFIG, 0xf3e777ff, 0x22014042),
+-- 
+2.7.4
+

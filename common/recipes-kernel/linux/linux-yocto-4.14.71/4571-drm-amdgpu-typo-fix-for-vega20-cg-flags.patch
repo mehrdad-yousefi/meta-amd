@@ -1,0 +1,31 @@
+From 89443406b49146529f203d3e4598d406689f3081 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 28 May 2018 09:22:09 +0800
+Subject: [PATCH 4571/5725] drm/amdgpu: typo fix for vega20 cg flags
+
+The AMD_CG_SUPPORT_HDP_LS was wrongly written as
+AMD_CG_SUPPORT_BIF_LS.
+
+Change-Id: If807cc3e9e9e10f8b132095c0a7b537be6285107
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 9a7a85d..83f2717 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -685,7 +685,7 @@ static int soc15_common_early_init(void *handle)
+ 			AMD_CG_SUPPORT_BIF_MGCG |
+ 			AMD_CG_SUPPORT_BIF_LS |
+ 			AMD_CG_SUPPORT_HDP_MGCG |
+-			AMD_CG_SUPPORT_BIF_LS |
++			AMD_CG_SUPPORT_HDP_LS |
+ 			AMD_CG_SUPPORT_ROM_MGCG |
+ 			AMD_CG_SUPPORT_VCE_MGCG |
+ 			AMD_CG_SUPPORT_UVD_MGCG;
+-- 
+2.7.4
+

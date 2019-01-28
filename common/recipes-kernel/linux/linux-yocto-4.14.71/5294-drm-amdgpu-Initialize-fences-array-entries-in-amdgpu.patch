@@ -1,0 +1,50 @@
+From 73876fe5946f2a57a091d3b22b9f36793df7e08c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Wed, 12 Sep 2018 18:07:10 +0200
+Subject: [PATCH 5294/5725] drm/amdgpu:Initialize fences array entries in
+ amdgpu_sa
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The entries were only initialized once in amdgpu_sa_bo_new. If a fence
+wasn't signalled yet in the first amdgpu_sa_bo_next_hole call, but then
+got signalled before a later amdgpu_sa_bo_next_hole call, it could
+destroy the fence but leave its pointer in the array, resulting in
+use-after-free in amdgpu_sa_bo_new.
+
+Change-Id: I8f60093cc0362f9726cf152f9f0431b785da743e
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_sa.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_sa.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_sa.c
+index fb1667b..12f2bf9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_sa.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_sa.c
+@@ -226,6 +226,8 @@ static bool amdgpu_sa_bo_next_hole(struct amdgpu_sa_manager *sa_manager,
+ 	for (i = 0; i < AMDGPU_SA_NUM_FENCE_LISTS; ++i) {
+ 		struct amdgpu_sa_bo *sa_bo;
+ 
++		fences[i] = NULL;
++
+ 		if (list_empty(&sa_manager->flist[i]))
+ 			continue;
+ 
+@@ -296,10 +298,8 @@ int amdgpu_sa_bo_new(struct amdgpu_sa_manager *sa_manager,
+ 
+ 	spin_lock(&sa_manager->wq.lock);
+ 	do {
+-		for (i = 0; i < AMDGPU_SA_NUM_FENCE_LISTS; ++i) {
+-			fences[i] = NULL;
++		for (i = 0; i < AMDGPU_SA_NUM_FENCE_LISTS; ++i)
+ 			tries[i] = 0;
+-		}
+ 
+ 		do {
+ 			amdgpu_sa_bo_try_free(sa_manager);
+-- 
+2.7.4
+

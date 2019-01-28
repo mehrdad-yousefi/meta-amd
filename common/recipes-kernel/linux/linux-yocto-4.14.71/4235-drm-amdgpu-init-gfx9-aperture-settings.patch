@@ -1,0 +1,46 @@
+From 99f97e7738d66b731a0a61143ceb13449ac676a5 Mon Sep 17 00:00:00 2001
+From: Flora Cui <Flora.Cui@amd.com>
+Date: Wed, 18 Apr 2018 17:12:19 +0800
+Subject: [PATCH 4235/5725] drm/amdgpu: init gfx9 aperture settings
+
+Change-Id: Ie5683816e21d1dbf9b4f84f05ecbe056a321f06c
+Signed-off-by: Flora Cui <Flora.Cui@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 5 ++++-
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 3 +--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index cf1d206..6105d81 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1692,7 +1692,10 @@ static void gfx_v9_0_gpu_init(struct amdgpu_device *adev)
+ 			tmp = REG_SET_FIELD(0, SH_MEM_CONFIG, ALIGNMENT_MODE,
+ 					    SH_MEM_ALIGNMENT_MODE_UNALIGNED);
+ 			WREG32_SOC15(GC, 0, mmSH_MEM_CONFIG, tmp);
+-			tmp = adev->gmc.shared_aperture_start >> 48;
++			tmp = REG_SET_FIELD(0, SH_MEM_BASES, PRIVATE_BASE,
++				(adev->gmc.private_aperture_start >> 48));
++			tmp = REG_SET_FIELD(tmp, SH_MEM_BASES, SHARED_BASE,
++				(adev->gmc.shared_aperture_start >> 48));
+ 			WREG32_SOC15(GC, 0, mmSH_MEM_BASES, tmp);
+ 		}
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index b05fe26..108e06f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -561,8 +561,7 @@ static int gmc_v9_0_early_init(void *handle)
+ 	adev->gmc.shared_aperture_start = 0x2000000000000000ULL;
+ 	adev->gmc.shared_aperture_end =
+ 		adev->gmc.shared_aperture_start + (4ULL << 30) - 1;
+-	adev->gmc.private_aperture_start =
+-		adev->gmc.shared_aperture_end + 1;
++	adev->gmc.private_aperture_start = 0x1000000000000000ULL;
+ 	adev->gmc.private_aperture_end =
+ 		adev->gmc.private_aperture_start + (4ULL << 30) - 1;
+ 
+-- 
+2.7.4
+

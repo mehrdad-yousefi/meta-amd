@@ -1,0 +1,101 @@
+From a160c837bad29921ed01997b5cfec89ef399f7a3 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Wed, 13 Jun 2018 16:01:38 -0400
+Subject: [PATCH 4730/5725] drm/amdgpu: Update function level documentation for
+ GPUVM.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add documentation for missed parameters.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 9d4dfb2..b1586a7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -337,6 +337,7 @@ bool amdgpu_vm_ready(struct amdgpu_vm *vm)
+  * @vm: VM to clear BO from
+  * @bo: BO to clear
+  * @level: level this BO is at
++ * @pte_support_ats: indicate ATS support from PTE
+  *
+  * Root PD needs to be reserved when calling this.
+  *
+@@ -663,6 +664,7 @@ bool amdgpu_vm_need_pipeline_sync(struct amdgpu_ring *ring,
+  * amdgpu_vm_flush - hardware flush the vm
+  *
+  * @ring: ring to use for flush
++ * @job:  related job
+  * @need_pipe_sync: is pipe sync needed
+  *
+  * Emit a VM flush when it is necessary.
+@@ -1780,6 +1782,7 @@ static void amdgpu_vm_prt_put(struct amdgpu_device *adev)
+  * amdgpu_vm_prt_cb - callback for updating the PRT status
+  *
+  * @fence: fence for the callback
++ * @_cb: the callback function
+  */
+ static void amdgpu_vm_prt_cb(struct dma_fence *fence, struct dma_fence_cb *_cb)
+ {
+@@ -2058,6 +2061,7 @@ static void amdgpu_vm_bo_insert_map(struct amdgpu_device *adev,
+  * @bo_va: bo_va to store the address
+  * @saddr: where to map the BO
+  * @offset: requested offset in the BO
++ * @size: BO size in bytes
+  * @flags: attributes of pages (read/write/valid/etc.)
+  *
+  * Add a mapping of the BO at the specefied addr into the VM.
+@@ -2121,6 +2125,7 @@ int amdgpu_vm_bo_map(struct amdgpu_device *adev,
+  * @bo_va: bo_va to store the address
+  * @saddr: where to map the BO
+  * @offset: requested offset in the BO
++ * @size: BO size in bytes
+  * @flags: attributes of pages (read/write/valid/etc.)
+  *
+  * Add a mapping of the BO at the specefied addr into the VM. Replace existing
+@@ -2339,6 +2344,7 @@ int amdgpu_vm_bo_clear_mappings(struct amdgpu_device *adev,
+  * amdgpu_vm_bo_lookup_mapping - find mapping by address
+  *
+  * @vm: the requested VM
++ * @addr: the address
+  *
+  * Find a mapping by it's address.
+  *
+@@ -2397,6 +2403,7 @@ void amdgpu_vm_bo_rmv(struct amdgpu_device *adev,
+  *
+  * @adev: amdgpu_device pointer
+  * @bo: amdgpu buffer object
++ * @evicted: is the BO evicted
+  *
+  * Mark @bo as invalid.
+  */
+@@ -2462,6 +2469,10 @@ static uint32_t amdgpu_vm_get_block_size(uint64_t vm_size)
+  *
+  * @adev: amdgpu_device pointer
+  * @vm_size: the default vm size if it's set auto
++ * @fragment_size_default: Default PTE fragment size
++ * @max_level: max VMPT level
++ * @max_bits: max address space size in bits
++ *
+  */
+ void amdgpu_vm_adjust_size(struct amdgpu_device *adev, uint32_t vm_size,
+ 			   uint32_t fragment_size_default, unsigned max_level,
+@@ -2547,6 +2558,7 @@ static void amdgpu_inc_compute_vms(struct amdgpu_device *adev)
+  * @adev: amdgpu_device pointer
+  * @vm: requested vm
+  * @vm_context: Indicates if it GFX or Compute context
++ * @pasid: Process address space identifier
+  *
+  * Init @vm fields.
+  *
+-- 
+2.7.4
+

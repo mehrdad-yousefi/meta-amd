@@ -1,0 +1,47 @@
+From 2f624615743214a059c25bde1525daac702c88d0 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 19 Mar 2018 16:01:16 -0400
+Subject: [PATCH 4148/5725] drm/amdkfd: Take reference to gtt->usertask
+
+Theoretically the task struct can be destroyed before the BO. Use
+the task_struct's reference count to prevent that.
+
+Change-Id: I20f0c42c8f521347bc93987d0703db1f07696000
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 71a5c67..6c81f2d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1024,6 +1024,9 @@ static void amdgpu_ttm_backend_destroy(struct ttm_tt *ttm)
+ {
+ 	struct amdgpu_ttm_tt *gtt = (void *)ttm;
+ 	
++	if (gtt->usertask)
++		put_task_struct(gtt->usertask);
++
+ 	ttm_dma_tt_fini(&gtt->ttm);
+ 	kfree(gtt);
+ }
+@@ -1112,8 +1115,13 @@ int amdgpu_ttm_tt_set_userptr(struct ttm_tt *ttm, uint64_t addr,
+ 		return -EINVAL;
+ 
+ 	gtt->userptr = addr;
+-	gtt->usertask = current->group_leader;
+ 	gtt->userflags = flags;
++
++	if (gtt->usertask)
++		put_task_struct(gtt->usertask);
++	gtt->usertask = current->group_leader;
++	get_task_struct(gtt->usertask);
++
+ 	spin_lock_init(&gtt->guptasklock);
+ 	INIT_LIST_HEAD(&gtt->guptasks);
+ 	atomic_set(&gtt->mmu_invalidations, 0);
+-- 
+2.7.4
+

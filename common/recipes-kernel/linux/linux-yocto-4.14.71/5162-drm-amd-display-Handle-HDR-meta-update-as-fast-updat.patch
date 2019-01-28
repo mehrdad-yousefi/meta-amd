@@ -1,0 +1,61 @@
+From 79acfc05bf1bb97415f8d2fba64d137ff74c21a5 Mon Sep 17 00:00:00 2001
+From: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Date: Thu, 5 Jul 2018 19:23:17 -0400
+Subject: [PATCH 5162/5725] drm/amd/display: Handle HDR meta update as fast
+ update
+
+[Why]
+Vesa DPMS tool sends different HDR meta in OS flips without changing output
+parameters. We don't properly update HDR info frame:
+- we label HDR meta update as fast update
+- when updating HW info frame, we only do it if full update
+
+[How]
+It should still be fast update, so when doing HW infoframe update,
+do it always no matter the update type.
+Also, don't request passive flip for HDR meta update only without output
+transfer function or color space changed.
+
+Signed-off-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index e484676..5b079dc 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1372,6 +1372,13 @@ static void commit_planes_do_stream_update(struct dc *dc,
+ 					pipe_ctx->stream_res.tg, &pipe_ctx->stream->timing,
+ 					pipe_ctx->stream->periodic_fn_vsync_delta);
+ 
++			if (stream_update->hdr_static_metadata ||
++					stream_update->vrr_infopacket ||
++					stream_update->vsc_infopacket) {
++				resource_build_info_frame(pipe_ctx);
++				dc->hwss.update_info_frame(pipe_ctx);
++			}
++
+ 			/* Full fe update*/
+ 			if (update_type == UPDATE_TYPE_FAST)
+ 				continue;
+@@ -1398,13 +1405,6 @@ static void commit_planes_do_stream_update(struct dc *dc,
+ 					pipe_ctx->stream_res.abm->funcs->set_abm_level(
+ 						pipe_ctx->stream_res.abm, stream->abm_level);
+ 			}
+-
+-			if (stream_update->hdr_static_metadata ||
+-				stream_update->vrr_infopacket ||
+-				stream_update->vsc_infopacket) {
+-				resource_build_info_frame(pipe_ctx);
+-				dc->hwss.update_info_frame(pipe_ctx);
+-			}
+ 		}
+ 	}
+ }
+-- 
+2.7.4
+

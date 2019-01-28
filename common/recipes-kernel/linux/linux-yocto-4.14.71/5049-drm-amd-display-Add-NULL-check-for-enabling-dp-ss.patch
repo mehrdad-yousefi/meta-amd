@@ -1,0 +1,41 @@
+From ae6eac5a2e26cc7cf02a4e00c7e7917bccd0c8a2 Mon Sep 17 00:00:00 2001
+From: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Date: Mon, 30 Jul 2018 12:27:23 -0400
+Subject: [PATCH 5049/5725] drm/amd/display: Add NULL check for enabling dp ss
+
+[Why]
+
+The pointer for integrated_info can be NULL which causes the system to
+do a null pointer deference and hang on boot.
+
+[How]
+
+Add a check to ensure that integrated_info is not null before enabling
+DP ss.
+
+Signed-off-by: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Reviewed-by: Sun peng Li <Sunpeng.Li@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index 574c041..c3ca109 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -1038,7 +1038,9 @@ static bool construct(
+ 	link->link_index = init_params->link_index;
+ 
+ 	link->link_id = bios->funcs->get_connector_id(bios, init_params->connector_index);
+-	link->dp_ss_off = !!dc_ctx->dc_bios->integrated_info->dp_ss_control;;
++
++	if (dc_ctx->dc_bios->integrated_info)
++		link->dp_ss_off = !!dc_ctx->dc_bios->integrated_info->dp_ss_control;
+ 
+ 	if (link->link_id.type != OBJECT_TYPE_CONNECTOR) {
+ 		dm_error("%s: Invalid Connector ObjectID from Adapter Service for connector index:%d! type %d expected %d\n",
+-- 
+2.7.4
+

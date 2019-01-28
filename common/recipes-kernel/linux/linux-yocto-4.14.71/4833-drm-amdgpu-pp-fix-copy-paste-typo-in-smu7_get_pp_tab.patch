@@ -1,0 +1,30 @@
+From 873c5af13ff23d36f1f665d054efb03004cb8617 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 28 Jun 2018 13:21:12 -0500
+Subject: [PATCH 4833/5725] drm/amdgpu/pp: fix copy paste typo in
+ smu7_get_pp_table_entry_callback_func_v1
+
+Should be using PCIELaneLow for the low clock level.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index 5bd6d51..b57a5df 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -3182,7 +3182,7 @@ static int smu7_get_pp_table_entry_callback_func_v1(struct pp_hwmgr *hwmgr,
+ 	performance_level->pcie_gen = get_pcie_gen_support(data->pcie_gen_cap,
+ 			state_entry->ucPCIEGenLow);
+ 	performance_level->pcie_lane = get_pcie_lane_support(data->pcie_lane_cap,
+-			state_entry->ucPCIELaneHigh);
++			state_entry->ucPCIELaneLow);
+ 
+ 	performance_level = &(smu7_power_state->performance_levels
+ 			[smu7_power_state->performance_level_count++]);
+-- 
+2.7.4
+

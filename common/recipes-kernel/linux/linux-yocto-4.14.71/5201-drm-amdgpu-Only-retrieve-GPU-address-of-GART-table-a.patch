@@ -1,0 +1,94 @@
+From 58db932768acc6ef8a9e52d499d67024b80d54a2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Tue, 28 Aug 2018 11:26:17 +0200
+Subject: [PATCH 5201/5725] drm/amdgpu: Only retrieve GPU address of GART table
+ after pinning it
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Doing it earlier hits a WARN_ON_ONCE in amdgpu_bo_gpu_offset.
+
+Fixes: "drm/amdgpu: remove gart.table_addr"
+
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c | 5 ++++-
+ drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c | 5 ++++-
+ drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c | 5 ++++-
+ 3 files changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+index ff045df..3ed83ae 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+@@ -493,7 +493,7 @@ static void gmc_v6_0_set_prt(struct amdgpu_device *adev, bool enable)
+ 
+ static int gmc_v6_0_gart_enable(struct amdgpu_device *adev)
+ {
+-	uint64_t table_addr = amdgpu_bo_gpu_offset(adev->gart.bo);
++	uint64_t table_addr;
+ 	int r, i;
+ 	u32 field;
+ 
+@@ -504,6 +504,9 @@ static int gmc_v6_0_gart_enable(struct amdgpu_device *adev)
+ 	r = amdgpu_gart_table_vram_pin(adev);
+ 	if (r)
+ 		return r;
++
++	table_addr = amdgpu_bo_gpu_offset(adev->gart.bo);
++
+ 	/* Setup TLB control */
+ 	WREG32(mmMC_VM_MX_L1_TLB_CNTL,
+ 	       (0xA << 7) |
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+index 9276792..e3d6ff1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+@@ -604,7 +604,7 @@ static void gmc_v7_0_set_prt(struct amdgpu_device *adev, bool enable)
+  */
+ static int gmc_v7_0_gart_enable(struct amdgpu_device *adev)
+ {
+-	uint64_t table_addr = amdgpu_bo_gpu_offset(adev->gart.bo);
++	uint64_t table_addr;
+ 	int r, i;
+ 	u32 tmp, field;
+ 
+@@ -615,6 +615,9 @@ static int gmc_v7_0_gart_enable(struct amdgpu_device *adev)
+ 	r = amdgpu_gart_table_vram_pin(adev);
+ 	if (r)
+ 		return r;
++
++	table_addr = amdgpu_bo_gpu_offset(adev->gart.bo);
++
+ 	/* Setup TLB control */
+ 	tmp = RREG32(mmMC_VM_MX_L1_TLB_CNTL);
+ 	tmp = REG_SET_FIELD(tmp, MC_VM_MX_L1_TLB_CNTL, ENABLE_L1_TLB, 1);
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+index 5073b76..7006eb4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+@@ -810,7 +810,7 @@ static void gmc_v8_0_set_prt(struct amdgpu_device *adev, bool enable)
+  */
+ static int gmc_v8_0_gart_enable(struct amdgpu_device *adev)
+ {
+-	uint64_t table_addr = amdgpu_bo_gpu_offset(adev->gart.bo);
++	uint64_t table_addr;
+ 	int r, i;
+ 	u32 tmp, field;
+ 
+@@ -821,6 +821,9 @@ static int gmc_v8_0_gart_enable(struct amdgpu_device *adev)
+ 	r = amdgpu_gart_table_vram_pin(adev);
+ 	if (r)
+ 		return r;
++
++	table_addr = amdgpu_bo_gpu_offset(adev->gart.bo);
++
+ 	/* Setup TLB control */
+ 	tmp = RREG32(mmMC_VM_MX_L1_TLB_CNTL);
+ 	tmp = REG_SET_FIELD(tmp, MC_VM_MX_L1_TLB_CNTL, ENABLE_L1_TLB, 1);
+-- 
+2.7.4
+

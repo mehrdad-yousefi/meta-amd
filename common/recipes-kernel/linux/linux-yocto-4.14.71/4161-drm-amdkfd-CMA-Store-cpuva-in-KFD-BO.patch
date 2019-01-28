@@ -1,0 +1,120 @@
+From e29e43c08389af65610f248759519ba7f2b8b325 Mon Sep 17 00:00:00 2001
+From: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+Date: Thu, 22 Mar 2018 17:43:59 -0400
+Subject: [PATCH 4161/5725] drm/amdkfd: CMA: Store cpuva in KFD BO
+
+For userptr BOs store cpu VA in KFD BO. This is needed for supporting
+CMA operations on userptr
+
+Change-Id: I95e96f487fbc64957ceaf3f2875bd773d2bf9970
+Signed-off-by: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 10 +++++++++-
+ drivers/gpu/drm/amd/amdkfd/kfd_ipc.c     |  2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h    |  4 +++-
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c |  5 +++--
+ 4 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index ebb862b..ef1bd27 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1246,6 +1246,7 @@ static int kfd_ioctl_alloc_memory_of_gpu(struct file *filep,
+ 	uint64_t offset = args->mmap_offset;
+ 	uint32_t flags = args->flags;
+ 	struct vm_area_struct *vma;
++	uint64_t cpuva = 0;
+ 
+ 	if (args->size == 0)
+ 		return -EINVAL;
+@@ -1275,6 +1276,13 @@ static int kfd_ioctl_alloc_memory_of_gpu(struct file *filep,
+ 			flags |= KFD_IOC_ALLOC_MEM_FLAGS_DOORBELL;
+ 			flags &= ~KFD_IOC_ALLOC_MEM_FLAGS_USERPTR;
+ 			offset = (pfn << PAGE_SHIFT);
++		} else {
++			if (offset & (PAGE_SIZE - 1)) {
++				pr_debug("Unaligned userptr address:%llx\n",
++					 offset);
++				return -EINVAL;
++			}
++			cpuva = offset;
+ 		}
+ 	} else if (flags & KFD_IOC_ALLOC_MEM_FLAGS_DOORBELL) {
+ 		if (args->size != kfd_doorbell_process_slice(dev))
+@@ -1299,7 +1307,7 @@ static int kfd_ioctl_alloc_memory_of_gpu(struct file *filep,
+ 		goto err_unlock;
+ 
+ 	idr_handle = kfd_process_device_create_obj_handle(pdd, mem,
+-			args->va_addr, args->size, NULL);
++			args->va_addr, args->size, cpuva, NULL);
+ 	if (idr_handle < 0) {
+ 		err = -EFAULT;
+ 		goto err_free;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_ipc.c b/drivers/gpu/drm/amd/amdkfd/kfd_ipc.c
+index 97806ed..845dbf7 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_ipc.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_ipc.c
+@@ -140,7 +140,7 @@ static int kfd_import_dmabuf_create_kfd_bo(struct kfd_dev *dev,
+ 		goto err_unlock;
+ 
+ 	idr_handle = kfd_process_device_create_obj_handle(pdd, mem,
+-							  va_addr, size,
++							  va_addr, size, 0,
+ 							  ipc_obj);
+ 	if (idr_handle < 0) {
+ 		r = -EFAULT;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index da61ae8..facd9d9 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -301,6 +301,8 @@ struct kfd_bo {
+ 	struct kfd_dev *dev;
+ 	struct list_head cb_data_head;
+ 	struct kfd_ipc_obj *kfd_ipc_obj;
++	/* page-aligned VA address */
++	uint64_t cpuva;
+ };
+ 
+ /* Similar to iov_iter */
+@@ -801,7 +803,7 @@ int kfd_reserved_mem_mmap(struct kfd_process *process,
+ /* KFD process API for creating and translating handles */
+ int kfd_process_device_create_obj_handle(struct kfd_process_device *pdd,
+ 					void *mem, uint64_t start,
+-					uint64_t length,
++					uint64_t length, uint64_t cpuva,
+ 					struct kfd_ipc_obj *ipc_obj);
+ void *kfd_process_device_translate_handle(struct kfd_process_device *p,
+ 					int handle);
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index c627b63..5c6f124 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -140,7 +140,7 @@ static int kfd_process_alloc_gpuvm(struct kfd_process_device *pdd,
+ 	 * created and the ioctls have not had the chance to run.
+ 	 */
+ 	handle = kfd_process_device_create_obj_handle(
+-			pdd, mem, gpu_va, size, NULL);
++			pdd, mem, gpu_va, size, 0, NULL);
+ 
+ 	if (handle < 0) {
+ 		err = handle;
+@@ -806,7 +806,7 @@ bool kfd_has_process_device_data(struct kfd_process *p)
+  */
+ int kfd_process_device_create_obj_handle(struct kfd_process_device *pdd,
+ 					void *mem, uint64_t start,
+-					uint64_t length,
++					uint64_t length, uint64_t cpuva,
+ 					struct kfd_ipc_obj *ipc_obj)
+ {
+ 	int handle;
+@@ -827,6 +827,7 @@ int kfd_process_device_create_obj_handle(struct kfd_process_device *pdd,
+ 	buf_obj->mem = mem;
+ 	buf_obj->dev = pdd->dev;
+ 	buf_obj->kfd_ipc_obj = ipc_obj;
++	buf_obj->cpuva = cpuva;
+ 
+ 	INIT_LIST_HEAD(&buf_obj->cb_data_head);
+ 
+-- 
+2.7.4
+

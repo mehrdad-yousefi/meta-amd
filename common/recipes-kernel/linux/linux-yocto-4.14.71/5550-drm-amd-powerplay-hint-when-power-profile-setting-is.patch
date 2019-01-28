@@ -1,0 +1,39 @@
+From be628927eb7def6162fbc201756acecfbe269c74 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Wed, 10 Oct 2018 15:24:59 +0800
+Subject: [PATCH 5550/5725] drm/amd/powerplay: hint when power profile setting
+ is not supported
+
+Give user some hints when the power profile setting is not supported.
+
+Change-Id: Iba2b938d02a039ccdee32f9aca185f79fd818796
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index f2cb6e1..d6f2e05 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -904,9 +904,14 @@ static int pp_set_power_profile_mode(void *handle, long *input, uint32_t size)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return ret;
+ 	}
++
++	if (hwmgr->dpm_level != AMD_DPM_FORCED_LEVEL_MANUAL) {
++		pr_info("power profile setting is for manual dpm mode only.\n");
++		return ret;
++	}
++
+ 	mutex_lock(&hwmgr->smu_lock);
+-	if (hwmgr->dpm_level == AMD_DPM_FORCED_LEVEL_MANUAL)
+-		ret = hwmgr->hwmgr_func->set_power_profile_mode(hwmgr, input, size);
++	ret = hwmgr->hwmgr_func->set_power_profile_mode(hwmgr, input, size);
+ 	mutex_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+-- 
+2.7.4
+

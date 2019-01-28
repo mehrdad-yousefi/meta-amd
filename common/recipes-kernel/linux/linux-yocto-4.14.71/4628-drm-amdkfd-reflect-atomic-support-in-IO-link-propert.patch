@@ -1,0 +1,118 @@
+From cd0f8fd132a5e81d8443e95e60ec8acf93c1fdf4 Mon Sep 17 00:00:00 2001
+From: Eric Huang <JinHuiEric.Huang@amd.com>
+Date: Mon, 4 Jun 2018 15:22:24 -0400
+Subject: [PATCH 4628/5725] drm/amdkfd: reflect atomic support in IO link
+ properties
+
+Add the flags of properties according to Asic type and pcie
+capabilities.
+
+BUG: KFD-386
+
+Change-Id: I64c670d86c6a3992203948547eb87c5466662dfc
+Signed-off-by: Eric Huang <JinHuiEric.Huang@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c   | 12 ++++++-----
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h     |  2 ++
+ drivers/gpu/drm/amd/amdkfd/kfd_topology.c | 35 +++++++++++++++++++++++++------
+ 3 files changed, 38 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index a5b0e20..10095087 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -400,6 +400,10 @@ struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd,
+ 		dev_err(kfd_device, "kgd2kfd_probe failed\n");
+ 		return NULL;
+ 	}
++	
++	kfd = kzalloc(sizeof(*kfd), GFP_KERNEL);
++	if (!kfd)
++		return NULL;
+ 
+ 	/* Allow BIF to recode atomics to PCIe 3.0 AtomicOps.
+ 	* 32 and 64-bit requests are possible and must be
+@@ -412,12 +416,10 @@ struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd,
+ 		dev_info(kfd_device,
+ 			"skipped device %x:%x, PCI rejects atomics",
+ 			pdev->vendor, pdev->device);
++		kfree(kfd);
+ 		return NULL;
+-	}
+-
+-	kfd = kzalloc(sizeof(*kfd), GFP_KERNEL);
+-	if (!kfd)
+-		return NULL;
++	} else if (!ret)
++		kfd->pci_atomic_requested = true;
+ 
+ 	kfd->kgd = kgd;
+ 	kfd->device_info = device_info;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 7e55085..7869a9d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -294,6 +294,8 @@ struct kfd_dev {
+ 	bool cwsr_enabled;
+ 	const void *cwsr_isa;
+ 	unsigned int cwsr_isa_size;
++
++	bool pci_atomic_requested;
+ };
+ 
+ struct kfd_ipc_obj;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_topology.c b/drivers/gpu/drm/amd/amdkfd/kfd_topology.c
+index 4fe5ebc..7702156 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_topology.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_topology.c
+@@ -1182,17 +1182,40 @@ static void kfd_fill_mem_clk_max_info(struct kfd_topology_device *dev)
+ 
+ static void kfd_fill_iolink_non_crat_info(struct kfd_topology_device *dev)
+ {
+-	struct kfd_iolink_properties *link;
++	struct kfd_iolink_properties *link, *cpu_link;
++	struct kfd_topology_device *cpu_dev;
++	uint32_t cap;
++	uint32_t cpu_flag = CRAT_IOLINK_FLAGS_ENABLED;
++	uint32_t flag = CRAT_IOLINK_FLAGS_ENABLED;
+ 
+ 	if (!dev || !dev->gpu)
+ 		return;
+ 
+-	/* GPU only creates direck links so apply flags setting to all */
+-	if (dev->gpu->device_info->asic_family == CHIP_HAWAII)
+-		list_for_each_entry(link, &dev->io_link_props, list)
+-			link->flags = CRAT_IOLINK_FLAGS_ENABLED |
+-				CRAT_IOLINK_FLAGS_NO_ATOMICS_32_BIT |
++	pcie_capability_read_dword(dev->gpu->pdev,
++			PCI_EXP_DEVCAP2, &cap);
++
++	if (!(cap & (PCI_EXP_DEVCAP2_ATOMIC_COMP32 |
++			PCI_EXP_DEVCAP2_ATOMIC_COMP64)))
++		cpu_flag |= CRAT_IOLINK_FLAGS_NO_ATOMICS_32_BIT |
++			CRAT_IOLINK_FLAGS_NO_ATOMICS_64_BIT;
++
++	if (!dev->gpu->pci_atomic_requested ||
++		dev->gpu->device_info->asic_family == CHIP_HAWAII)
++			flag |= CRAT_IOLINK_FLAGS_NO_ATOMICS_32_BIT |
+ 				CRAT_IOLINK_FLAGS_NO_ATOMICS_64_BIT;
++
++	/* GPU only creates direct links so apply flags setting to all */
++	list_for_each_entry(link, &dev->io_link_props, list) {
++		link->flags = flag;
++		cpu_dev = kfd_topology_device_by_proximity_domain(
++				link->node_to);
++		if (cpu_dev) {
++			list_for_each_entry(cpu_link,
++					&cpu_dev->io_link_props, list)
++				if (cpu_link->node_to == link->node_from)
++					cpu_link->flags = cpu_flag;
++		}
++	}
+ }
+ 
+ int kfd_topology_add_device(struct kfd_dev *gpu)
+-- 
+2.7.4
+

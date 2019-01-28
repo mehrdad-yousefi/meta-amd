@@ -1,0 +1,29 @@
+From caa221576a5d12a0d7a25ecd50c44e7e0b80b77f Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 17 May 2018 11:13:51 +0800
+Subject: [PATCH 4501/5725] drm/amdgpu: Enable VCN CG by default on RV
+
+Change-Id: I75fb989aadfb0c5a56108615d75320d1cc8a368e
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 8ccbcf9..485cb43 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -711,7 +711,8 @@ static int soc15_common_early_init(void *handle)
+ 			AMD_CG_SUPPORT_MC_MGCG |
+ 			AMD_CG_SUPPORT_MC_LS |
+ 			AMD_CG_SUPPORT_SDMA_MGCG |
+-			AMD_CG_SUPPORT_SDMA_LS;
++			AMD_CG_SUPPORT_SDMA_LS |
++			AMD_CG_SUPPORT_VCN_MGCG;
+ 		adev->pg_flags = AMD_PG_SUPPORT_SDMA;
+ 
+ 		if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
+-- 
+2.7.4
+

@@ -1,0 +1,511 @@
+From 225d8edc0aab6d021b23055e645c496c78a2ebb4 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 13 Sep 2018 15:41:57 -0500
+Subject: [PATCH 5296/5725] drm/amdgpu: simplify Raven, Raven2, and Picasso
+ handling
+
+Treat them all as Raven rather than adding a new picasso
+asic type.  This simplifies a lot of code and also handles the
+case of rv2 chips with the 0x15d8 pci id.  It also fixes dmcu
+fw handling for picasso.
+
+Acked-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c |  9 ++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c    |  3 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c  |  1 -
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c    |  7 ++--
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c      | 32 +++------------
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c      |  4 --
+ drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c    | 11 +++--
+ drivers/gpu/drm/amd/amdgpu/psp_v10_0.c     |  2 +
+ drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c     | 11 ++---
+ drivers/gpu/drm/amd/amdgpu/soc15.c         | 66 ++++++++++++++----------------
+ 10 files changed, 52 insertions(+), 94 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index cb8cd32..4701240 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -91,7 +91,6 @@ static const char *amdgpu_asic_name[] = {
+ 	"VEGA12",
+ 	"VEGA20",
+ 	"RAVEN",
+-	"PICASSO",
+ 	"LAST",
+ };
+ 
+@@ -1387,12 +1386,11 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
+ 	case CHIP_RAVEN:
+ 		if (adev->rev_id >= 8)
+ 			chip_name = "raven2";
++		else if (adev->pdev->device == 0x15d8)
++			chip_name = "picasso";
+ 		else
+ 			chip_name = "raven";
+ 		break;
+-	case CHIP_PICASSO:
+-		chip_name = "picasso";
+-		break;
+ 	}
+ 
+ 	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_gpu_info.bin", chip_name);
+@@ -1518,8 +1516,7 @@ static int amdgpu_device_ip_early_init(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+-		if ((adev->asic_type == CHIP_RAVEN) || (adev->asic_type == CHIP_PICASSO))
++		if (adev->asic_type == CHIP_RAVEN)
+ 			adev->family = AMDGPU_FAMILY_RV;
+ 		else
+ 			adev->family = AMDGPU_FAMILY_AI;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 22f4538..8556192 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -795,8 +795,7 @@ static const struct pci_device_id pciidlist[] = {
+ 	{0x1002, 0x66AF, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CHIP_VEGA20},
+ 	/* Raven */
+ 	{0x1002, 0x15dd, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CHIP_RAVEN|AMD_IS_APU},
+-	/* Picasso */
+-	{0x1002, 0x15d8, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CHIP_PICASSO|AMD_IS_APU},
++	{0x1002, 0x15d8, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CHIP_RAVEN|AMD_IS_APU},
+ 
+ 	{0, 0, 0}
+ };
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+index fcf260d..8777dad 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+@@ -303,7 +303,6 @@ amdgpu_ucode_get_load_type(struct amdgpu_device *adev, int load_type)
+ 			return AMDGPU_FW_LOAD_SMU;
+ 	case CHIP_VEGA10:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 		if (!load_type)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index ca8944e..86b1627 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -63,14 +63,13 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
+ 
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
+-        if (adev->rev_id >= 8)
++		if (adev->rev_id >= 8)
+ 			fw_name = FIRMWARE_RAVEN2;
++		else if (adev->pdev->device == 0x15d8)
++			fw_name = FIRMWARE_PICASSO;
+ 		else
+ 			fw_name = FIRMWARE_RAVEN;
+ 		break;
+-	case CHIP_PICASSO:
+-		fw_name = FIRMWARE_PICASSO;
+-		break;
+ 	default:
+ 		return -EINVAL;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index ad2945e..e040c87 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -277,7 +277,6 @@ static const u32 GFX_RLC_SRM_INDEX_CNTL_DATA_OFFSETS[] =
+ #define VEGA10_GB_ADDR_CONFIG_GOLDEN 0x2a114042
+ #define VEGA12_GB_ADDR_CONFIG_GOLDEN 0x24104041
+ #define RAVEN_GB_ADDR_CONFIG_GOLDEN 0x24000042
+-#define PICASSO_GB_ADDR_CONFIG_GOLDEN 0x24000042
+ #define RAVEN2_GB_ADDR_CONFIG_GOLDEN 0x26013041
+ 
+ static void gfx_v9_0_set_ring_funcs(struct amdgpu_device *adev);
+@@ -329,14 +328,6 @@ static void gfx_v9_0_init_golden_registers(struct amdgpu_device *adev)
+ 							golden_settings_gc_9_1_rv1,
+ 							ARRAY_SIZE(golden_settings_gc_9_1_rv1));
+ 		break;
+-	case CHIP_PICASSO:
+-		soc15_program_register_sequence(adev,
+-						 golden_settings_gc_9_1,
+-						 ARRAY_SIZE(golden_settings_gc_9_1));
+-		soc15_program_register_sequence(adev,
+-						 golden_settings_gc_9_1_rv1,
+-						 ARRAY_SIZE(golden_settings_gc_9_1_rv1));
+-		break;
+ 	default:
+ 		break;
+ 	}
+@@ -617,12 +608,11 @@ static int gfx_v9_0_init_microcode(struct amdgpu_device *adev)
+ 	case CHIP_RAVEN:
+ 		if (adev->rev_id >= 8)
+ 			chip_name = "raven2";
++		else if (adev->pdev->device == 0x15d8)
++			chip_name = "picasso";
+ 		else
+ 			chip_name = "raven";
+ 		break;
+-	case CHIP_PICASSO:
+-		chip_name = "picasso";
+-		break;
+ 	default:
+ 		BUG();
+ 	}
+@@ -1076,7 +1066,7 @@ static int gfx_v9_0_rlc_init(struct amdgpu_device *adev)
+ 		amdgpu_bo_unreserve(adev->gfx.rlc.clear_state_obj);
+ 	}
+ 
+-	if (adev->asic_type == CHIP_RAVEN || adev->asic_type == CHIP_PICASSO) {
++	if (adev->asic_type == CHIP_RAVEN) {
+ 		/* TODO: double check the cp_table_size for RV */
+ 		adev->gfx.rlc.cp_table_size = ALIGN(96 * 5 * 4, 2048) + (64 * 1024); /* JT + GDS */
+ 		r = amdgpu_bo_create_reserved(adev, adev->gfx.rlc.cp_table_size,
+@@ -1329,14 +1319,6 @@ static int gfx_v9_0_gpu_early_init(struct amdgpu_device *adev)
+ 		else
+ 			gb_addr_config = RAVEN_GB_ADDR_CONFIG_GOLDEN;
+ 		break;
+-	case CHIP_PICASSO:
+-		adev->gfx.config.max_hw_contexts = 8;
+-		adev->gfx.config.sc_prim_fifo_size_frontend = 0x20;
+-		adev->gfx.config.sc_prim_fifo_size_backend = 0x100;
+-		adev->gfx.config.sc_hiz_tile_fifo_size = 0x30;
+-		adev->gfx.config.sc_earlyz_tile_fifo_size = 0x4C0;
+-		gb_addr_config = PICASSO_GB_ADDR_CONFIG_GOLDEN;
+-		break;
+ 	default:
+ 		BUG();
+ 		break;
+@@ -1615,7 +1597,6 @@ static int gfx_v9_0_sw_init(void *handle)
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		adev->gfx.mec.num_mec = 2;
+ 		break;
+ 	default:
+@@ -1777,7 +1758,7 @@ static int gfx_v9_0_sw_fini(void *handle)
+ 	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj,
+ 				&adev->gfx.rlc.clear_state_gpu_addr,
+ 				(void **)&adev->gfx.rlc.cs_ptr);
+-	if ((adev->asic_type == CHIP_RAVEN) || (adev->asic_type == CHIP_PICASSO)) {
++	if (adev->asic_type == CHIP_RAVEN) {
+ 		amdgpu_bo_free_kernel(&adev->gfx.rlc.cp_table_obj,
+ 				&adev->gfx.rlc.cp_table_gpu_addr,
+ 				(void **)&adev->gfx.rlc.cp_table_ptr);
+@@ -2447,7 +2428,7 @@ static int gfx_v9_0_rlc_resume(struct amdgpu_device *adev)
+ 			return r;
+ 	}
+ 
+-	if (adev->asic_type == CHIP_RAVEN || adev->asic_type == CHIP_PICASSO) {
++	if (adev->asic_type == CHIP_RAVEN) {
+ 		if (amdgpu_lbpw != 0)
+ 			gfx_v9_0_enable_lbpw(adev, true);
+ 		else
+@@ -3851,7 +3832,6 @@ static int gfx_v9_0_set_powergating_state(void *handle,
+ 
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		if (!enable) {
+ 			amdgpu_gfx_off_ctrl(adev, false);
+ 			cancel_delayed_work_sync(&adev->gfx.gfx_off_delay_work);
+@@ -3906,7 +3886,6 @@ static int gfx_v9_0_set_clockgating_state(void *handle,
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		gfx_v9_0_update_gfx_clock_gating(adev,
+ 						 state == AMD_CG_STATE_GATE ? true : false);
+ 		break;
+@@ -4926,7 +4905,6 @@ static void gfx_v9_0_set_rlc_funcs(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		adev->gfx.rlc.funcs = &gfx_v9_0_rlc_funcs;
+ 		break;
+ 	default:
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 0cc4fcf..5b04b45 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -837,7 +837,6 @@ static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
+ 			adev->gmc.gart_size = 512ULL << 20;
+ 			break;
+ 		case CHIP_RAVEN:   /* DCE SG support */
+-		case CHIP_PICASSO:   /* DCE SG support */
+ 			adev->gmc.gart_size = 1024ULL << 20;
+ 			break;
+ 		}
+@@ -926,7 +925,6 @@ static int gmc_v9_0_sw_init(void *handle)
+ 	adev->gmc.vram_type = amdgpu_atomfirmware_get_vram_type(adev);
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		if (adev->rev_id == 0x0 || adev->rev_id == 0x1) {
+ 			amdgpu_vm_adjust_size(adev, 256 * 1024, 9, 3, 48);
+ 		} else {
+@@ -1058,7 +1056,6 @@ static void gmc_v9_0_init_golden_registers(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 		break;
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		soc15_program_register_sequence(adev,
+ 						golden_settings_athub_1_0_0,
+ 						ARRAY_SIZE(golden_settings_athub_1_0_0));
+@@ -1093,7 +1090,6 @@ static int gmc_v9_0_gart_enable(struct amdgpu_device *adev)
+ 
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		mmhub_v1_0_update_power_gating(adev, true);
+ 		break;
+ 	default:
+diff --git a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+index 59b67fa..63fec50 100644
+--- a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+@@ -394,7 +394,7 @@ static void mmhub_v1_0_update_medium_grain_clock_gating(struct amdgpu_device *ad
+ 
+ 	def  = data  = RREG32_SOC15(MMHUB, 0, mmATC_L2_MISC_CG);
+ 
+-	if (adev->asic_type != CHIP_RAVEN && adev->asic_type != CHIP_PICASSO) {
++	if (adev->asic_type != CHIP_RAVEN) {
+ 		def1 = data1 = RREG32_SOC15(MMHUB, 0, mmDAGB0_CNTL_MISC2);
+ 		def2 = data2 = RREG32_SOC15(MMHUB, 0, mmDAGB1_CNTL_MISC2);
+ 	} else
+@@ -410,7 +410,7 @@ static void mmhub_v1_0_update_medium_grain_clock_gating(struct amdgpu_device *ad
+ 		           DAGB0_CNTL_MISC2__DISABLE_TLBWR_CG_MASK |
+ 		           DAGB0_CNTL_MISC2__DISABLE_TLBRD_CG_MASK);
+ 
+-		if (adev->asic_type != CHIP_RAVEN && adev->asic_type != CHIP_PICASSO)
++		if (adev->asic_type != CHIP_RAVEN)
+ 			data2 &= ~(DAGB1_CNTL_MISC2__DISABLE_WRREQ_CG_MASK |
+ 			           DAGB1_CNTL_MISC2__DISABLE_WRRET_CG_MASK |
+ 			           DAGB1_CNTL_MISC2__DISABLE_RDREQ_CG_MASK |
+@@ -427,7 +427,7 @@ static void mmhub_v1_0_update_medium_grain_clock_gating(struct amdgpu_device *ad
+ 			  DAGB0_CNTL_MISC2__DISABLE_TLBWR_CG_MASK |
+ 			  DAGB0_CNTL_MISC2__DISABLE_TLBRD_CG_MASK);
+ 
+-		if (adev->asic_type != CHIP_RAVEN && adev->asic_type != CHIP_PICASSO)
++		if (adev->asic_type != CHIP_RAVEN)
+ 			data2 |= (DAGB1_CNTL_MISC2__DISABLE_WRREQ_CG_MASK |
+ 			          DAGB1_CNTL_MISC2__DISABLE_WRRET_CG_MASK |
+ 			          DAGB1_CNTL_MISC2__DISABLE_RDREQ_CG_MASK |
+@@ -440,13 +440,13 @@ static void mmhub_v1_0_update_medium_grain_clock_gating(struct amdgpu_device *ad
+ 		WREG32_SOC15(MMHUB, 0, mmATC_L2_MISC_CG, data);
+ 
+ 	if (def1 != data1) {
+-		if (adev->asic_type != CHIP_RAVEN && adev->asic_type != CHIP_PICASSO)
++		if (adev->asic_type != CHIP_RAVEN)
+ 			WREG32_SOC15(MMHUB, 0, mmDAGB0_CNTL_MISC2, data1);
+ 		else
+ 			WREG32_SOC15(MMHUB, 0, mmDAGB0_CNTL_MISC2_RV, data1);
+ 	}
+ 
+-	if (adev->asic_type != CHIP_RAVEN && adev->asic_type != CHIP_PICASSO && def2 != data2)
++	if (adev->asic_type != CHIP_RAVEN && def2 != data2)
+ 		WREG32_SOC15(MMHUB, 0, mmDAGB1_CNTL_MISC2, data2);
+ }
+ 
+@@ -510,7 +510,6 @@ int mmhub_v1_0_set_clockgating(struct amdgpu_device *adev,
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		mmhub_v1_0_update_medium_grain_clock_gating(adev,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+ 		athub_update_medium_grain_clock_gating(adev,
+diff --git a/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c b/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
+index 1ac597c..45f9322 100644
+--- a/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
+@@ -115,6 +115,8 @@ static int psp_v10_0_init_microcode(struct psp_context *psp)
+ 	case CHIP_RAVEN:
+ 		if (adev->rev_id >= 0x8)
+ 			chip_name = "raven2";
++		else if (adev->pdev->device == 0x15d8)
++			chip_name = "picasso";
+ 		else
+ 			chip_name = "raven";
+ 		break;
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+index 31baa47..ff93ef6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+@@ -229,7 +229,6 @@ static void sdma_v4_0_init_golden_registers(struct amdgpu_device *adev)
+ 						ARRAY_SIZE(golden_settings_sdma1_4_2));
+ 		break;
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		soc15_program_register_sequence(adev,
+ 						golden_settings_sdma_4_1,
+ 						ARRAY_SIZE(golden_settings_sdma_4_1));
+@@ -283,12 +282,11 @@ static int sdma_v4_0_init_microcode(struct amdgpu_device *adev)
+ 	case CHIP_RAVEN:
+ 		if (adev->rev_id >= 8)
+ 			chip_name = "raven2";
++		else if (adev->pdev->device == 0x15d8)
++			chip_name = "picasso";
+ 		else
+ 			chip_name = "raven";
+ 		break;
+-	case CHIP_PICASSO:
+-		chip_name = "picasso";
+-		break;
+ 	default:
+ 		BUG();
+ 	}
+@@ -859,7 +857,6 @@ static void sdma_v4_0_init_pg(struct amdgpu_device *adev)
+ 
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		sdma_v4_1_init_power_gating(adev);
+ 		sdma_v4_1_update_power_gating(adev, true);
+ 		break;
+@@ -1281,7 +1278,7 @@ static int sdma_v4_0_early_init(void *handle)
+ {
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	if (adev->asic_type == CHIP_RAVEN || adev->asic_type == CHIP_PICASSO)
++	if (adev->asic_type == CHIP_RAVEN)
+ 		adev->sdma.num_instances = 1;
+ 	else
+ 		adev->sdma.num_instances = 2;
+@@ -1630,7 +1627,6 @@ static int sdma_v4_0_set_clockgating_state(void *handle,
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		sdma_v4_0_update_medium_grain_clock_gating(adev,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+ 		sdma_v4_0_update_medium_grain_light_sleep(adev,
+@@ -1649,7 +1645,6 @@ static int sdma_v4_0_set_powergating_state(void *handle,
+ 
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		sdma_v4_1_update_power_gating(adev,
+ 				state == AMD_PG_STATE_GATE ? true : false);
+ 		break;
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index f930e09..c4daf1f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -491,7 +491,6 @@ int soc15_set_ip_blocks(struct amdgpu_device *adev)
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		vega10_reg_base_init(adev);
+ 		break;
+ 	case CHIP_VEGA20:
+@@ -546,7 +545,6 @@ int soc15_set_ip_blocks(struct amdgpu_device *adev)
+ 		amdgpu_device_ip_block_add(adev, &vce_v4_0_ip_block);
+ 		break;
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		amdgpu_device_ip_block_add(adev, &vega10_common_ip_block);
+ 		amdgpu_device_ip_block_add(adev, &gmc_v9_0_ip_block);
+ 		amdgpu_device_ip_block_add(adev, &vega10_ih_ip_block);
+@@ -698,6 +696,13 @@ static int soc15_common_early_init(void *handle)
+ 		break;
+ 	case CHIP_RAVEN:
+ 		if (adev->rev_id >= 0x8)
++			adev->external_rev_id = adev->rev_id + 0x81;
++		else if (adev->pdev->device == 0x15d8)
++			adev->external_rev_id = adev->rev_id + 0x41;
++		else
++			adev->external_rev_id = 0x1;
++
++		if (adev->rev_id >= 0x8) {
+ 			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
+ 				AMD_CG_SUPPORT_GFX_MGLS |
+ 				AMD_CG_SUPPORT_GFX_CP_LS |
+@@ -713,7 +718,27 @@ static int soc15_common_early_init(void *handle)
+ 				AMD_CG_SUPPORT_SDMA_MGCG |
+ 				AMD_CG_SUPPORT_SDMA_LS |
+ 				AMD_CG_SUPPORT_VCN_MGCG;
+-		else
++
++			adev->pg_flags = AMD_PG_SUPPORT_SDMA | AMD_PG_SUPPORT_VCN;
++		} else if (adev->pdev->device == 0x15d8) {
++			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGLS |
++				AMD_CG_SUPPORT_GFX_CP_LS |
++				AMD_CG_SUPPORT_GFX_3D_CGCG |
++				AMD_CG_SUPPORT_GFX_3D_CGLS |
++				AMD_CG_SUPPORT_GFX_CGCG |
++				AMD_CG_SUPPORT_GFX_CGLS |
++				AMD_CG_SUPPORT_BIF_LS |
++				AMD_CG_SUPPORT_HDP_LS |
++				AMD_CG_SUPPORT_ROM_MGCG |
++				AMD_CG_SUPPORT_MC_MGCG |
++				AMD_CG_SUPPORT_MC_LS |
++				AMD_CG_SUPPORT_SDMA_MGCG |
++				AMD_CG_SUPPORT_SDMA_LS;
++
++			adev->pg_flags = AMD_PG_SUPPORT_SDMA |
++				AMD_PG_SUPPORT_MMHUB |
++				AMD_PG_SUPPORT_VCN;
++		} else {
+ 			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
+ 				AMD_CG_SUPPORT_GFX_MGLS |
+ 				AMD_CG_SUPPORT_GFX_RLC_LS |
+@@ -735,43 +760,13 @@ static int soc15_common_early_init(void *handle)
+ 				AMD_CG_SUPPORT_SDMA_LS |
+ 				AMD_CG_SUPPORT_VCN_MGCG;
+ 
+-		adev->pg_flags = AMD_PG_SUPPORT_SDMA | AMD_PG_SUPPORT_VCN;
+-
+-		if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
+-			adev->pg_flags |= AMD_PG_SUPPORT_GFX_PG |
+-				AMD_PG_SUPPORT_CP |
+-				AMD_PG_SUPPORT_RLC_SMU_HS;
+-
+-		if (adev->rev_id >= 0x8)
+-			adev->external_rev_id = adev->rev_id + 0x81;
+-		else
+-			adev->external_rev_id = 0x1;
+-		break;
+-	case CHIP_PICASSO:
+-		adev->cg_flags = AMD_CG_SUPPORT_GFX_MGLS |
+-			AMD_CG_SUPPORT_GFX_CP_LS |
+-			AMD_CG_SUPPORT_GFX_3D_CGCG |
+-			AMD_CG_SUPPORT_GFX_3D_CGLS |
+-			AMD_CG_SUPPORT_GFX_CGCG |
+-			AMD_CG_SUPPORT_GFX_CGLS |
+-			AMD_CG_SUPPORT_BIF_LS |
+-			AMD_CG_SUPPORT_HDP_LS |
+-			AMD_CG_SUPPORT_ROM_MGCG |
+-			AMD_CG_SUPPORT_MC_MGCG |
+-			AMD_CG_SUPPORT_MC_LS |
+-			AMD_CG_SUPPORT_SDMA_MGCG |
+-			AMD_CG_SUPPORT_SDMA_LS;
+-
+-		adev->pg_flags = AMD_PG_SUPPORT_SDMA |
+-						AMD_PG_SUPPORT_MMHUB |
+-						AMD_PG_SUPPORT_VCN;
++			adev->pg_flags = AMD_PG_SUPPORT_SDMA | AMD_PG_SUPPORT_VCN;
++		}
+ 
+ 		if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
+ 			adev->pg_flags |= AMD_PG_SUPPORT_GFX_PG |
+ 				AMD_PG_SUPPORT_CP |
+ 				AMD_PG_SUPPORT_RLC_SMU_HS;
+-
+-		adev->external_rev_id = adev->rev_id + 0x41;
+ 		break;
+ 	default:
+ 		/* FIXME: not supported yet */
+@@ -973,7 +968,6 @@ static int soc15_common_set_clockgating_state(void *handle,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+ 		break;
+ 	case CHIP_RAVEN:
+-	case CHIP_PICASSO:
+ 		adev->nbio_funcs->update_medium_grain_clock_gating(adev,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+ 		adev->nbio_funcs->update_medium_grain_light_sleep(adev,
+-- 
+2.7.4
+

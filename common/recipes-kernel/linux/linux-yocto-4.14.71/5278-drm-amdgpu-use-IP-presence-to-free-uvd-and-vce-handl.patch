@@ -1,0 +1,35 @@
+From 912f6eba02d178369b7a993d0cb7e4251008ce8b Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Wed, 12 Sep 2018 13:51:25 -0500
+Subject: [PATCH 5278/5725] drm/amdgpu: use IP presence to free uvd and vce
+ handles
+
+Rather than checking the asic type, check whether the UVD
+or VCE IP blocks exist.  This way we don't have to update
+the check with new asics that use VCN.
+
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 7585182..a47f456 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -994,10 +994,10 @@ void amdgpu_driver_postclose_kms(struct drm_device *dev,
+ 
+ 	pm_runtime_get_sync(dev->dev);
+ 
+-	if (adev->asic_type != CHIP_RAVEN && adev->asic_type != CHIP_PICASSO) {
++	if (amdgpu_device_ip_get_ip_block(adev, AMD_IP_BLOCK_TYPE_UVD) != NULL)
+ 		amdgpu_uvd_free_handles(adev, file_priv);
++	if (amdgpu_device_ip_get_ip_block(adev, AMD_IP_BLOCK_TYPE_VCE) != NULL)
+ 		amdgpu_vce_free_handles(adev, file_priv);
+-	}
+ 
+ 	amdgpu_vm_bo_rmv(adev, fpriv->prt_va);
+ 
+-- 
+2.7.4
+

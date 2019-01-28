@@ -1,0 +1,50 @@
+From 35024217fc7222f67364cb82ab5847115afd19de Mon Sep 17 00:00:00 2001
+From: Eric Yang <Eric.Yang2@amd.com>
+Date: Fri, 14 Sep 2018 13:53:14 -0400
+Subject: [PATCH 5491/5725] drm/amd/display: block DP YCbCr420 modes
+
+[why]
+Currently not supported, will black screen when set.
+
+[How]
+Fail validate timing helper for those modes.
+
+Signed-off-by: Eric Yang <Eric.Yang2@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c     | 3 +++
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+index 4942590..70eb9472 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+@@ -662,6 +662,9 @@ bool dce110_link_encoder_validate_dp_output(
+ 	const struct dce110_link_encoder *enc110,
+ 	const struct dc_crtc_timing *crtc_timing)
+ {
++	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
++		return false;
++
+ 	/* default RGB only */
+ 	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB)
+ 		return true;
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+index 6f67520..bef0011 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+@@ -606,6 +606,9 @@ bool dcn10_link_encoder_validate_dp_output(
+ 	const struct dcn10_link_encoder *enc10,
+ 	const struct dc_crtc_timing *crtc_timing)
+ {
++	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
++		return false;
++
+ 	/* default RGB only */
+ 	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB)
+ 		return true;
+-- 
+2.7.4
+

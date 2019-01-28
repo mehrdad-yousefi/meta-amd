@@ -1,0 +1,36 @@
+From d0e6deaf7a3300b606f92b7375d17abe7f9355dd Mon Sep 17 00:00:00 2001
+From: Eric Huang <JinhuiEric.Huang@amd.com>
+Date: Fri, 13 Jul 2018 15:05:10 -0400
+Subject: [PATCH 4951/5725] Revert "drm/amd/powerplay: fix performance drop on
+ Vega10"
+
+This reverts commit b87079ec7b4d38efee015367315958ce5495ba93.
+
+SMU FW team ask to remove this version specific code.
+
+Signed-off-by: Eric Huang <JinHuiEric.Huang@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index e94bffe..ca4e1d9 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -2901,11 +2901,6 @@ static int vega10_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
+ 
+ 	vega10_enable_disable_PCC_limit_feature(hwmgr, true);
+ 
+-	if ((hwmgr->smu_version == 0x001c2c00) ||
+-			(hwmgr->smu_version == 0x001c2d00))
+-		smum_send_msg_to_smc_with_parameter(hwmgr,
+-				PPSMC_MSG_UpdatePkgPwrPidAlpha, 1);
+-
+ 	smum_send_msg_to_smc_with_parameter(hwmgr,
+ 		PPSMC_MSG_ConfigureTelemetry, data->config_telemetry);
+ 
+-- 
+2.7.4
+

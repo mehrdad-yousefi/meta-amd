@@ -1,0 +1,38 @@
+From 187b94674d59a7f6a0894eb87cbe51a4e17aca8b Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 30 Aug 2018 12:38:45 +0800
+Subject: [PATCH 5246/5725] drm/amd/powerplay: correct data type to support
+ under voltage
+
+For under voltage, negative value will be applied to voltage
+offset. Update the data type to cover this case.
+
+Change-Id: I955da13fd9777320b0605b6b620133d596b573be
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+index 0a39a4c..59e621e 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/smu11_driver_if.h
+@@ -569,11 +569,11 @@ typedef struct {
+   uint16_t      GfxclkFmin;
+   uint16_t      GfxclkFmax;
+   uint16_t      GfxclkFreq1;
+-  uint16_t      GfxclkOffsetVolt1;
++  int16_t      GfxclkOffsetVolt1;
+   uint16_t      GfxclkFreq2;
+-  uint16_t      GfxclkOffsetVolt2;
++  int16_t      GfxclkOffsetVolt2;
+   uint16_t      GfxclkFreq3;
+-  uint16_t      GfxclkOffsetVolt3;
++  int16_t      GfxclkOffsetVolt3;
+   uint16_t      UclkFmax;
+   int16_t       OverDrivePct;
+   uint16_t      FanMaximumRpm;
+-- 
+2.7.4
+

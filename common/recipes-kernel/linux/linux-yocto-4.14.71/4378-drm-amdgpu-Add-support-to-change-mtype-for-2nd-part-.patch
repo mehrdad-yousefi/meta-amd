@@ -1,0 +1,160 @@
+From 68a86a467ac670a4301ce893bcfbfeb20004a617 Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Mon, 14 May 2018 12:15:27 -0400
+Subject: [PATCH 4378/5725] drm/amdgpu: Add support to change mtype for 2nd
+ part of gart BOs on GFX9
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This change prepares for a workaround in amdkfd for a GFX9 HW bug. It
+requires the control stack memory of compute queues, which is allocated
+from the second page of MQD gart BOs, to have mtype NC, rather than
+the default UC.
+
+Change-Id: I5f91cbeb7e7ba380a7b9f272b1cee6e4c1840175
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 54 +++++++++++++++++++++++++++------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h  |  5 +--
+ include/drm/amd_asic_type.h             |  1 +
+ include/uapi/drm/amdgpu_drm.h           |  6 ++--
+ 4 files changed, 52 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 0ddb4c3..1bd7997 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -879,6 +879,45 @@ static void amdgpu_ttm_tt_unpin_userptr(struct ttm_tt *ttm)
+ 	sg_free_table(ttm->sg);
+ }
+ 
++int amdgpu_ttm_gart_bind(struct amdgpu_device *adev,
++				struct ttm_buffer_object *tbo,
++				uint64_t flags)
++{
++	struct amdgpu_bo *abo = ttm_to_amdgpu_bo(tbo);
++	struct ttm_tt *ttm = tbo->ttm;
++	struct amdgpu_ttm_tt *gtt = (void *)ttm;
++	int r;
++
++	if (abo->flags & AMDGPU_GEM_CREATE_MQD_GFX9) {
++		uint64_t page_idx = 1;
++
++		r = amdgpu_gart_bind(adev, gtt->offset, page_idx,
++				ttm->pages, gtt->ttm.dma_address, flags);
++		if (r)
++			goto gart_bind_fail;
++
++		/* Patch mtype of the second part BO */
++		flags &=  ~AMDGPU_PTE_MTYPE_MASK;
++		flags |= AMDGPU_PTE_MTYPE(AMDGPU_MTYPE_NC);
++
++		r = amdgpu_gart_bind(adev,
++				gtt->offset + (page_idx << PAGE_SHIFT),
++				ttm->num_pages - page_idx,
++				&ttm->pages[page_idx],
++				&(gtt->ttm.dma_address[page_idx]), flags);
++	} else {
++		r = amdgpu_gart_bind(adev, gtt->offset, ttm->num_pages,
++				     ttm->pages, gtt->ttm.dma_address, flags);
++	}
++
++gart_bind_fail:
++	if (r)
++		DRM_ERROR("failed to bind %lu pages at 0x%08llX\n",
++			  ttm->num_pages, gtt->offset);
++
++	return r;
++}
++
+ static int amdgpu_ttm_backend_bind(struct ttm_tt *ttm,
+ 				   struct ttm_mem_reg *bo_mem)
+ {
+@@ -953,8 +992,7 @@ int amdgpu_ttm_alloc_gart(struct ttm_buffer_object *bo)
+ 
+ 	flags = amdgpu_ttm_tt_pte_flags(adev, bo->ttm, &tmp);
+ 	gtt->offset = (u64)tmp.start << PAGE_SHIFT;
+-	r = amdgpu_gart_bind(adev, gtt->offset, bo->ttm->num_pages,
+-			     bo->ttm->pages, gtt->ttm.dma_address, flags);
++	r = amdgpu_ttm_gart_bind(adev, bo, flags);
+ 	if (unlikely(r)) {
+ 		ttm_bo_mem_put(bo, &tmp);
+ 		return r;
+@@ -971,19 +1009,15 @@ int amdgpu_ttm_alloc_gart(struct ttm_buffer_object *bo)
+ int amdgpu_ttm_recover_gart(struct ttm_buffer_object *tbo)
+ {
+ 	struct amdgpu_device *adev = amdgpu_ttm_adev(tbo->bdev);
+-	struct amdgpu_ttm_tt *gtt = (void *)tbo->ttm;
+ 	uint64_t flags;
+ 	int r;
+ 
+-	if (!gtt)
++	if (!tbo->ttm)
+ 		return 0;
+ 
+-	flags = amdgpu_ttm_tt_pte_flags(adev, &gtt->ttm.ttm, &tbo->mem);
+-	r = amdgpu_gart_bind(adev, gtt->offset, gtt->ttm.ttm.num_pages,
+-			     gtt->ttm.ttm.pages, gtt->ttm.dma_address, flags);
+-	if (r)
+-		DRM_ERROR("failed to bind %lu pages at 0x%08llX\n",
+-			  gtt->ttm.ttm.num_pages, gtt->offset);
++	flags = amdgpu_ttm_tt_pte_flags(adev, tbo->ttm, &tbo->mem);
++	r = amdgpu_ttm_gart_bind(adev, tbo, flags);
++
+ 	return r;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index beba1a5..84658b5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -78,11 +78,12 @@ struct amdgpu_bo_list_entry;
+ /* PDE Block Fragment Size for VEGA10 */
+ #define AMDGPU_PDE_BFS(a)	((uint64_t)a << 59)
+ 
+-/* VEGA10 only */
++
++/* For GFX9 */
+ #define AMDGPU_PTE_MTYPE(a)    ((uint64_t)a << 57)
+ #define AMDGPU_PTE_MTYPE_MASK	AMDGPU_PTE_MTYPE(3ULL)
+ 
+-/* For Raven */
++#define AMDGPU_MTYPE_NC 0
+ #define AMDGPU_MTYPE_CC 2
+ 
+ #define AMDGPU_PTE_DEFAULT_ATC  (AMDGPU_PTE_SYSTEM      \
+diff --git a/include/drm/amd_asic_type.h b/include/drm/amd_asic_type.h
+index 695bde7..dd63d08 100644
+--- a/include/drm/amd_asic_type.h
++++ b/include/drm/amd_asic_type.h
+@@ -47,6 +47,7 @@ enum amd_asic_type {
+ 	CHIP_VEGAM,
+ 	CHIP_VEGA10,
+ 	CHIP_VEGA12,
++	CHIP_VEGA20,
+ 	CHIP_RAVEN,
+ 	CHIP_LAST,
+ };
+diff --git a/include/uapi/drm/amdgpu_drm.h b/include/uapi/drm/amdgpu_drm.h
+index d04ef13..ad3e1f2 100644
+--- a/include/uapi/drm/amdgpu_drm.h
++++ b/include/uapi/drm/amdgpu_drm.h
+@@ -115,8 +115,10 @@ extern "C" {
+ #define AMDGPU_GEM_CREATE_VM_ALWAYS_VALID       (1 << 6)
+ /* Flag that BO sharing will be explicitly synchronized */
+ #define AMDGPU_GEM_CREATE_EXPLICIT_SYNC         (1 << 7)
+-/* Flag that BO doesn't need fallback */
+-#define AMDGPU_GEM_CREATE_NO_FALLBACK           (1 << 8)
++/* Flag that indicates allocating MQD gart on GFX9, where the mtype
++ * for the second page onward should be set to NC.
++*/
++#define AMDGPU_GEM_CREATE_MQD_GFX9              (1 << 8)
+ 
+ /* hybrid specific */
+ /* Flag that the memory allocation should be from top of domain */
+-- 
+2.7.4
+

@@ -1,0 +1,35 @@
+From cbd4579b6363223b02b7e0c3f149e8024d4df1f5 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Mon, 9 Jul 2018 11:59:01 -0400
+Subject: [PATCH 4870/5725] drm/amdgpu: Take VCN jpeg ring into account in idle
+ work handler
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+VCN won't get power off when only jpeg active
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index be1cbba..9168d82 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -214,6 +214,8 @@ static void amdgpu_vcn_idle_work_handler(struct work_struct *work)
+ 		fences += amdgpu_fence_count_emitted(&adev->vcn.ring_enc[i]);
+ 	}
+ 
++	fences += amdgpu_fence_count_emitted(&adev->vcn.ring_jpeg);
++
+ 	if (fences == 0) {
+ 		if (adev->pm.dpm_enabled)
+ 			amdgpu_dpm_enable_uvd(adev, false);
+-- 
+2.7.4
+

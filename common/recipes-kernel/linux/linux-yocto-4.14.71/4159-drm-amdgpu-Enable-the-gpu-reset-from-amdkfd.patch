@@ -1,0 +1,59 @@
+From f5a2ef7a15db3b770068feb323030dd55046812a Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Wed, 4 Apr 2018 16:11:14 -0400
+Subject: [PATCH 4159/5725] drm/amdgpu: Enable the gpu reset from amdkfd
+
+Change-Id: Ia5a9d69c2e6cfa65e9f8a7d344169697adc69f35
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c | 3 ++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c | 3 ++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c | 3 ++-
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+index 84f8f71..b04471b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+@@ -228,7 +228,8 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.get_tile_config = amdgpu_amdkfd_get_tile_config,
+ 	.restore_process_bos = amdgpu_amdkfd_gpuvm_restore_process_bos,
+ 	.copy_mem_to_mem = amdgpu_amdkfd_copy_mem_to_mem,
+-	.get_vram_usage = amdgpu_amdkfd_get_vram_usage
++	.get_vram_usage = amdgpu_amdkfd_get_vram_usage,
++	.gpu_recover = amdgpu_amdkfd_gpu_reset
+ };
+ 
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_7_get_functions()
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+index dfd0026..d723ae2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+@@ -201,7 +201,8 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.get_tile_config = amdgpu_amdkfd_get_tile_config,
+ 	.restore_process_bos = amdgpu_amdkfd_gpuvm_restore_process_bos,
+ 	.copy_mem_to_mem = amdgpu_amdkfd_copy_mem_to_mem,
+-	.get_vram_usage = amdgpu_amdkfd_get_vram_usage
++	.get_vram_usage = amdgpu_amdkfd_get_vram_usage,
++	.gpu_recover = amdgpu_amdkfd_gpu_reset
+ };
+ 
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_8_0_get_functions()
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+index f044739..49291d6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+@@ -251,7 +251,8 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.get_tile_config = amdgpu_amdkfd_get_tile_config,
+ 	.restore_process_bos = amdgpu_amdkfd_gpuvm_restore_process_bos,
+ 	.copy_mem_to_mem = amdgpu_amdkfd_copy_mem_to_mem,
+-	.get_vram_usage = amdgpu_amdkfd_get_vram_usage
++	.get_vram_usage = amdgpu_amdkfd_get_vram_usage,
++	.gpu_recover = amdgpu_amdkfd_gpu_reset
+ };
+ 
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_9_0_get_functions()
+-- 
+2.7.4
+

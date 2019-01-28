@@ -1,0 +1,31 @@
+From 8ad8f64c142a53111e0802863e33b3dab4694c6b Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Wed, 23 May 2018 13:05:00 -0400
+Subject: [PATCH 4512/5725] drm/amdgpu: Remove unused variable in
+ amdgpu_device_gpu_recover
+
+It throws an unused variable warning.
+
+Change-Id: I3bb0b2b477273cf1799d682959033beb5134f851
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 1d20967..4d2637e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -3248,7 +3248,6 @@ static int amdgpu_device_reset_sriov(struct amdgpu_device *adev,
+ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+ 				struct amdgpu_job *job, bool force)
+ {
+-        struct drm_atomic_state *state = NULL;
+         int i, r, resched;
+ 
+ 	if (!force && !amdgpu_device_ip_check_soft_reset(adev)) {
+-- 
+2.7.4
+

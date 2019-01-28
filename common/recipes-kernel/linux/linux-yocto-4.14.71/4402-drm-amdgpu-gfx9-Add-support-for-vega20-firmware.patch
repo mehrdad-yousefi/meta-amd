@@ -1,0 +1,44 @@
+From 0d033574ae6bf42ef3d2f9b63ad0be1b32406893 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 14:22:48 +0800
+Subject: [PATCH 4402/5725] drm/amdgpu/gfx9: Add support for vega20 firmware
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 0b3d2e0..47ab06a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -63,6 +63,13 @@ MODULE_FIRMWARE("amdgpu/vega12_mec.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_mec2.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_rlc.bin");
+ 
++MODULE_FIRMWARE("amdgpu/vega20_ce.bin");
++MODULE_FIRMWARE("amdgpu/vega20_pfp.bin");
++MODULE_FIRMWARE("amdgpu/vega20_me.bin");
++MODULE_FIRMWARE("amdgpu/vega20_mec.bin");
++MODULE_FIRMWARE("amdgpu/vega20_mec2.bin");
++MODULE_FIRMWARE("amdgpu/vega20_rlc.bin");
++
+ MODULE_FIRMWARE("amdgpu/raven_ce.bin");
+ MODULE_FIRMWARE("amdgpu/raven_pfp.bin");
+ MODULE_FIRMWARE("amdgpu/raven_me.bin");
+@@ -461,6 +468,9 @@ static int gfx_v9_0_init_microcode(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 		chip_name = "vega12";
+ 		break;
++	case CHIP_VEGA20:
++		chip_name = "vega20";
++		break;
+ 	case CHIP_RAVEN:
+ 		chip_name = "raven";
+ 		break;
+-- 
+2.7.4
+

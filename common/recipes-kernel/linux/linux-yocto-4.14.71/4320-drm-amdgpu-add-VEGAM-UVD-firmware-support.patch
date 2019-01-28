@@ -1,0 +1,45 @@
+From 4eb66e6ec2df18b5619ca8e7ed78a49b88bfedc2 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Fri, 10 Nov 2017 12:27:40 -0500
+Subject: [PATCH 4320/5725] drm/amdgpu: add VEGAM UVD firmware support
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index 6cf5ccf..ff8a62a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -66,6 +66,7 @@
+ #define FIRMWARE_POLARIS10	"amdgpu/polaris10_uvd.bin"
+ #define FIRMWARE_POLARIS11	"amdgpu/polaris11_uvd.bin"
+ #define FIRMWARE_POLARIS12	"amdgpu/polaris12_uvd.bin"
++#define FIRMWARE_VEGAM		"amdgpu/vegam_uvd.bin"
+ 
+ #define FIRMWARE_VEGA10		"amdgpu/vega10_uvd.bin"
+ #define FIRMWARE_VEGA12		"amdgpu/vega12_uvd.bin"
+@@ -109,6 +110,7 @@ MODULE_FIRMWARE(FIRMWARE_STONEY);
+ MODULE_FIRMWARE(FIRMWARE_POLARIS10);
+ MODULE_FIRMWARE(FIRMWARE_POLARIS11);
+ MODULE_FIRMWARE(FIRMWARE_POLARIS12);
++MODULE_FIRMWARE(FIRMWARE_VEGAM);
+ 
+ MODULE_FIRMWARE(FIRMWARE_VEGA10);
+ MODULE_FIRMWARE(FIRMWARE_VEGA12);
+@@ -172,6 +174,9 @@ int amdgpu_uvd_sw_init(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 		fw_name = FIRMWARE_VEGA12;
+ 		break;
++	case CHIP_VEGAM:
++		fw_name = FIRMWARE_VEGAM;
++		break;
+ 	default:
+ 		return -EINVAL;
+ 	}
+-- 
+2.7.4
+

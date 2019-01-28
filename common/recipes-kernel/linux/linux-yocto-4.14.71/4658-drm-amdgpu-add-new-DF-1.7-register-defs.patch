@@ -1,0 +1,42 @@
+From 670b5c6fe4167f157dc3cabb5130db25fba68e50 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 10 May 2018 14:45:12 -0500
+Subject: [PATCH 4658/5725] drm/amdgpu: add new DF 1.7 register defs
+
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_offset.h  | 4 ++++
+ drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_sh_mask.h | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_offset.h b/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_offset.h
+index 2b305dd..e6044e2 100644
+--- a/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_offset.h
++++ b/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_offset.h
+@@ -30,4 +30,8 @@
+ #define mmDF_CS_AON0_DramBaseAddress0									0x0044
+ #define mmDF_CS_AON0_DramBaseAddress0_BASE_IDX								0
+ 
++#define mmDF_CS_AON0_CoherentSlaveModeCtrlA0								0x0214
++#define mmDF_CS_AON0_CoherentSlaveModeCtrlA0_BASE_IDX							0
++
++
+ #endif
+diff --git a/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_sh_mask.h b/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_sh_mask.h
+index 2ba8497..a78c994 100644
+--- a/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_sh_mask.h
++++ b/drivers/gpu/drm/amd/include/asic_reg/df/df_1_7_sh_mask.h
+@@ -45,4 +45,8 @@
+ #define DF_CS_AON0_DramBaseAddress0__IntLvAddrSel_MASK							0x00000700L
+ #define DF_CS_AON0_DramBaseAddress0__DramBaseAddr_MASK							0xFFFFF000L
+ 
++//DF_CS_AON0_CoherentSlaveModeCtrlA0
++#define DF_CS_AON0_CoherentSlaveModeCtrlA0__ForceParWrRMW__SHIFT					0x3
++#define DF_CS_AON0_CoherentSlaveModeCtrlA0__ForceParWrRMW_MASK						0x00000008L
++
+ #endif
+-- 
+2.7.4
+

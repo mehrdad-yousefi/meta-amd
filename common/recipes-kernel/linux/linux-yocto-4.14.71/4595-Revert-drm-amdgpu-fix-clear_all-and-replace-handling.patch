@@ -1,0 +1,44 @@
+From b67479ea6ec488ffadefa218c58bfa80131f120f Mon Sep 17 00:00:00 2001
+From: Junwei Zhang <Jerry.Zhang@amd.com>
+Date: Tue, 5 Jun 2018 17:02:21 +0800
+Subject: [PATCH 4595/5725] Revert "drm/amdgpu: fix clear_all and replace
+ handling in the VM (v2)"
+
+This reverts commit 6f422f9d0b42da8707fda42f789d6cf57056b444.
+
+Please ignore below patch, will re-send it with stable kernel tag
+
+  * 6f422f9 drm/amdgpu: fix clear_all and replace handling in the VM (v2)
+
+Signed-off-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 4889137..1fcc586 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2153,8 +2153,7 @@ int amdgpu_vm_bo_clear_mappings(struct amdgpu_device *adev,
+ 			before->last = saddr - 1;
+ 			before->offset = tmp->offset;
+ 			before->flags = tmp->flags;
+-			before->bo_va = tmp->bo_va;
+-			list_add(&before->list, &tmp->bo_va->invalids);
++			list_add(&before->list, &tmp->list);
+ 		}
+ 
+ 		/* Remember mapping split at the end */
+@@ -2164,8 +2163,7 @@ int amdgpu_vm_bo_clear_mappings(struct amdgpu_device *adev,
+ 			after->offset = tmp->offset;
+ 			after->offset += after->start - tmp->start;
+ 			after->flags = tmp->flags;
+-			after->bo_va = tmp->bo_va;
+-			list_add(&after->list, &tmp->bo_va->invalids);
++			list_add(&after->list, &tmp->list);
+ 		}
+ 
+ 		list_del(&tmp->list);
+-- 
+2.7.4
+

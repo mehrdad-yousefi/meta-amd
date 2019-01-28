@@ -1,0 +1,42 @@
+From 1fc0a28e65a535f2dffe6d97caed348a139dcb31 Mon Sep 17 00:00:00 2001
+From: Nayan Deshmukh <nayan26deshmukh@gmail.com>
+Date: Fri, 25 May 2018 10:15:46 +0530
+Subject: [PATCH 4563/5725] drm/scheduler: fix a corner case in dependency
+ optimization
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When checking for a dependency fence for belonging to the same entity
+compare it with scheduled as well finished fence. Earlier we were only
+comparing it with the scheduled fence.
+
+Signed-off-by: Nayan Deshmukh <nayan26deshmukh@gmail.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/scheduler/gpu_scheduler.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/scheduler/gpu_scheduler.c b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+index 1edc323..a403e47 100644
+--- a/drivers/gpu/drm/scheduler/gpu_scheduler.c
++++ b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+@@ -421,8 +421,13 @@ static bool drm_sched_entity_add_dependency_cb(struct drm_sched_entity *entity)
+ 	struct dma_fence * fence = entity->dependency;
+ 	struct drm_sched_fence *s_fence;
+ 
+-	if (fence->context == entity->fence_context) {
+-		/* We can ignore fences from ourself */
++	if (fence->context == entity->fence_context ||
++            fence->context == entity->fence_context + 1) {
++                /*
++                 * Fence is a scheduled/finished fence from a job
++                 * which belongs to the same entity, we can ignore
++                 * fences from ourself
++                 */
+ 		dma_fence_put(entity->dependency);
+ 		return false;
+ 	}
+-- 
+2.7.4
+

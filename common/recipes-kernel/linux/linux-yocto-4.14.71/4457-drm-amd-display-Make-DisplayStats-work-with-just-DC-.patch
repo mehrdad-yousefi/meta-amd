@@ -1,0 +1,140 @@
+From 41ab3ae07811858df73db8eb7830297415204b0b Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Thu, 19 Apr 2018 10:05:22 -0400
+Subject: [PATCH 4457/5725] drm/amd/display: Make DisplayStats work with just
+ DC DisplayStats minor
+
+Remove dependency on the old FREESYNC_SW_STATS log mask used by DAL2
+Also rename from profiling to displaystats
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/basics/logger.c     |  2 +-
+ drivers/gpu/drm/amd/display/include/logger_types.h |  2 +-
+ drivers/gpu/drm/amd/display/modules/stats/stats.c  | 81 ++++++++++++----------
+ 3 files changed, 46 insertions(+), 39 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/basics/logger.c b/drivers/gpu/drm/amd/display/dc/basics/logger.c
+index 31bee05..0001a3c 100644
+--- a/drivers/gpu/drm/amd/display/dc/basics/logger.c
++++ b/drivers/gpu/drm/amd/display/dc/basics/logger.c
+@@ -61,7 +61,7 @@ static const struct dc_log_type_info log_type_info_tbl[] = {
+ 		{LOG_EVENT_UNDERFLOW,       "Underflow"},
+ 		{LOG_IF_TRACE,              "InterfaceTrace"},
+ 		{LOG_DTN,                   "DTN"},
+-		{LOG_PROFILING,             "Profiling"}
++		{LOG_DISPLAYSTATS,          "DisplayStats"}
+ };
+ 
+ 
+diff --git a/drivers/gpu/drm/amd/display/include/logger_types.h b/drivers/gpu/drm/amd/display/include/logger_types.h
+index b608a08..0a540b9 100644
+--- a/drivers/gpu/drm/amd/display/include/logger_types.h
++++ b/drivers/gpu/drm/amd/display/include/logger_types.h
+@@ -98,7 +98,7 @@ enum dc_log_type {
+ 	LOG_EVENT_UNDERFLOW,
+ 	LOG_IF_TRACE,
+ 	LOG_PERF_TRACE,
+-	LOG_PROFILING,
++	LOG_DISPLAYSTATS,
+ 
+ 	LOG_SECTION_TOTAL_COUNT
+ };
+diff --git a/drivers/gpu/drm/amd/display/modules/stats/stats.c b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+index 48e0219..d16aac7 100644
+--- a/drivers/gpu/drm/amd/display/modules/stats/stats.c
++++ b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+@@ -177,44 +177,51 @@ void mod_stats_dump(struct mod_stats *mod_stats)
+ 	logger = dc->ctx->logger;
+ 	time = core_stats->time;
+ 
+-	//LogEntry* pLog = GetLog()->Open(LogMajor_ISR, LogMinor_ISR_FreeSyncSW);
+-
+-	//if (!pLog->IsDummyEntry())
+-	{
+-		dm_logger_write(logger, LOG_PROFILING, "==Display Caps==\n");
+-		dm_logger_write(logger, LOG_PROFILING, "\n");
+-		dm_logger_write(logger, LOG_PROFILING, "\n");
+-
+-		dm_logger_write(logger, LOG_PROFILING, "==Stats==\n");
+-		dm_logger_write(logger, LOG_PROFILING,
+-			"render avgRender minWindow midPoint maxWindow vsyncToFlip flipToVsync #vsyncBetweenFlip #frame insertDuration vTotalMin vTotalMax eventTrigs vSyncTime1 vSyncTime2 vSyncTime3 vSyncTime4 vSyncTime5 flags\n");
+-
+-		for (int i = 0; i < core_stats->index && i < core_stats->entries; i++) {
+-			dm_logger_write(logger, LOG_PROFILING,
+-					"%u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u  %u",
+-					time[i].render_time_in_us,
+-					time[i].avg_render_time_in_us_last_ten,
+-					time[i].min_window,
+-					time[i].lfc_mid_point_in_us,
+-					time[i].max_window,
+-					time[i].vsync_to_flip_time_in_us,
+-					time[i].flip_to_vsync_time_in_us,
+-					time[i].num_vsync_between_flips,
+-					time[i].num_frames_inserted,
+-					time[i].inserted_duration_in_us,
+-					time[i].v_total_min,
+-					time[i].v_total_max,
+-					time[i].event_triggers,
+-					time[i].v_sync_time_in_us[0],
+-					time[i].v_sync_time_in_us[1],
+-					time[i].v_sync_time_in_us[2],
+-					time[i].v_sync_time_in_us[3],
+-					time[i].v_sync_time_in_us[4],
+-					time[i].flags);
+-		}
++	dm_logger_write(logger, LOG_DISPLAYSTATS, "==Display Caps==");
++	dm_logger_write(logger, LOG_DISPLAYSTATS, " ");
++
++	dm_logger_write(logger, LOG_DISPLAYSTATS, "==Display Stats==");
++	dm_logger_write(logger, LOG_DISPLAYSTATS, " ");
++
++	dm_logger_write(logger, LOG_DISPLAYSTATS,
++		"%10s %10s %10s %10s %10s"
++			" %11s %11s %17s %10s %14s"
++			" %10s %10s %10s %10s %10s"
++			" %10s %10s %10s %10s",
++		"render", "avgRender",
++		"minWindow", "midPoint", "maxWindow",
++		"vsyncToFlip", "flipToVsync", "vsyncsBetweenFlip",
++		"numFrame", "insertDuration",
++		"vTotalMin", "vTotalMax", "eventTrigs",
++		"vSyncTime1", "vSyncTime2", "vSyncTime3",
++		"vSyncTime4", "vSyncTime5", "flags");
++
++	for (int i = 0; i < core_stats->index && i < core_stats->entries; i++) {
++		dm_logger_write(logger, LOG_DISPLAYSTATS,
++			"%10u %10u %10u %10u %10u"
++				" %11u %11u %17u %10u %14u"
++				" %10u %10u %10u %10u %10u"
++				" %10u %10u %10u %10u",
++			time[i].render_time_in_us,
++			time[i].avg_render_time_in_us_last_ten,
++			time[i].min_window,
++			time[i].lfc_mid_point_in_us,
++			time[i].max_window,
++			time[i].vsync_to_flip_time_in_us,
++			time[i].flip_to_vsync_time_in_us,
++			time[i].num_vsync_between_flips,
++			time[i].num_frames_inserted,
++			time[i].inserted_duration_in_us,
++			time[i].v_total_min,
++			time[i].v_total_max,
++			time[i].event_triggers,
++			time[i].v_sync_time_in_us[0],
++			time[i].v_sync_time_in_us[1],
++			time[i].v_sync_time_in_us[2],
++			time[i].v_sync_time_in_us[3],
++			time[i].v_sync_time_in_us[4],
++			time[i].flags);
+ 	}
+-	//GetLog()->Close(pLog);
+-	//GetLog()->UnSetLogMask(LogMajor_ISR, LogMinor_ISR_FreeSyncSW);
+ }
+ 
+ void mod_stats_reset_data(struct mod_stats *mod_stats)
+-- 
+2.7.4
+

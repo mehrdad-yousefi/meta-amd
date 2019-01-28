@@ -1,0 +1,69 @@
+From 2e02cffd6b608be5897b8e704eeecf36051feadf Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 10 Apr 2018 10:15:26 -0500
+Subject: [PATCH 4182/5725] drm/amdgpu/gfx9: cache DB_DEBUG2 and make it
+ available to userspace
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Userspace needs to query this value to work around a hw bug in
+certain cases.
+
+Acked-by: Nicolai Hähnle <nicolai.haehnle@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h   | 2 ++
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 1 +
+ drivers/gpu/drm/amd/amdgpu/soc15.c    | 3 +++
+ 3 files changed, 6 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index a866d5d..44ab364 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -899,6 +899,8 @@ struct amdgpu_gfx_config {
+ 
+ 	/* gfx configure feature */
+ 	uint32_t double_offchip_lds_buf;
++	/* cached value of DB_DEBUG2 */
++	uint32_t db_debug2;
+ };
+ 
+ struct amdgpu_cu_info {
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index f808372..ba036af 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1675,6 +1675,7 @@ static void gfx_v9_0_gpu_init(struct amdgpu_device *adev)
+ 
+ 	gfx_v9_0_setup_rb(adev);
+ 	gfx_v9_0_get_cu_info(adev, &adev->gfx.cu_info);
++	adev->gfx.config.db_debug2 = RREG32_SOC15(GC, 0, mmDB_DEBUG2);
+ 
+ 	/* XXX SH_MEM regs */
+ 	/* where to put LDS, scratch, GPUVM in FSA64 space */
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 0be00c4..9006576 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -287,6 +287,7 @@ static struct soc15_allowed_register_entry soc15_allowed_read_registers[] = {
+ 	{ SOC15_REG_ENTRY(GC, 0, mmCP_CPC_STALLED_STAT1)},
+ 	{ SOC15_REG_ENTRY(GC, 0, mmCP_CPC_STATUS)},
+ 	{ SOC15_REG_ENTRY(GC, 0, mmGB_ADDR_CONFIG)},
++	{ SOC15_REG_ENTRY(GC, 0, mmDB_DEBUG2)},
+ };
+ 
+ static uint32_t soc15_read_indexed_register(struct amdgpu_device *adev, u32 se_num,
+@@ -315,6 +316,8 @@ static uint32_t soc15_get_register_value(struct amdgpu_device *adev,
+ 	} else {
+ 		if (reg_offset == SOC15_REG_OFFSET(GC, 0, mmGB_ADDR_CONFIG))
+ 			return adev->gfx.config.gb_addr_config;
++		else if (reg_offset == SOC15_REG_OFFSET(GC, 0, mmDB_DEBUG2))
++			return adev->gfx.config.db_debug2;
+ 		return RREG32(reg_offset);
+ 	}
+ }
+-- 
+2.7.4
+

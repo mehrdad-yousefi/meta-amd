@@ -1,0 +1,220 @@
+From 70c664c4a187fa5b9a985cbd3dec4dad48c4e1d2 Mon Sep 17 00:00:00 2001
+From: Nevenko Stupar <Nevenko.Stupar@amd.com>
+Date: Tue, 25 Sep 2018 18:18:33 -0400
+Subject: [PATCH 5586/5725] drm/amd/display: expose hwseq functions and add
+ registers
+
+Make these functions non static and define registers for future use
+
+	is_lower_pipe_tree_visible();
+	is_upper_pipe_tree_visible();
+	is_pipe_tree_visible();
+	dcn10_program_pte_vm();
+	set_hdr_multiplier();
+	update_dchubp_dpp()
+	find_top_pipe_for_stream()
+
+Signed-off-by: Nevenko Stupar <Nevenko.Stupar@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc.h                |  2 -
+ drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h     | 50 ++++++++++++++++++++++
+ .../drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c  | 14 +++---
+ .../drm/amd/display/dc/dcn10/dcn10_hw_sequencer.h  | 20 +++++++++
+ 4 files changed, 77 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 1e26623..f4db4d7 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -249,8 +249,6 @@ struct dc_debug_options {
+ 	bool disable_dmcu;
+ 	bool disable_psr;
+ 	bool force_abm_enable;
+-	bool disable_hbup_pg;
+-	bool disable_dpp_pg;
+ 	bool disable_stereo_support;
+ 	bool vsr_support;
+ 	bool performance_trace;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h b/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h
+index 64dc753..7d97787 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.h
+@@ -233,6 +233,16 @@ struct dce_hwseq_registers {
+ 	uint32_t DOMAIN5_PG_CONFIG;
+ 	uint32_t DOMAIN6_PG_CONFIG;
+ 	uint32_t DOMAIN7_PG_CONFIG;
++	uint32_t DOMAIN8_PG_CONFIG;
++	uint32_t DOMAIN9_PG_CONFIG;
++	uint32_t DOMAIN10_PG_CONFIG;
++	uint32_t DOMAIN11_PG_CONFIG;
++	uint32_t DOMAIN16_PG_CONFIG;
++	uint32_t DOMAIN17_PG_CONFIG;
++	uint32_t DOMAIN18_PG_CONFIG;
++	uint32_t DOMAIN19_PG_CONFIG;
++	uint32_t DOMAIN20_PG_CONFIG;
++	uint32_t DOMAIN21_PG_CONFIG;
+ 	uint32_t DOMAIN0_PG_STATUS;
+ 	uint32_t DOMAIN1_PG_STATUS;
+ 	uint32_t DOMAIN2_PG_STATUS;
+@@ -241,6 +251,16 @@ struct dce_hwseq_registers {
+ 	uint32_t DOMAIN5_PG_STATUS;
+ 	uint32_t DOMAIN6_PG_STATUS;
+ 	uint32_t DOMAIN7_PG_STATUS;
++	uint32_t DOMAIN8_PG_STATUS;
++	uint32_t DOMAIN9_PG_STATUS;
++	uint32_t DOMAIN10_PG_STATUS;
++	uint32_t DOMAIN11_PG_STATUS;
++	uint32_t DOMAIN16_PG_STATUS;
++	uint32_t DOMAIN17_PG_STATUS;
++	uint32_t DOMAIN18_PG_STATUS;
++	uint32_t DOMAIN19_PG_STATUS;
++	uint32_t DOMAIN20_PG_STATUS;
++	uint32_t DOMAIN21_PG_STATUS;
+ 	uint32_t DIO_MEM_PWR_CTRL;
+ 	uint32_t DCCG_GATE_DISABLE_CNTL;
+ 	uint32_t DCCG_GATE_DISABLE_CNTL2;
+@@ -489,6 +509,26 @@ struct dce_hwseq_registers {
+ 	type DOMAIN6_POWER_GATE; \
+ 	type DOMAIN7_POWER_FORCEON; \
+ 	type DOMAIN7_POWER_GATE; \
++	type DOMAIN8_POWER_FORCEON; \
++	type DOMAIN8_POWER_GATE; \
++	type DOMAIN9_POWER_FORCEON; \
++	type DOMAIN9_POWER_GATE; \
++	type DOMAIN10_POWER_FORCEON; \
++	type DOMAIN10_POWER_GATE; \
++	type DOMAIN11_POWER_FORCEON; \
++	type DOMAIN11_POWER_GATE; \
++	type DOMAIN16_POWER_FORCEON; \
++	type DOMAIN16_POWER_GATE; \
++	type DOMAIN17_POWER_FORCEON; \
++	type DOMAIN17_POWER_GATE; \
++	type DOMAIN18_POWER_FORCEON; \
++	type DOMAIN18_POWER_GATE; \
++	type DOMAIN19_POWER_FORCEON; \
++	type DOMAIN19_POWER_GATE; \
++	type DOMAIN20_POWER_FORCEON; \
++	type DOMAIN20_POWER_GATE; \
++	type DOMAIN21_POWER_FORCEON; \
++	type DOMAIN21_POWER_GATE; \
+ 	type DOMAIN0_PGFSM_PWR_STATUS; \
+ 	type DOMAIN1_PGFSM_PWR_STATUS; \
+ 	type DOMAIN2_PGFSM_PWR_STATUS; \
+@@ -497,6 +537,16 @@ struct dce_hwseq_registers {
+ 	type DOMAIN5_PGFSM_PWR_STATUS; \
+ 	type DOMAIN6_PGFSM_PWR_STATUS; \
+ 	type DOMAIN7_PGFSM_PWR_STATUS; \
++	type DOMAIN8_PGFSM_PWR_STATUS; \
++	type DOMAIN9_PGFSM_PWR_STATUS; \
++	type DOMAIN10_PGFSM_PWR_STATUS; \
++	type DOMAIN11_PGFSM_PWR_STATUS; \
++	type DOMAIN16_PGFSM_PWR_STATUS; \
++	type DOMAIN17_PGFSM_PWR_STATUS; \
++	type DOMAIN18_PGFSM_PWR_STATUS; \
++	type DOMAIN19_PGFSM_PWR_STATUS; \
++	type DOMAIN20_PGFSM_PWR_STATUS; \
++	type DOMAIN21_PGFSM_PWR_STATUS; \
+ 	type DCFCLK_GATE_DIS; \
+ 	type DCHUBBUB_GLOBAL_TIMER_REFDIV; \
+ 	type VGA_TEST_ENABLE; \
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 6375241..d1f8c8e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -1603,7 +1603,7 @@ static void mmhub_read_vm_context0_settings(struct dcn10_hubp *hubp1,
+ }
+ 
+ 
+-static void dcn10_program_pte_vm(struct dce_hwseq *hws, struct hubp *hubp)
++void dcn10_program_pte_vm(struct dce_hwseq *hws, struct hubp *hubp)
+ {
+ 	struct dcn10_hubp *hubp1 = TO_DCN10_HUBP(hubp);
+ 	struct vm_system_aperture_param apt = { {{ 0 } } };
+@@ -1729,7 +1729,7 @@ static void dcn10_program_output_csc(struct dc *dc,
+ 				matrix);
+ }
+ 
+-static bool is_lower_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
++bool is_lower_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
+ {
+ 	if (pipe_ctx->plane_state->visible)
+ 		return true;
+@@ -1738,7 +1738,7 @@ static bool is_lower_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
+ 	return false;
+ }
+ 
+-static bool is_upper_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
++bool is_upper_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
+ {
+ 	if (pipe_ctx->plane_state->visible)
+ 		return true;
+@@ -1747,7 +1747,7 @@ static bool is_upper_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
+ 	return false;
+ }
+ 
+-static bool is_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
++bool is_pipe_tree_visible(struct pipe_ctx *pipe_ctx)
+ {
+ 	if (pipe_ctx->plane_state->visible)
+ 		return true;
+@@ -2035,7 +2035,7 @@ static void update_scaler(struct pipe_ctx *pipe_ctx)
+ 			pipe_ctx->plane_res.dpp, &pipe_ctx->plane_res.scl_data);
+ }
+ 
+-static void update_dchubp_dpp(
++void update_dchubp_dpp(
+ 	struct dc *dc,
+ 	struct pipe_ctx *pipe_ctx,
+ 	struct dc_state *context)
+@@ -2182,7 +2182,7 @@ static void dcn10_blank_pixel_data(
+ 	}
+ }
+ 
+-static void set_hdr_multiplier(struct pipe_ctx *pipe_ctx)
++void set_hdr_multiplier(struct pipe_ctx *pipe_ctx)
+ {
+ 	struct fixed31_32 multiplier = dc_fixpt_from_fraction(
+ 			pipe_ctx->plane_state->sdr_white_level, 80);
+@@ -2257,7 +2257,7 @@ static void program_all_pipe_in_tree(
+ 	}
+ }
+ 
+-static struct pipe_ctx *find_top_pipe_for_stream(
++struct pipe_ctx *find_top_pipe_for_stream(
+ 		struct dc *dc,
+ 		struct dc_state *context,
+ 		const struct dc_stream_state *stream)
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.h
+index 84d461e..5e5610c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.h
+@@ -51,4 +51,24 @@ void dcn10_get_hw_state(
+ 		char *pBuf, unsigned int bufSize,
+ 		unsigned int mask);
+ 
++bool is_lower_pipe_tree_visible(struct pipe_ctx *pipe_ctx);
++
++bool is_upper_pipe_tree_visible(struct pipe_ctx *pipe_ctx);
++
++bool is_pipe_tree_visible(struct pipe_ctx *pipe_ctx);
++
++void dcn10_program_pte_vm(struct dce_hwseq *hws, struct hubp *hubp);
++
++void set_hdr_multiplier(struct pipe_ctx *pipe_ctx);
++
++void update_dchubp_dpp(
++	struct dc *dc,
++	struct pipe_ctx *pipe_ctx,
++	struct dc_state *context);
++
++struct pipe_ctx *find_top_pipe_for_stream(
++		struct dc *dc,
++		struct dc_state *context,
++		const struct dc_stream_state *stream);
++
+ #endif /* __DC_HWSS_DCN10_H__ */
+-- 
+2.7.4
+

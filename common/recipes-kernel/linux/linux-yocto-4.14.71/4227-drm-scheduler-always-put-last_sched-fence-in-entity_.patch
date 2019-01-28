@@ -1,0 +1,39 @@
+From 19c308db4c4f992d89ad7f6dff1bbc56d5244f6c Mon Sep 17 00:00:00 2001
+From: Pixel Ding <Pixel.Ding@amd.com>
+Date: Wed, 18 Apr 2018 04:33:26 -0400
+Subject: [PATCH 4227/5725] drm/scheduler: always put last_sched fence in
+ entity_fini
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fix the potential memleak since scheduler main thread always
+hold one last_sched fence.
+
+Signed-off-by: Pixel Ding <Pixel.Ding@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/scheduler/gpu_scheduler.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/scheduler/gpu_scheduler.c b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+index f45b4fd..c8ec777 100644
+--- a/drivers/gpu/drm/scheduler/gpu_scheduler.c
++++ b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+@@ -275,10 +275,10 @@ void drm_sched_entity_cleanup(struct drm_gpu_scheduler *sched,
+ 			else if (r)
+ 				DRM_ERROR("fence add callback failed (%d)\n", r);
+ 		}
+-
+-		dma_fence_put(entity->last_scheduled);
+-		entity->last_scheduled = NULL;
+ 	}
++
++	dma_fence_put(entity->last_scheduled);
++	entity->last_scheduled = NULL;
+ }
+ EXPORT_SYMBOL(drm_sched_entity_cleanup);
+ 
+-- 
+2.7.4
+

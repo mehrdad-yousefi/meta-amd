@@ -1,0 +1,61 @@
+From 764c7c6ecd746b9c91bc62c435af7e340ea07120 Mon Sep 17 00:00:00 2001
+From: Jun Lei <Jun.Lei@amd.com>
+Date: Thu, 13 Sep 2018 09:32:26 -0400
+Subject: [PATCH 5486/5725] drm/amd/display: Add DC build_id to determine build
+ type
+
+[why]
+Sometimes there are indications that the incorrect driver is being
+loaded in automated tests. This change adds the ability for builds to
+be tagged with a string, and picked up by the test infrastructure.
+
+[how]
+dc.c will allocate const for build id, which is init-ed with default
+value, indicating production build. For test builds, build server will
+find/replace this value. The test machine will then verify this value.
+
+Signed-off-by: Jun Lei <Jun.Lei@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 3 +++
+ drivers/gpu/drm/amd/display/dc/dc.h      | 2 ++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index dd8babd..080b9cb 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -60,6 +60,7 @@
+ #define DC_LOGGER \
+ 	dc->ctx->logger
+ 
++const static char DC_BUILD_ID[] = "production-build";
+ 
+ /*******************************************************************************
+  * Private functions
+@@ -758,6 +759,8 @@ struct dc *dc_create(const struct dc_init_data *init_params)
+ 
+ 	dc->config = init_params->flags;
+ 
++	dc->build_id = DC_BUILD_ID;
++
+ 	DC_LOG_DC("Display Core initialized\n");
+ 
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index aa4d996..748f484 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -315,6 +315,8 @@ struct dc {
+ 	struct compressor *fbc_compressor;
+ 
+ 	struct dc_debug_data debug_data;
++
++	const char *build_id;
+ };
+ 
+ enum frame_buffer_mode {
+-- 
+2.7.4
+

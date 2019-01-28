@@ -1,0 +1,30 @@
+From 3cb4ff19ed6799f8f2ef171214fef38fb9036a97 Mon Sep 17 00:00:00 2001
+From: Rajan Vaja <rajan.vaja@gmail.com>
+Date: Mon, 18 Jun 2018 13:01:02 +0530
+Subject: [PATCH 4696/5725] drm/amd/pp: Fix uninitialized variable
+
+Initialize variable to 0 before performing logical OR operation.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Rajan Vaja <rajan.vaja@gmail.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c
+index dbe4b1f..2236487 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c
+@@ -1090,7 +1090,7 @@ static int vega10_disable_se_edc_config(struct pp_hwmgr *hwmgr)
+ static int vega10_enable_psm_gc_edc_config(struct pp_hwmgr *hwmgr)
+ {
+ 	struct amdgpu_device *adev = hwmgr->adev;
+-	int result;
++	int result = 0;
+ 	uint32_t num_se = 0;
+ 	uint32_t count, data;
+ 
+-- 
+2.7.4
+

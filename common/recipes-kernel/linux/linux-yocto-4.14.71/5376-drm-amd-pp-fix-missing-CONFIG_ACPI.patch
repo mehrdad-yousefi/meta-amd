@@ -1,0 +1,34 @@
+From 45a7631016a0a97b25e6d226970462e2462d0d44 Mon Sep 17 00:00:00 2001
+From: Dave Airlie <airlied@redhat.com>
+Date: Wed, 14 Mar 2018 10:54:55 +1000
+Subject: [PATCH 5376/5725] drm/amd/pp: fix missing CONFIG_ACPI.
+
+This was stopping me building on ARM after last pull.
+
+Signed-off-by: Dave Airlie <airlied@redhat.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index 263a781..0bfb297 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -3899,12 +3899,14 @@ static int smu7_notify_link_speed_change_after_state_change(
+ 				smu7_get_current_pcie_speed(hwmgr) > 0)
+ 			return 0;
+ 
++#ifdef CONFIG_ACPI
+ 		if (amdgpu_acpi_pcie_performance_request(hwmgr->adev, request, false)) {
+ 			if (PP_PCIEGen2 == target_link_speed)
+ 				pr_info("PSPP request to switch to Gen2 from Gen3 Failed!");
+ 			else
+ 				pr_info("PSPP request to switch to Gen1 from Gen2 Failed!");
+ 		}
++#endif
+ 	}
+ 
+ 	return 0;
+-- 
+2.7.4
+

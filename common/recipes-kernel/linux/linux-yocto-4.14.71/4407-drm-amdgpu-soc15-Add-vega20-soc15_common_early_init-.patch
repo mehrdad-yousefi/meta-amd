@@ -1,0 +1,35 @@
+From a34c8fe22f6bcd83ca345adcaa042df02201aa3c Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 26 Jan 2018 15:06:22 +0800
+Subject: [PATCH 4407/5725] drm/amdgpu/soc15:Add vega20 soc15_common_early_init
+ support
+
+Set external_rev_id and disable cg,pg for now.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index f31df18..f45bea8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -658,6 +658,11 @@ static int soc15_common_early_init(void *handle)
+ 		adev->pg_flags = 0;
+ 		adev->external_rev_id = adev->rev_id + 0x14;
+ 		break;
++	case CHIP_VEGA20:
++		adev->cg_flags = 0;
++		adev->pg_flags = 0;
++		adev->external_rev_id = adev->rev_id + 0x28;
++		break;
+ 	case CHIP_RAVEN:
+ 		adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
+ 			AMD_CG_SUPPORT_GFX_MGLS |
+-- 
+2.7.4
+

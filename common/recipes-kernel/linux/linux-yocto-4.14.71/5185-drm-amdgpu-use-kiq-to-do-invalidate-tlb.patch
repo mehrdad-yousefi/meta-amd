@@ -1,0 +1,171 @@
+From af65449ea823482ec1da97e04e7daf2414842292 Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Fri, 17 Aug 2018 18:25:36 +0800
+Subject: [PATCH 5185/5725] drm/amdgpu: use kiq to do invalidate tlb
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+To avoid the tlb flush not interrupted by world switch, use kiq and one
+command to do tlb invalidate.
+
+v2:
+Refine the invalidate lock position.
+
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-and-Tested-by: Rex Zhu <Rex.Zhu@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h      |  4 ++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c |  3 --
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c    | 74 +++++++++++++++++++++++++++++---
+ 3 files changed, 71 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index ece78da..b11832a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -216,6 +216,10 @@ enum amdgpu_kiq_irq {
+ 	AMDGPU_CP_KIQ_IRQ_LAST
+ };
+ 
++#define MAX_KIQ_REG_WAIT       5000 /* in usecs, 5ms */
++#define MAX_KIQ_REG_BAILOUT_INTERVAL   5 /* in msecs, 5ms */
++#define MAX_KIQ_REG_TRY 20
++
+ int amdgpu_device_ip_set_clockgating_state(void *dev,
+ 					   enum amd_ip_block_type block_type,
+ 					   enum amd_clockgating_state state);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
+index 21adb1b6..3885636 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
+@@ -22,9 +22,6 @@
+  */
+ 
+ #include "amdgpu.h"
+-#define MAX_KIQ_REG_WAIT	5000 /* in usecs, 5ms */
+-#define MAX_KIQ_REG_BAILOUT_INTERVAL	5 /* in msecs, 5ms */
+-#define MAX_KIQ_REG_TRY 20
+ 
+ uint64_t amdgpu_csa_vaddr(struct amdgpu_device *adev)
+ {
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 8a5bccc..ff9868a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -310,6 +310,58 @@ static uint32_t gmc_v9_0_get_invalidate_req(unsigned int vmid)
+ 	return req;
+ }
+ 
++signed long  amdgpu_kiq_reg_write_reg_wait(struct amdgpu_device *adev,
++						  uint32_t reg0, uint32_t reg1,
++						  uint32_t ref, uint32_t mask)
++{
++	signed long r, cnt = 0;
++	unsigned long flags;
++	uint32_t seq;
++	struct amdgpu_kiq *kiq = &adev->gfx.kiq;
++	struct amdgpu_ring *ring = &kiq->ring;
++
++	if (!ring->ready)
++		return -EINVAL;
++
++	spin_lock_irqsave(&kiq->ring_lock, flags);
++
++	amdgpu_ring_alloc(ring, 32);
++	amdgpu_ring_emit_reg_write_reg_wait(ring, reg0, reg1,
++					    ref, mask);
++	amdgpu_fence_emit_polling(ring, &seq);
++	amdgpu_ring_commit(ring);
++	spin_unlock_irqrestore(&kiq->ring_lock, flags);
++
++	r = amdgpu_fence_wait_polling(ring, seq, MAX_KIQ_REG_WAIT);
++
++	/* don't wait anymore for gpu reset case because this way may
++	 * block gpu_recover() routine forever, e.g. this virt_kiq_rreg
++	 * is triggered in TTM and ttm_bo_lock_delayed_workqueue() will
++	 * never return if we keep waiting in virt_kiq_rreg, which cause
++	 * gpu_recover() hang there.
++	 *
++	 * also don't wait anymore for IRQ context
++	 * */
++	if (r < 1 && (adev->in_gpu_reset || in_interrupt()))
++		goto failed_kiq;
++
++	might_sleep();
++
++	while (r < 1 && cnt++ < MAX_KIQ_REG_TRY) {
++		msleep(MAX_KIQ_REG_BAILOUT_INTERVAL);
++		r = amdgpu_fence_wait_polling(ring, seq, MAX_KIQ_REG_WAIT);
++	}
++
++	if (cnt > MAX_KIQ_REG_TRY)
++		goto failed_kiq;
++
++	return 0;
++
++failed_kiq:
++	pr_err("failed to invalidate tlb with kiq\n");
++	return r;
++}
++
+ /*
+  * GART
+  * VMID 0 is the physical GPU addresses as used by the kernel.
+@@ -331,13 +383,19 @@ static void gmc_v9_0_flush_gpu_tlb(struct amdgpu_device *adev,
+ 	/* Use register 17 for GART */
+ 	const unsigned eng = 17;
+ 	unsigned i, j;
+-
+-	spin_lock(&adev->gmc.invalidate_lock);
++	int r;
+ 
+ 	for (i = 0; i < AMDGPU_MAX_VMHUBS; ++i) {
+ 		struct amdgpu_vmhub *hub = &adev->vmhub[i];
+ 		u32 tmp = gmc_v9_0_get_invalidate_req(vmid);
+ 
++		r = amdgpu_kiq_reg_write_reg_wait(adev, hub->vm_inv_eng0_req + eng,
++			hub->vm_inv_eng0_ack + eng, tmp, 1 << vmid);
++		if (!r)
++			continue;
++
++		spin_lock(&adev->gmc.invalidate_lock);
++
+ 		WREG32_NO_KIQ(hub->vm_inv_eng0_req + eng, tmp);
+ 
+ 		/* Busy wait for ACK.*/
+@@ -348,8 +406,10 @@ static void gmc_v9_0_flush_gpu_tlb(struct amdgpu_device *adev,
+ 				break;
+ 			cpu_relax();
+ 		}
+-		if (j < 100)
++		if (j < 100) {
++			spin_unlock(&adev->gmc.invalidate_lock);
+ 			continue;
++		}
+ 
+ 		/* Wait for ACK with a delay.*/
+ 		for (j = 0; j < adev->usec_timeout; j++) {
+@@ -359,13 +419,13 @@ static void gmc_v9_0_flush_gpu_tlb(struct amdgpu_device *adev,
+ 				break;
+ 			udelay(1);
+ 		}
+-		if (j < adev->usec_timeout)
++		if (j < adev->usec_timeout) {
++			spin_unlock(&adev->gmc.invalidate_lock);
+ 			continue;
+-
++		}
++		spin_unlock(&adev->gmc.invalidate_lock);
+ 		DRM_ERROR("Timeout waiting for VM flush ACK!\n");
+ 	}
+-
+-	spin_unlock(&adev->gmc.invalidate_lock);
+ }
+ 
+ static uint64_t gmc_v9_0_emit_flush_gpu_tlb(struct amdgpu_ring *ring,
+-- 
+2.7.4
+

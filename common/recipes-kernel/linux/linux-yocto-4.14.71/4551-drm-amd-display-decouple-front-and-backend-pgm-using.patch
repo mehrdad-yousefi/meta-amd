@@ -1,0 +1,351 @@
+From f71c6762e8e370463f545eee939540bfc8bba2f7 Mon Sep 17 00:00:00 2001
+From: Samson Tam <Samson.Tam@amd.com>
+Date: Tue, 1 May 2018 10:39:26 -0400
+Subject: [PATCH 4551/5725] drm/amd/display: decouple front and backend pgm
+ using dpms_off as backend enable flag
+
+Signed-off-by: Samson Tam <Samson.Tam@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c           | 125 +++++++++++++--------
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c      |  34 ++++++
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c  |   6 +
+ drivers/gpu/drm/amd/display/dc/dc_stream.h         |   2 +
+ .../amd/display/dc/dce110/dce110_hw_sequencer.c    |  38 +------
+ 5 files changed, 123 insertions(+), 82 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 16e8f37..a6a09b0 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1227,6 +1227,9 @@ static enum surface_update_type check_update_surfaces_for_stream(
+ 
+ 		if (stream_update->abm_level)
+ 			return UPDATE_TYPE_FULL;
++
++		if (stream_update->dpms_off)
++			return UPDATE_TYPE_FULL;
+ 	}
+ 
+ 	for (i = 0 ; i < surface_count; i++) {
+@@ -1281,6 +1284,71 @@ static struct dc_stream_status *stream_get_status(
+ static const enum surface_update_type update_surface_trace_level = UPDATE_TYPE_FULL;
+ 
+ 
++static void commit_planes_do_stream_update(struct dc *dc,
++		struct dc_stream_state *stream,
++		struct dc_stream_update *stream_update,
++		enum surface_update_type update_type,
++		struct dc_state *context)
++{
++	int j;
++
++	// Stream updates
++	for (j = 0; j < dc->res_pool->pipe_count; j++) {
++		struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[j];
++
++		if (!pipe_ctx->top_pipe &&
++			pipe_ctx->stream &&
++			pipe_ctx->stream == stream) {
++
++			/* Fast update*/
++			// VRR program can be done as part of FAST UPDATE
++			if (stream_update->adjust)
++				dc->hwss.set_drr(&pipe_ctx, 1,
++					stream_update->adjust->v_total_min,
++					stream_update->adjust->v_total_max);
++
++			/* Full fe update*/
++			if (update_type == UPDATE_TYPE_FAST)
++				continue;
++
++			if (stream_update->dpms_off) {
++				if (*stream_update->dpms_off) {
++					core_link_disable_stream(pipe_ctx, KEEP_ACQUIRED_RESOURCE);
++					dc->hwss.pplib_apply_display_requirements(
++						dc, dc->current_state);
++				} else {
++					dc->hwss.pplib_apply_display_requirements(
++						dc, dc->current_state);
++					core_link_enable_stream(dc->current_state, pipe_ctx);
++				}
++			}
++
++			if (stream_update->abm_level && pipe_ctx->stream_res.abm) {
++				if (pipe_ctx->stream_res.tg->funcs->is_blanked) {
++					// if otg funcs defined check if blanked before programming
++					if (!pipe_ctx->stream_res.tg->funcs->is_blanked(pipe_ctx->stream_res.tg))
++						pipe_ctx->stream_res.abm->funcs->set_abm_level(
++							pipe_ctx->stream_res.abm, stream->abm_level);
++				} else
++					pipe_ctx->stream_res.abm->funcs->set_abm_level(
++						pipe_ctx->stream_res.abm, stream->abm_level);
++			}
++
++			if (stream_update->periodic_fn_vsync_delta &&
++				pipe_ctx->stream_res.tg->funcs->program_vline_interrupt)
++					pipe_ctx->stream_res.tg->funcs->program_vline_interrupt(
++						pipe_ctx->stream_res.tg, &pipe_ctx->stream->timing,
++						pipe_ctx->stream->periodic_fn_vsync_delta);
++
++			if (stream_update->hdr_static_metadata ||
++				stream_update->vrr_infopacket) {
++				resource_build_info_frame(pipe_ctx);
++				dc->hwss.update_info_frame(pipe_ctx);
++			}
++		}
++	}
++}
++
+ static void commit_planes_for_stream(struct dc *dc,
+ 		struct dc_surface_update *srf_updates,
+ 		int surface_count,
+@@ -1297,15 +1365,20 @@ static void commit_planes_for_stream(struct dc *dc,
+ 		context_clock_trace(dc, context);
+ 	}
+ 
++	// Stream updates
++	if (stream_update)
++		commit_planes_do_stream_update(dc, stream, stream_update, update_type, context);
++
+ 	if (surface_count == 0) {
+ 		/*
+ 		 * In case of turning off screen, no need to program front end a second time.
+-		 * just return after program front end.
++		 * just return after program blank.
+ 		 */
+-		dc->hwss.apply_ctx_for_surface(dc, stream, surface_count, context);
++		dc->hwss.apply_ctx_for_surface(dc, stream, 0, context);
+ 		return;
+ 	}
+ 
++	// Update Type FULL, Surface updates
+ 	for (j = 0; j < dc->res_pool->pipe_count; j++) {
+ 		struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[j];
+ 
+@@ -1319,13 +1392,6 @@ static void commit_planes_for_stream(struct dc *dc,
+ 			if (!pipe_ctx->plane_state)
+ 				continue;
+ 
+-			/* Fast update*/
+-			// VRR program can be done as part of FAST UPDATE
+-			if (stream_update && stream_update->adjust)
+-				dc->hwss.set_drr(&pipe_ctx, 1,
+-					stream_update->adjust->v_total_min,
+-					stream_update->adjust->v_total_max);
+-
+ 			/* Full fe update*/
+ 			if (update_type == UPDATE_TYPE_FAST)
+ 				continue;
+@@ -1335,34 +1401,18 @@ static void commit_planes_for_stream(struct dc *dc,
+ 
+ 			dc->hwss.apply_ctx_for_surface(
+ 					dc, pipe_ctx->stream, stream_status->plane_count, context);
+-
+-			if (stream_update && stream_update->abm_level && pipe_ctx->stream_res.abm) {
+-				if (pipe_ctx->stream_res.tg->funcs->is_blanked) {
+-					// if otg funcs defined check if blanked before programming
+-					if (!pipe_ctx->stream_res.tg->funcs->is_blanked(pipe_ctx->stream_res.tg))
+-						pipe_ctx->stream_res.abm->funcs->set_abm_level(
+-								pipe_ctx->stream_res.abm, stream->abm_level);
+-				} else
+-					pipe_ctx->stream_res.abm->funcs->set_abm_level(
+-							pipe_ctx->stream_res.abm, stream->abm_level);
+-			}
+-
+-			if (stream_update && stream_update->periodic_fn_vsync_delta &&
+-					pipe_ctx->stream_res.tg->funcs->program_vline_interrupt)
+-				pipe_ctx->stream_res.tg->funcs->program_vline_interrupt(
+-						pipe_ctx->stream_res.tg, &pipe_ctx->stream->timing,
+-						pipe_ctx->stream->periodic_fn_vsync_delta);
+ 		}
+ 	}
+ 
+ 	if (update_type == UPDATE_TYPE_FULL)
+ 		context_timing_trace(dc, &context->res_ctx);
+ 
+-	/* Lock the top pipe while updating plane addrs, since freesync requires
+-	 *  plane addr update event triggers to be synchronized.
+-	 *  top_pipe_to_program is expected to never be NULL
+-	 */
++	// Update Type FAST, Surface updates
+ 	if (update_type == UPDATE_TYPE_FAST) {
++		/* Lock the top pipe while updating plane addrs, since freesync requires
++		 *  plane addr update event triggers to be synchronized.
++		 *  top_pipe_to_program is expected to never be NULL
++		 */
+ 		dc->hwss.pipe_control_lock(dc, top_pipe_to_program, true);
+ 
+ 		/* Perform requested Updates */
+@@ -1385,21 +1435,6 @@ static void commit_planes_for_stream(struct dc *dc,
+ 
+ 		dc->hwss.pipe_control_lock(dc, top_pipe_to_program, false);
+ 	}
+-
+-	if (stream && stream_update)
+-		for (j = 0; j < dc->res_pool->pipe_count; j++) {
+-			struct pipe_ctx *pipe_ctx =
+-					&context->res_ctx.pipe_ctx[j];
+-
+-			if (pipe_ctx->stream != stream)
+-				continue;
+-
+-			if (stream_update->hdr_static_metadata ||
+-				(stream_update->vrr_infopacket)) {
+-				resource_build_info_frame(pipe_ctx);
+-				dc->hwss.update_info_frame(pipe_ctx);
+-			}
+-		}
+ }
+ 
+ void dc_commit_updates_for_stream(struct dc *dc,
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index 08b7ee5..a81ae8d 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -2360,9 +2360,43 @@ void core_link_enable_stream(
+ 		struct pipe_ctx *pipe_ctx)
+ {
+ 	struct dc  *core_dc = pipe_ctx->stream->ctx->dc;
++	struct dc_stream_state *stream = pipe_ctx->stream;
+ 	enum dc_status status;
+ 	DC_LOGGER_INIT(pipe_ctx->stream->ctx->logger);
+ 
++	if (pipe_ctx->stream->signal != SIGNAL_TYPE_VIRTUAL) {
++		stream->sink->link->link_enc->funcs->setup(
++			stream->sink->link->link_enc,
++			pipe_ctx->stream->signal);
++		pipe_ctx->stream_res.stream_enc->funcs->setup_stereo_sync(
++			pipe_ctx->stream_res.stream_enc,
++			pipe_ctx->stream_res.tg->inst,
++			stream->timing.timing_3d_format != TIMING_3D_FORMAT_NONE);
++	}
++
++	if (dc_is_dp_signal(pipe_ctx->stream->signal))
++		pipe_ctx->stream_res.stream_enc->funcs->dp_set_stream_attribute(
++			pipe_ctx->stream_res.stream_enc,
++			&stream->timing,
++			stream->output_color_space);
++
++	if (dc_is_hdmi_signal(pipe_ctx->stream->signal))
++		pipe_ctx->stream_res.stream_enc->funcs->hdmi_set_stream_attribute(
++			pipe_ctx->stream_res.stream_enc,
++			&stream->timing,
++			stream->phy_pix_clk,
++			pipe_ctx->stream_res.audio != NULL);
++
++	if (dc_is_dvi_signal(pipe_ctx->stream->signal))
++		pipe_ctx->stream_res.stream_enc->funcs->dvi_set_stream_attribute(
++			pipe_ctx->stream_res.stream_enc,
++			&stream->timing,
++			(pipe_ctx->stream->signal == SIGNAL_TYPE_DVI_DUAL_LINK) ?
++			true : false);
++
++	resource_build_info_frame(pipe_ctx);
++	core_dc->hwss.update_info_frame(pipe_ctx);
++
+ 	/* eDP lit up by bios already, no need to enable again. */
+ 	if (pipe_ctx->stream->signal == SIGNAL_TYPE_EDP &&
+ 		core_dc->apply_edp_fast_boot_optimization) {
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index ad09f0c..b65aa6e 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1524,6 +1524,9 @@ static bool are_stream_backends_same(
+ 	if (is_hdr_static_meta_changed(stream_a, stream_b))
+ 		return false;
+ 
++	if (stream_a->dpms_off != stream_b->dpms_off)
++		return false;
++
+ 	return true;
+ }
+ 
+@@ -2624,6 +2627,9 @@ bool pipe_need_reprogram(
+ 	if (is_hdr_static_meta_changed(pipe_ctx_old->stream, pipe_ctx->stream))
+ 		return true;
+ 
++	if (pipe_ctx_old->stream->dpms_off != pipe_ctx->stream->dpms_off)
++		return true;
++
+ 	return false;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_stream.h b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+index 9468c2f..d06fd41 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_stream.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+@@ -127,6 +127,8 @@ struct dc_stream_update {
+ 
+ 	struct dc_crtc_timing_adjust *adjust;
+ 	struct dc_info_packet *vrr_infopacket;
++
++	bool *dpms_off;
+ };
+ 
+ bool dc_is_stream_unchanged(
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 0544568..2c3b289 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -1337,8 +1337,6 @@ static enum dc_status apply_single_controller_ctx_to_hw(
+ 		struct dc *dc)
+ {
+ 	struct dc_stream_state *stream = pipe_ctx->stream;
+-	struct pipe_ctx *pipe_ctx_old = &dc->current_state->res_ctx.
+-			pipe_ctx[pipe_ctx->pipe_idx];
+ 
+ 	if (pipe_ctx->stream_res.audio != NULL) {
+ 		struct audio_output audio_output;
+@@ -1393,46 +1391,12 @@ static enum dc_status apply_single_controller_ctx_to_hw(
+ 			stream->timing.display_color_depth,
+ 			pipe_ctx->stream->signal);
+ 
+-	if (pipe_ctx->stream->signal != SIGNAL_TYPE_VIRTUAL)
+-		stream->sink->link->link_enc->funcs->setup(
+-			stream->sink->link->link_enc,
+-			pipe_ctx->stream->signal);
+-
+-	if (pipe_ctx->stream->signal != SIGNAL_TYPE_VIRTUAL)
+-		pipe_ctx->stream_res.stream_enc->funcs->setup_stereo_sync(
+-		pipe_ctx->stream_res.stream_enc,
+-		pipe_ctx->stream_res.tg->inst,
+-		stream->timing.timing_3d_format != TIMING_3D_FORMAT_NONE);
+-
+-
+ 	pipe_ctx->stream_res.opp->funcs->opp_program_fmt(
+ 		pipe_ctx->stream_res.opp,
+ 		&stream->bit_depth_params,
+ 		&stream->clamping);
+ 
+-	if (dc_is_dp_signal(pipe_ctx->stream->signal))
+-		pipe_ctx->stream_res.stream_enc->funcs->dp_set_stream_attribute(
+-			pipe_ctx->stream_res.stream_enc,
+-			&stream->timing,
+-			stream->output_color_space);
+-
+-	if (dc_is_hdmi_signal(pipe_ctx->stream->signal))
+-		pipe_ctx->stream_res.stream_enc->funcs->hdmi_set_stream_attribute(
+-			pipe_ctx->stream_res.stream_enc,
+-			&stream->timing,
+-			stream->phy_pix_clk,
+-			pipe_ctx->stream_res.audio != NULL);
+-
+-	if (dc_is_dvi_signal(pipe_ctx->stream->signal))
+-		pipe_ctx->stream_res.stream_enc->funcs->dvi_set_stream_attribute(
+-			pipe_ctx->stream_res.stream_enc,
+-			&stream->timing,
+-			(pipe_ctx->stream->signal == SIGNAL_TYPE_DVI_DUAL_LINK) ?
+-			true : false);
+-
+-	resource_build_info_frame(pipe_ctx);
+-	dce110_update_info_frame(pipe_ctx);
+-	if (!pipe_ctx_old->stream)
++	if (!stream->dpms_off)
+ 		core_link_enable_stream(context, pipe_ctx);
+ 
+ 	pipe_ctx->plane_res.scl_data.lb_params.alpha_en = pipe_ctx->bottom_pipe != 0;
+-- 
+2.7.4
+

@@ -1,0 +1,38 @@
+From 5fcf5bd2f0a494dbf355ad08126f1124affa7531 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 27 Jul 2018 17:00:02 +0800
+Subject: [PATCH 5074/5725] drm/amdgpu: Disable gfx off if VCN is busy
+
+this patch is a workaround for the gpu hang
+at video begin/end time if gfx off is enabled.
+
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 414a67e..9485972 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -217,6 +217,7 @@ static void amdgpu_vcn_idle_work_handler(struct work_struct *work)
+ 	fences += amdgpu_fence_count_emitted(&adev->vcn.ring_jpeg);
+ 
+ 	if (fences == 0) {
++		amdgpu_gfx_off_ctrl(adev, true);
+ 		if (adev->pm.dpm_enabled)
+ 			amdgpu_dpm_enable_uvd(adev, false);
+ 		else
+@@ -233,6 +234,7 @@ void amdgpu_vcn_ring_begin_use(struct amdgpu_ring *ring)
+ 	bool set_clocks = !cancel_delayed_work_sync(&adev->vcn.idle_work);
+ 
+ 	if (set_clocks) {
++		amdgpu_gfx_off_ctrl(adev, false);
+ 		if (adev->pm.dpm_enabled)
+ 			amdgpu_dpm_enable_uvd(adev, true);
+ 		else
+-- 
+2.7.4
+

@@ -1,0 +1,27 @@
+From 2815c7fa7f71eddd2ec98a4b50cccaea32147b17 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 15 May 2018 14:09:21 -0500
+Subject: [PATCH 4443/5725] drm/amdgpu/gem: remove unused variable
+
+Trivial.
+
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index b432b21..6c41cf9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -942,7 +942,6 @@ static int amdgpu_debugfs_gem_bo_info(int id, void *ptr, void *data)
+ 	unsigned domain;
+ 	const char *placement;
+ 	unsigned pin_count;
+-	uint64_t offset;
+ 
+ 	domain = amdgpu_mem_type_to_domain(bo->tbo.mem.mem_type);
+ 	switch (domain) {
+-- 
+2.7.4
+

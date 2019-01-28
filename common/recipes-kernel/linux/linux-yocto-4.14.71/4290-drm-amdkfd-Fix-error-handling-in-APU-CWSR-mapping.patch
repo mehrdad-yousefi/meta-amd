@@ -1,0 +1,34 @@
+From 773d8279e82ca7538a9b67ebdad96b6ff00d7ca6 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 25 Apr 2018 18:21:26 -0400
+Subject: [PATCH 4290/5725] drm/amdkfd: Fix error handling in APU CWSR mapping
+
+Change-Id: Id808e7e2161be85ae771440d7fbcff087ba6154b
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index 2208794..cf78bc6 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -494,11 +494,12 @@ static int kfd_process_init_cwsr_apu(struct kfd_process *p, struct file *filep)
+ 				MAP_SHARED, offset);
+ 
+ 		if (IS_ERR_VALUE(qpd->tba_addr)) {
+-			pr_err("Failure to set tba address. error -%d.\n",
+-			       (int)qpd->tba_addr);
++			int err = qpd->tba_addr;
++
++			pr_err("Failure to set tba address. error %d.\n", err);
+ 			qpd->tba_addr = 0;
+ 			qpd->cwsr_kaddr = NULL;
+-			return -ENOMEM;
++			return err;
+ 		}
+ 
+ 		memcpy(qpd->cwsr_kaddr, dev->cwsr_isa, dev->cwsr_isa_size);
+-- 
+2.7.4
+

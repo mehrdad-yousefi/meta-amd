@@ -1,0 +1,28 @@
+From 29b861f79ea8d534959ee631ce8f7ab9ee2205a3 Mon Sep 17 00:00:00 2001
+From: Fatemeh Darbehani <fatemeh.darbehani@amd.com>
+Date: Mon, 24 Sep 2018 15:50:37 -0400
+Subject: [PATCH 5577/5725] drm/amd/display: dc 3.2.01
+
+Signed-off-by: Fatemeh Darbehani <fatemeh.darbehani@amd.com>
+Reviewed-by: Steven Chiu <Steven.Chiu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index b2fd563..4c08a99 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -38,7 +38,7 @@
+ #include "inc/compressor.h"
+ #include "dml/display_mode_lib.h"
+ 
+-#define DC_VER "3.1.68"
++#define DC_VER "3.2.01"
+ 
+ #define MAX_SURFACES 3
+ #define MAX_STREAMS 6
+-- 
+2.7.4
+

@@ -1,0 +1,140 @@
+From 816b67e0c73c376811c869fe8271ed725be83385 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 19 Jul 2018 13:24:33 -0500
+Subject: [PATCH 4991/5725] drm/amdgpu: rework suspend and resume to deal with
+ atomic changes
+
+Use the newly split ip suspend functions to do suspend displays
+first (to deal with atomic so that FBs can be unpinned before
+attempting to evict vram), then evict vram, then suspend the
+other IPs.  Also move the non-DC pinning code to only be
+called in the non-DC cases since atomic should take care of
+DC.
+
+Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=107065
+Fixes: e00fb85 drm: Stop updating plane->crtc/fb/old_fb on atomic drivers
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-and-tested-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 86 ++++++++++++++++--------------
+ 1 file changed, 45 insertions(+), 41 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index c4a9156..5c128c5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -2761,44 +2761,46 @@ int amdgpu_device_suspend(struct drm_device *dev, bool suspend, bool fbcon)
+ 			drm_helper_connector_dpms(connector, DRM_MODE_DPMS_OFF);
+ 		}
+ 		drm_modeset_unlock_all(dev);
+-	}
+-
+-	amdgpu_amdkfd_suspend(adev);
+-
+-	/* unpin the front buffers and cursors */
+-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+-		struct amdgpu_crtc *amdgpu_crtc = to_amdgpu_crtc(crtc);
+-		struct amdgpu_framebuffer *rfb = to_amdgpu_framebuffer(crtc->primary->fb);
+-		struct amdgpu_bo *robj;
+-
+-		if (amdgpu_crtc->cursor_bo) {
+-			struct amdgpu_bo *aobj = gem_to_amdgpu_bo(amdgpu_crtc->cursor_bo);
+-			r = amdgpu_bo_reserve(aobj, true);
+-			if (r == 0) {
+-				amdgpu_bo_unpin(aobj);
+-				amdgpu_bo_unreserve(aobj);
++			/* unpin the front buffers and cursors */
++		list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
++			struct amdgpu_crtc *amdgpu_crtc = to_amdgpu_crtc(crtc);
++			struct drm_framebuffer *fb = crtc->primary->fb;
++			struct amdgpu_bo *robj;
++
++			if (amdgpu_crtc->cursor_bo) {
++				struct amdgpu_bo *aobj = gem_to_amdgpu_bo(amdgpu_crtc->cursor_bo);
++				r = amdgpu_bo_reserve(aobj, true);
++				if (r == 0) {
++					amdgpu_bo_unpin(aobj);
++					amdgpu_bo_unreserve(aobj);
++				}
+ 			}
+-		}
+ 
+-		if (rfb == NULL || rfb->obj == NULL) {
+-			continue;
+-		}
+-		robj = gem_to_amdgpu_bo(rfb->obj);
+-		/* don't unpin kernel fb objects */
+-		if (!amdgpu_fbdev_robj_is_fb(adev, robj)) {
+-			r = amdgpu_bo_reserve(robj, true);
+-			if (r == 0) {
+-				amdgpu_bo_unpin(robj);
+-				amdgpu_bo_unreserve(robj);
++			if (fb == NULL || fb->obj[0] == NULL) {
++				continue;
++			}
++			robj = gem_to_amdgpu_bo(fb->obj[0]);
++			/* don't unpin kernel fb objects */
++			if (!amdgpu_fbdev_robj_is_fb(adev, robj)) {
++				r = amdgpu_bo_reserve(robj, true);
++				if (r == 0) {
++					amdgpu_bo_unpin(robj);
++					amdgpu_bo_unreserve(robj);
++				}
+ 			}
+ 		}
+ 	}
++
++	amdgpu_amdkfd_suspend(adev);
++
++	r = amdgpu_device_ip_suspend_phase1(adev);
++
+ 	/* evict vram memory */
+ 	amdgpu_bo_evict_vram(adev);
+ 
+ 	amdgpu_fence_driver_suspend(adev);
+ 
+-	r = amdgpu_device_ip_suspend(adev);
++	r = amdgpu_device_ip_suspend_phase2(adev);
+ 
+ 	/* evict remaining vram memory
+ 	 * This second call to evict vram is to evict the gart page table
+@@ -2872,19 +2874,21 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ 	if (r)
+ 		return r;
+ 
+-	/* pin cursors */
+-	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+-		struct amdgpu_crtc *amdgpu_crtc = to_amdgpu_crtc(crtc);
+-
+-		if (amdgpu_crtc->cursor_bo) {
+-			struct amdgpu_bo *aobj = gem_to_amdgpu_bo(amdgpu_crtc->cursor_bo);
+-			r = amdgpu_bo_reserve(aobj, true);
+-			if (r == 0) {
+-				r = amdgpu_bo_pin(aobj, AMDGPU_GEM_DOMAIN_VRAM);
+-				if (r != 0)
+-					DRM_ERROR("Failed to pin cursor BO (%d)\n", r);
+-				amdgpu_crtc->cursor_addr = amdgpu_bo_gpu_offset(aobj);
+-				amdgpu_bo_unreserve(aobj);
++	if (!amdgpu_device_has_dc_support(adev)) {
++		/* pin cursors */
++		list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
++			struct amdgpu_crtc *amdgpu_crtc = to_amdgpu_crtc(crtc);
++
++			if (amdgpu_crtc->cursor_bo) {
++				struct amdgpu_bo *aobj = gem_to_amdgpu_bo(amdgpu_crtc->cursor_bo);
++				r = amdgpu_bo_reserve(aobj, true);
++				if (r == 0) {
++					r = amdgpu_bo_pin(aobj, AMDGPU_GEM_DOMAIN_VRAM);
++					if (r != 0)
++						DRM_ERROR("Failed to pin cursor BO (%d)\n", r);
++					amdgpu_crtc->cursor_addr = amdgpu_bo_gpu_offset(aobj);
++					amdgpu_bo_unreserve(aobj);
++				}
+ 			}
+ 		}
+ 	}
+-- 
+2.7.4
+

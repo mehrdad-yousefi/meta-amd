@@ -1,0 +1,75 @@
+From 6e0ed7615685d183f017c9bdbd6907e2cff7009c Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Mon, 11 Jun 2018 11:31:17 +0530
+Subject: [PATCH 4633/5725] Revert "drm/amdgpu: replace mutex with spin_lock
+ (V2)"
+
+This reverts commit 924d325820721def656ae5f203c7584a8576fd50.
+
+Reason: should not add spinlocks in critical section
+Signed-off-by: Shirish S <shirish.s@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c | 2 +-
+ drivers/gpu/drm/amd/amdgpu/atom.c            | 4 ++--
+ drivers/gpu/drm/amd/amdgpu/atom.h            | 3 +--
+ 3 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c
+index 5ebab72..b5773e8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c
+@@ -2033,7 +2033,7 @@ int amdgpu_atombios_init(struct amdgpu_device *adev)
+ 		return -ENOMEM;
+ 	}
+ 
+-	spin_lock_init(&adev->mode_info.atom_context->lock);
++	mutex_init(&adev->mode_info.atom_context->mutex);
+ 	if (adev->is_atom_fw) {
+ 		amdgpu_atomfirmware_scratch_regs_init(adev);
+ 		amdgpu_atomfirmware_allocate_fb_scratch(adev);
+diff --git a/drivers/gpu/drm/amd/amdgpu/atom.c b/drivers/gpu/drm/amd/amdgpu/atom.c
+index da4558c..6cd518f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/atom.c
++++ b/drivers/gpu/drm/amd/amdgpu/atom.c
+@@ -1261,7 +1261,7 @@ int amdgpu_atom_execute_table(struct atom_context *ctx, int index, uint32_t * pa
+ {
+ 	int r;
+ 
+-	spin_lock(&ctx->lock);
++	mutex_lock(&ctx->mutex);
+ 	/* reset data block */
+ 	ctx->data_block = 0;
+ 	/* reset reg block */
+@@ -1274,7 +1274,7 @@ int amdgpu_atom_execute_table(struct atom_context *ctx, int index, uint32_t * pa
+ 	ctx->divmul[0] = 0;
+ 	ctx->divmul[1] = 0;
+ 	r = amdgpu_atom_execute_table_locked(ctx, index, params);
+-	spin_unlock(&ctx->lock);
++	mutex_unlock(&ctx->mutex);
+ 	return r;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/atom.h b/drivers/gpu/drm/amd/amdgpu/atom.h
+index 54063e2..a391709 100644
+--- a/drivers/gpu/drm/amd/amdgpu/atom.h
++++ b/drivers/gpu/drm/amd/amdgpu/atom.h
+@@ -26,7 +26,6 @@
+ #define ATOM_H
+ 
+ #include <linux/types.h>
+-#include <linux/spinlock_types.h>
+ #include <drm/drmP.h>
+ 
+ #define ATOM_BIOS_MAGIC		0xAA55
+@@ -126,7 +125,7 @@ struct card_info {
+ 
+ struct atom_context {
+ 	struct card_info *card;
+-	spinlock_t lock;
++	struct mutex mutex;
+ 	void *bios;
+ 	uint32_t cmd_table, data_table;
+ 	uint16_t *iio;
+-- 
+2.7.4
+

@@ -1,0 +1,29 @@
+From 66351cca2dfef6b80d76ab57a0fa6647a9ed2d1f Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Wed, 13 Jun 2018 13:52:53 -0400
+Subject: [PATCH 4914/5725] drm/amd/display: remove dentist_vco_freq from
+ resource_pool
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/inc/core_types.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/core_types.h b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+index 0107aa2..c42308a 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/core_types.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+@@ -148,7 +148,6 @@ struct resource_pool {
+ 	unsigned int underlay_pipe_index;
+ 	unsigned int stream_enc_count;
+ 	unsigned int ref_clock_inKhz;
+-	unsigned int dentist_vco_freq_khz;
+ 	unsigned int timing_generator_count;
+ 
+ 	/*
+-- 
+2.7.4
+

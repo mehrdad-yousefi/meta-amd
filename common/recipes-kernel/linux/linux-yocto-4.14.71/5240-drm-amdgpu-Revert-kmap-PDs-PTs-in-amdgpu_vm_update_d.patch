@@ -1,0 +1,56 @@
+From 2e1e02c45fc5d002c7efff09b8a9653ff7741164 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Thu, 30 Aug 2018 09:45:07 +0200
+Subject: [PATCH 5240/5725] drm/amdgpu: Revert "kmap PDs/PTs in
+ amdgpu_vm_update_directories"
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This reverts commit a7f91061c60ad9cac2e6a03b642be6a4f88b3662.
+
+Felix pointed out that we need to have the BOs mapped even before
+amdgpu_vm_update_directories is called.
+
+Change-Id: Ibb904d980e7f8e41d8f9e00064fa24f1c7b1a82c
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 13 ++++---------
+ 1 file changed, 4 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index b50e18f..99ef1e9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -309,7 +309,10 @@ int amdgpu_vm_validate_pt_bos(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 			list_move(&bo_base->vm_status, &vm->moved);
+ 			spin_unlock(&vm->moved_lock);
+ 		} else {
+-			r = amdgpu_ttm_alloc_gart(&bo->tbo);
++			if (vm->use_cpu_for_update)
++				r = amdgpu_bo_kmap(bo, NULL);
++			else
++				r = amdgpu_ttm_alloc_gart(&bo->tbo);
+ 			if (r)
+ 				break;
+ 			list_move(&bo_base->vm_status, &vm->relocated);
+@@ -1076,14 +1079,6 @@ int amdgpu_vm_update_directories(struct amdgpu_device *adev,
+ 	params.adev = adev;
+ 
+ 	if (vm->use_cpu_for_update) {
+-		struct amdgpu_vm_bo_base *bo_base;
+-
+-		list_for_each_entry(bo_base, &vm->relocated, vm_status) {
+-			r = amdgpu_bo_kmap(bo_base->bo, NULL);
+-			if (unlikely(r))
+-				return r;
+-		}
+-
+ 		r = amdgpu_vm_wait_pd(adev, vm, AMDGPU_FENCE_OWNER_VM);
+ 		if (unlikely(r))
+ 			return r;
+-- 
+2.7.4
+

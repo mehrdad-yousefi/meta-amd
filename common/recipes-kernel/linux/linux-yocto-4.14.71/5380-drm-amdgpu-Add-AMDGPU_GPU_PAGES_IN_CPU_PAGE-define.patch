@@ -1,0 +1,116 @@
+From a71470f6af615ad876e437d7e531bf5f674f604e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Fri, 22 Jun 2018 18:54:03 +0200
+Subject: [PATCH 5380/5725] drm/amdgpu: Add AMDGPU_GPU_PAGES_IN_CPU_PAGE define
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+To hopefully make the code dealing with GPU vs CPU pages a little
+clearer.
+
+Suggested-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c | 8 ++++----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h | 2 ++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c   | 8 ++++----
+ 3 files changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c
+index 5586874..5d141ab 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c
+@@ -231,7 +231,7 @@ int amdgpu_gart_unbind(struct amdgpu_device *adev, uint64_t offset,
+ 	}
+ 
+ 	t = offset / AMDGPU_GPU_PAGE_SIZE;
+-	p = t / (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
++	p = t / AMDGPU_GPU_PAGES_IN_CPU_PAGE;
+ 	for (i = 0; i < pages; i++, p++) {
+ #ifdef CONFIG_DRM_AMDGPU_GART_DEBUGFS
+ 		adev->gart.pages[p] = NULL;
+@@ -240,7 +240,7 @@ int amdgpu_gart_unbind(struct amdgpu_device *adev, uint64_t offset,
+ 		if (!adev->gart.ptr)
+ 			continue;
+ 
+-		for (j = 0; j < (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE); j++, t++) {
++		for (j = 0; j < AMDGPU_GPU_PAGES_IN_CPU_PAGE; j++, t++) {
+ 			amdgpu_gmc_set_pte_pde(adev, adev->gart.ptr,
+ 					       t, page_base, flags);
+ 			page_base += AMDGPU_GPU_PAGE_SIZE;
+@@ -279,7 +279,7 @@ int amdgpu_gart_map(struct amdgpu_device *adev, uint64_t offset,
+ 
+ 	for (i = 0; i < pages; i++) {
+ 		page_base = dma_addr[i];
+-		for (j = 0; j < (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE); j++, t++) {
++		for (j = 0; j < AMDGPU_GPU_PAGES_IN_CPU_PAGE; j++, t++) {
+ 			amdgpu_gmc_set_pte_pde(adev, dst, t, page_base, flags);
+ 			page_base += AMDGPU_GPU_PAGE_SIZE;
+ 		}
+@@ -316,7 +316,7 @@ int amdgpu_gart_bind(struct amdgpu_device *adev, uint64_t offset,
+ 
+ #ifdef CONFIG_DRM_AMDGPU_GART_DEBUGFS
+ 	t = offset / AMDGPU_GPU_PAGE_SIZE;
+-	p = t / (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
++	p = t / AMDGPU_GPU_PAGES_IN_CPU_PAGE;
+ 	for (i = 0; i < pages; i++, p++)
+ 		adev->gart.pages[p] = pagelist ? pagelist[i] : NULL;
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h
+index 5ee8f20..9ff6288 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h
+@@ -37,6 +37,8 @@ struct amdgpu_bo;
+ #define AMDGPU_GPU_PAGE_SHIFT 12
+ #define AMDGPU_GPU_PAGE_ALIGN(a) (((a) + AMDGPU_GPU_PAGE_MASK) & ~AMDGPU_GPU_PAGE_MASK)
+ 
++#define AMDGPU_GPU_PAGES_IN_CPU_PAGE (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE)
++
+ struct amdgpu_gart {
+ 	struct amdgpu_bo		*bo;
+ 	void				*ptr;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 063f0d0..adb61a2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1574,13 +1574,13 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 		if (nodes) {
+ 			addr = nodes->start << PAGE_SHIFT;
+ 			max_entries = (nodes->size - pfn) *
+-				(PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
++				AMDGPU_GPU_PAGES_IN_CPU_PAGE;
+ 			switch (mem->mem_type) {
+ 			case TTM_PL_TT:
+ 				max_entries = min(max_entries, 16ull * 1024ull);
+ 
+ 				for (count = 1;
+-				     count < max_entries / (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
++				     count < max_entries / AMDGPU_GPU_PAGES_IN_CPU_PAGE;
+ 				     ++count) {
+ 					uint64_t idx = pfn + count;
+ 
+@@ -1594,7 +1594,7 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 					dma_addr = pages_addr;
+ 				} else {
+ 					addr = pages_addr[pfn];
+-					max_entries = count * (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
++					max_entries = count * AMDGPU_GPU_PAGES_IN_CPU_PAGE;
+ 				}
+ 				break;
+ 			case AMDGPU_PL_DGMA_IMPORT:
+@@ -1630,7 +1630,7 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 		if (r)
+ 			return r;
+ 
+-		pfn += (last - start + 1) / (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
++		pfn += (last - start + 1) / AMDGPU_GPU_PAGES_IN_CPU_PAGE;
+ 		if (nodes && nodes->size == pfn) {
+ 			pfn = 0;
+ 			++nodes;
+-- 
+2.7.4
+

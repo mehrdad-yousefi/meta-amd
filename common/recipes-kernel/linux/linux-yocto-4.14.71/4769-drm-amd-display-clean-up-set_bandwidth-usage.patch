@@ -1,0 +1,100 @@
+From 81ef29b9bbc5d476a9025c0a0ac75939df530620 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Wed, 23 May 2018 18:39:21 -0400
+Subject: [PATCH 4769/5725] drm/amd/display: clean up set_bandwidth usage
+
+This removes redundant set_bandwidth calls as well
+as fixes a bug in post_set_address_update where dcn1
+would never get to lower clocks.
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Nikola Cornij <Nikola.Cornij@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c                    |  5 -----
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c |  5 -----
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c   | 11 +++--------
+ 3 files changed, 3 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 16ebdc1..4e9bd55 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -968,12 +968,7 @@ bool dc_post_update_surfaces_to_stream(struct dc *dc)
+ 
+ 	dc->optimized_required = false;
+ 
+-	/* 3rd param should be true, temp w/a for RV*/
+-#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+-	dc->hwss.set_bandwidth(dc, context, dc->ctx->dce_version < DCN_VERSION_1_0);
+-#else
+ 	dc->hwss.set_bandwidth(dc, context, true);
+-#endif
+ 	return true;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 07633a1..6c2b4cc 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -2017,8 +2017,6 @@ enum dc_status dce110_apply_ctx_to_hw(
+ 	if (dc->fbc_compressor)
+ 		dc->fbc_compressor->funcs->disable_fbc(dc->fbc_compressor);
+ 
+-	dc->hwss.set_bandwidth(dc, context, false);
+-
+ 	dce110_setup_audio_dto(dc, context);
+ 
+ 	for (i = 0; i < dc->res_pool->pipe_count; i++) {
+@@ -2047,9 +2045,6 @@ enum dc_status dce110_apply_ctx_to_hw(
+ 			return status;
+ 	}
+ 
+-	/* to save power */
+-	dc->hwss.set_bandwidth(dc, context, true);
+-
+ 	dcb->funcs->set_scratch_critical_state(dcb, false);
+ 
+ 	if (dc->fbc_compressor)
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 5d47b28..ef3969f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -2283,8 +2283,7 @@ static void dcn10_apply_ctx_for_surface(
+ 			hwss1_plane_atomic_disconnect(dc, old_pipe_ctx);
+ 			removed_pipe[i] = true;
+ 
+-			DC_LOG_DC(
+-					"Reset mpcc for pipe %d\n",
++			DC_LOG_DC("Reset mpcc for pipe %d\n",
+ 					old_pipe_ctx->pipe_idx);
+ 		}
+ 	}
+@@ -2380,9 +2379,8 @@ static void dcn10_set_bandwidth(
+ 		struct dc_state *context,
+ 		bool decrease_allowed)
+ {
+-	if (dc->debug.sanity_checks) {
++	if (dc->debug.sanity_checks)
+ 		dcn10_verify_allow_pstate_change_high(dc);
+-	}
+ 
+ 	if (IS_FPGA_MAXIMUS_DC(dc->ctx->dce_environment))
+ 		return;
+@@ -2397,11 +2395,8 @@ static void dcn10_set_bandwidth(
+ 
+ 	dcn10_pplib_apply_display_requirements(dc, context);
+ 
+-	if (dc->debug.sanity_checks) {
++	if (dc->debug.sanity_checks)
+ 		dcn10_verify_allow_pstate_change_high(dc);
+-	}
+-
+-	/* need to fix this function.  not doing the right thing here */
+ }
+ 
+ static void set_drr(struct pipe_ctx **pipe_ctx,
+-- 
+2.7.4
+

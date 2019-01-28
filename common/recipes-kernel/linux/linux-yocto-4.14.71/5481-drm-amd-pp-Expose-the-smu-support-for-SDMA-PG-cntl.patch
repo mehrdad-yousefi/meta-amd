@@ -1,0 +1,85 @@
+From fe8cf7a311c4869a33a2922423e510cb2e7eaec6 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 25 Sep 2018 19:45:46 +0800
+Subject: [PATCH 5481/5725] drm/amd/pp: Expose the smu support for SDMA PG cntl
+
+SDMA IP can be power up/down via smu message
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c     | 18 ++++++++++++++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c |  8 ++++++++
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h         |  1 +
+ 3 files changed, 27 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 147fdbb..d38ba0f 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -1207,6 +1207,21 @@ static void pp_dpm_powergate_acp(void *handle, bool gate)
+ 	hwmgr->hwmgr_func->powergate_acp(hwmgr, gate);
+ }
+ 
++static void pp_dpm_powergate_sdma(void *handle, bool gate)
++{
++	struct pp_hwmgr *hwmgr = handle;
++
++	if (!hwmgr)
++		return;
++
++	if (hwmgr->hwmgr_func->powergate_sdma == NULL) {
++		pr_info("%s was not implemented.\n", __func__);
++		return;
++	}
++
++	hwmgr->hwmgr_func->powergate_sdma(hwmgr, gate);
++}
++
+ static int pp_set_powergating_by_smu(void *handle,
+ 				uint32_t block_type, bool gate)
+ {
+@@ -1229,6 +1244,9 @@ static int pp_set_powergating_by_smu(void *handle,
+ 	case AMD_IP_BLOCK_TYPE_ACP:
+ 		pp_dpm_powergate_acp(handle, gate);
+ 		break;
++	case AMD_IP_BLOCK_TYPE_SDMA:
++		pp_dpm_powergate_sdma(handle, gate);
++		break;
+ 	default:
+ 		break;
+ 	}
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index 7a42959..fa59be3 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -1153,6 +1153,14 @@ static int smu10_powergate_mmhub(struct pp_hwmgr *hwmgr)
+ 	return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_PowerGateMmHub);
+ }
+ 
++static int smu10_powergate_sdma(struct pp_hwmgr *hwmgr, bool gate)
++{
++	if (gate)
++		return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_PowerDownSdma);
++	else
++		return smum_send_msg_to_smc(hwmgr, PPSMC_MSG_PowerUpSdma);
++}
++
+ static void smu10_powergate_vcn(struct pp_hwmgr *hwmgr, bool bgate)
+ {
+ 	if (bgate) {
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index f25f6b7..f07d93e 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -329,6 +329,7 @@ struct pp_hwmgr_func {
+ 	int (*set_power_limit)(struct pp_hwmgr *hwmgr, uint32_t n);
+ 	int (*powergate_mmhub)(struct pp_hwmgr *hwmgr);
+ 	int (*smus_notify_pwe)(struct pp_hwmgr *hwmgr);
++	int (*powergate_sdma)(struct pp_hwmgr *hwmgr, bool bgate);
+ 	int (*enable_mgpu_fan_boost)(struct pp_hwmgr *hwmgr);
+ };
+ 
+-- 
+2.7.4
+

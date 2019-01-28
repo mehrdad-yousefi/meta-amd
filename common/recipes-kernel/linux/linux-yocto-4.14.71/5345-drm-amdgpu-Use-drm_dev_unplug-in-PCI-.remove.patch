@@ -1,0 +1,39 @@
+From 7128b6f79f79f0c075c91c53ba6dd1d1a3b05c8e Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Thu, 30 Aug 2018 11:24:17 -0400
+Subject: [PATCH 5345/5725] drm/amdgpu: Use drm_dev_unplug in PCI .remove
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This at least allows to fail any subsequent IOCTLs with -ENODEV
+after the device is gone.
+Still this operation is not supported yet in graphic mode
+and will lead at least to page faults and other issues.
+
+Change-Id: I4afbcec9bb2f2d7bbd3d512b4a0193912c635987
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 8556192..1cb9a93 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -900,8 +900,8 @@ amdgpu_pci_remove(struct pci_dev *pdev)
+ {
+ 	struct drm_device *dev = pci_get_drvdata(pdev);
+ 
+-	drm_dev_unregister(dev);
+-	drm_dev_put(dev);
++	DRM_ERROR("Device removal is currently not supported outside of fbcon\n");
++	drm_dev_unplug(dev);
+ 	pci_disable_device(pdev);
+ 	pci_set_drvdata(pdev, NULL);
+ }
+-- 
+2.7.4
+

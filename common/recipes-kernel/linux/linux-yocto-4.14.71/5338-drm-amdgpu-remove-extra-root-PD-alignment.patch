@@ -1,0 +1,60 @@
+From bea7b8d6bc5ebc0b32b3c83ad7f6c4a80c4f1deb Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Wed, 22 Aug 2018 15:47:37 +0200
+Subject: [PATCH 5338/5725] drm/amdgpu: remove extra root PD alignment
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Just another leftover from radeon.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 4 +---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h | 3 ---
+ 2 files changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index a6b9a3c..4abd3b0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2634,8 +2634,6 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ {
+ 	struct amdgpu_bo_param bp;
+ 	struct amdgpu_bo *root;
+-	const unsigned align = min(AMDGPU_VM_PTB_ALIGN_SIZE,
+-		AMDGPU_VM_PTE_COUNT(adev) * 8);
+ 	unsigned ring_instance;
+ 	struct amdgpu_ring *ring;
+ 	struct drm_sched_rq *rq;
+@@ -2690,7 +2688,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	size = amdgpu_vm_bo_size(adev, adev->vm_manager.root_level);
+ 	memset(&bp, 0, sizeof(bp));
+ 	bp.size = size;
+-	bp.byte_align = align;
++	bp.byte_align = AMDGPU_GPU_PAGE_SIZE;
+ 	bp.domain = AMDGPU_GEM_DOMAIN_VRAM;
+ 	bp.flags = flags;
+ 	bp.type = ttm_bo_type_kernel;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 1c9a661..e6ca941 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -51,9 +51,6 @@ struct amdgpu_bo_list_entry;
+ /* number of entries in page table */
+ #define AMDGPU_VM_PTE_COUNT(adev) (1 << (adev)->vm_manager.block_size)
+ 
+-/* PTBs (Page Table Blocks) need to be aligned to 32K */
+-#define AMDGPU_VM_PTB_ALIGN_SIZE   32768
+-
+ #define AMDGPU_PTE_VALID	(1ULL << 0)
+ #define AMDGPU_PTE_SYSTEM	(1ULL << 1)
+ #define AMDGPU_PTE_SNOOPED	(1ULL << 2)
+-- 
+2.7.4
+

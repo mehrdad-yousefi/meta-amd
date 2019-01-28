@@ -1,0 +1,30 @@
+From e446c5faec01e9a2be675a5629a2da1e3297f1e1 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Mon, 23 Apr 2018 20:49:28 -0400
+Subject: [PATCH 4434/5725] drm/amdgpu/vg20:Add IH client ID for the 2nd UVD
+
+For Vega20, there are two UVD hardware. Need add
+the 2nd IH client ID for the 2nd UVD Hardware.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/soc15_ih_clientid.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/include/soc15_ih_clientid.h b/drivers/gpu/drm/amd/include/soc15_ih_clientid.h
+index a12d4f2..12e196c 100644
+--- a/drivers/gpu/drm/amd/include/soc15_ih_clientid.h
++++ b/drivers/gpu/drm/amd/include/soc15_ih_clientid.h
+@@ -43,6 +43,7 @@ enum soc15_ih_clientid {
+ 	SOC15_IH_CLIENTID_SE2SH		= 0x0c,
+ 	SOC15_IH_CLIENTID_SE3SH		= 0x0d,
+ 	SOC15_IH_CLIENTID_SYSHUB	= 0x0e,
++	SOC15_IH_CLIENTID_UVD1		= 0x0e,
+ 	SOC15_IH_CLIENTID_THM		= 0x0f,
+ 	SOC15_IH_CLIENTID_UVD		= 0x10,
+ 	SOC15_IH_CLIENTID_VCE0		= 0x11,
+-- 
+2.7.4
+

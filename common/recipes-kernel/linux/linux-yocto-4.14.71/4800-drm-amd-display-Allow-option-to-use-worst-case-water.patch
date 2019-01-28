@@ -1,0 +1,74 @@
+From 738e1ef59d4ea47feeacb3f17617ccfd3c992722 Mon Sep 17 00:00:00 2001
+From: Tony Cheng <tony.cheng@amd.com>
+Date: Fri, 8 Jun 2018 17:36:26 -0400
+Subject: [PATCH 4800/5725] drm/amd/display: Allow option to use worst-case
+ watermark
+
+use worse case watermark (consider both DCC and VM)
+to keep golden consistent regardless of DCC
+
+Signed-off-by: Tony Cheng <tony.cheng@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c | 23 ++++++++++++++++++++++-
+ drivers/gpu/drm/amd/display/dc/dc.h              |  1 +
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+index 12261fb..e44b8d3 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+@@ -31,6 +31,8 @@
+ 
+ #include "resource.h"
+ #include "dcn10/dcn10_resource.h"
++#include "dcn10/dcn10_hubbub.h"
++
+ #include "dcn_calc_math.h"
+ 
+ #define DC_LOGGER \
+@@ -889,7 +891,26 @@ bool dcn_validate_bandwidth(
+ 				ASSERT(pipe->plane_res.scl_data.ratios.vert.value != dc_fixpt_one.value
+ 					|| v->scaler_rec_out_width[input_idx] == v->viewport_height[input_idx]);
+ 			}
+-			v->dcc_enable[input_idx] = pipe->plane_state->dcc.enable ? dcn_bw_yes : dcn_bw_no;
++
++			if (dc->debug.optimized_watermark) {
++				/*
++				 * this method requires us to always re-calculate watermark when dcc change
++				 * between flip.
++				 */
++				v->dcc_enable[input_idx] = pipe->plane_state->dcc.enable ? dcn_bw_yes : dcn_bw_no;
++			} else {
++				/*
++				 * allow us to disable dcc on the fly without re-calculating WM
++				 *
++				 * extra overhead for DCC is quite small.  for 1080p WM without
++				 * DCC is only 0.417us lower (urgent goes from 6.979us to 6.562us)
++				 */
++				unsigned int bpe;
++
++				v->dcc_enable[input_idx] = dc->res_pool->hubbub->funcs->dcc_support_pixel_format(
++						pipe->plane_state->format, &bpe) ? dcn_bw_yes : dcn_bw_no;
++			}
++
+ 			v->source_pixel_format[input_idx] = tl_pixel_format_to_bw_defs(
+ 					pipe->plane_state->format);
+ 			v->source_surface_mode[input_idx] = tl_sw_mode_to_bw_defs(
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 79edbb1..2af5e60 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -234,6 +234,7 @@ struct dc_debug {
+ 	int urgent_latency_ns;
+ 	int percent_of_ideal_drambw;
+ 	int dram_clock_change_latency_ns;
++	bool optimized_watermark;
+ 	int always_scale;
+ 	bool disable_pplib_clock_request;
+ 	bool disable_clock_gate;
+-- 
+2.7.4
+

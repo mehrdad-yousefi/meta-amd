@@ -1,0 +1,42 @@
+From a2cf4a17e0a8afcbd88c81d7393969cefc9ba702 Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Fri, 18 May 2018 10:39:16 +0800
+Subject: [PATCH 4694/5725] drm/amd/powerplay: fix missed hwmgr check warning
+ before call gfx_off_control handler
+
+Patch 9667849bbb8d: "drm/amd/powerplay: add control gfxoff enabling in late
+init" from Mar 13, 2018, leads to the following static checker warning:
+
+	drivers/gpu/drm/amd/amdgpu/../powerplay/amd_powerplay.c:194
+pp_late_init()
+	error: we previously assumed 'hwmgr' could be null (see line 185)
+
+drivers/gpu/drm/amd/amdgpu/../powerplay/amd_powerplay.c
+
+This patch fixes the warning to add hwmgr checking.
+
+Reported-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 46ffe04..9e285ed 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -192,7 +192,8 @@ static int pp_late_init(void *handle)
+ 	if (adev->pm.smu_prv_buffer_size != 0)
+ 		pp_reserve_vram_for_smu(adev);
+ 
+-	if (hwmgr->hwmgr_func->gfx_off_control &&
++	if (hwmgr && hwmgr->hwmgr_func &&
++	    hwmgr->hwmgr_func->gfx_off_control &&
+ 	    (hwmgr->feature_mask & PP_GFXOFF_MASK)) {
+ 		ret = hwmgr->hwmgr_func->gfx_off_control(hwmgr, true);
+ 		if (ret)
+-- 
+2.7.4
+

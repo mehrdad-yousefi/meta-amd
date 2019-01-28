@@ -1,0 +1,51 @@
+From a4119361491429e5f18414ea866e608e47a94ae3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 11 Sep 2018 09:30:46 +0200
+Subject: [PATCH 5314/5725] drm/amdgpu: stop pipelining VM PDs/PTs moves
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We are going to need this for recoverable page fault handling and it
+makes shadow handling during GPU reset much more easier.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c    | 6 +++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 18b87454..2466147 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -1410,7 +1410,7 @@ u64 amdgpu_bo_gpu_offset(struct amdgpu_bo *bo)
+ {
+ 	WARN_ON_ONCE(bo->tbo.mem.mem_type == TTM_PL_SYSTEM);
+ 	WARN_ON_ONCE(!ww_mutex_is_locked(&bo->tbo.resv->lock) &&
+-		     !bo->pin_count);
++		     !bo->pin_count && bo->tbo.type != ttm_bo_type_kernel);
+ 	WARN_ON_ONCE(bo->tbo.mem.start == AMDGPU_BO_INVALID_OFFSET);
+ 	WARN_ON_ONCE(bo->tbo.mem.mem_type == TTM_PL_VRAM &&
+ 		     !(bo->flags & AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS));
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 1654715..1220809 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -552,7 +552,11 @@ static int amdgpu_move_blit(struct ttm_buffer_object *bo,
+ 	if (r)
+ 		goto error;
+ 
+-	r = ttm_bo_pipeline_move(bo, fence, evict, new_mem);
++	/* Always block for VM page tables before committing the new location */
++	if (bo->type == ttm_bo_type_kernel)
++		r = ttm_bo_move_accel_cleanup(bo, fence, true, new_mem);
++	else
++		r = ttm_bo_pipeline_move(bo, fence, evict, new_mem);
+ 	dma_fence_put(fence);
+ 	return r;
+ 
+-- 
+2.7.4
+

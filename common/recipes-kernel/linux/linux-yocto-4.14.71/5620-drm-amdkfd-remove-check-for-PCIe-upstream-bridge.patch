@@ -1,0 +1,69 @@
+From 38ec2766a26d04c4b5f559bb6e2dc128c7cd1925 Mon Sep 17 00:00:00 2001
+From: welu <Wei.Lu2@amd.com>
+Date: Wed, 4 Apr 2018 11:44:04 -0400
+Subject: [PATCH 5620/5725] drm/amdkfd: remove check for PCIe upstream bridge
+
+atomic support for GFX9 GPUs.
+1. set vega10 needs_pci_atomics as false because vega10 do not need
+pci atomics;
+2. firstly try to enable atomics in pci_enable_atomic_ops_to_root()
+and if this function failed and need_pic_atomics is true,
+we need to report the error and return NULL.
+
+Bug:SWDEV-149359
+
+Change-Id: I71cbbe63cb1f03f606f8f4b5e4b8c796e164e0d1
+Signed-off-by: welu <Wei.Lu2@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c | 17 ++++++++++-------
+ 1 file changed, 10 insertions(+), 7 deletions(-)
+ mode change 100755 => 100644 drivers/gpu/drm/amd/amdkfd/kfd_device.c
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+old mode 100755
+new mode 100644
+index ad01a983..6f9a8e5
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -216,7 +216,7 @@ static const struct kfd_device_info vega10_device_info = {
+ 	.mqd_size_aligned = MQD_SIZE_ALIGNED,
+ 	.supports_cwsr = true,
+ 	.needs_iommu_device = false,
+-	.needs_pci_atomics = true,
++	.needs_pci_atomics = false,
+ 	.num_sdma_engines = 2,
+ };
+ 
+@@ -352,7 +352,7 @@ struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd,
+ 	struct pci_dev *pdev, const struct kfd2kgd_calls *f2g)
+ {
+ 	struct kfd_dev *kfd;
+-
++	int ret;
+ 	const struct kfd_device_info *device_info =
+ 					lookup_device_info(pdev->device);
+ 
+@@ -366,11 +366,14 @@ struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd,
+ 		 * 32 and 64-bit requests are possible and must be
+ 		 * supported.
+ 		 */
+-                if (pci_enable_atomic_ops_to_root(pdev) < 0) {
+-                        dev_info(kfd_device,
+-                                "skipped device %x:%x, PCI rejects atomics",
+-                                 pdev->vendor, pdev->device);
+-                        return NULL;
++	ret = pci_enable_atomic_ops_to_root(pdev,
++			PCI_EXP_DEVCAP2_ATOMIC_COMP32 |
++			PCI_EXP_DEVCAP2_ATOMIC_COMP64);
++	if (device_info->needs_pci_atomics && ret  < 0) {
++		dev_info(kfd_device,
++			"skipped device %x:%x, PCI rejects atomics",
++			pdev->vendor, pdev->device);
++		return NULL;
+                 }
+ 	}
+ 
+-- 
+2.7.4
+

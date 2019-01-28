@@ -1,0 +1,70 @@
+From f2cb2d95721f2c9a9f59fd999eb06a2bac93c41e Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Wed, 4 Apr 2018 21:04:42 -0400
+Subject: [PATCH 4207/5725] drm/amd/display: Fix bug that causes black screen
+
+Ignore MSA bit on DP display is usually set during SetTimings, but
+there was a case where the module thought refresh rate was not valid
+and ignore MSA bit was not set.
+
+Later, a valid refresh rate range was requested but since ignore MSA bit
+not set, it caused black screen.
+
+Issue if with how the module checked for VRR support. Fix up that logic.
+DM should call new valid_range function to determine if timing is supported.
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ .../gpu/drm/amd/display/modules/freesync/freesync.c    | 18 ++++++------------
+ 1 file changed, 6 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+index be6a6c6..4887c88 100644
+--- a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
++++ b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+@@ -613,7 +613,6 @@ void mod_freesync_build_vrr_params(struct mod_freesync *mod_freesync,
+ {
+ 	struct core_freesync *core_freesync = NULL;
+ 	unsigned long long nominal_field_rate_in_uhz = 0;
+-	bool nominal_field_rate_in_range = true;
+ 	unsigned int refresh_range = 0;
+ 	unsigned int min_refresh_in_uhz = 0;
+ 	unsigned int max_refresh_in_uhz = 0;
+@@ -638,15 +637,6 @@ void mod_freesync_build_vrr_params(struct mod_freesync *mod_freesync,
+ 	if (max_refresh_in_uhz > nominal_field_rate_in_uhz)
+ 		max_refresh_in_uhz = nominal_field_rate_in_uhz;
+ 
+-	/* Allow for some rounding error of actual video timing by taking ceil.
+-	 * For example, 144 Hz mode timing may actually be 143.xxx Hz when
+-	 * calculated from pixel rate and vertical/horizontal totals, but
+-	 * this should be allowed instead of blocking FreeSync.
+-	 */
+-	if ((min_refresh_in_uhz / 1000000) >
+-			((nominal_field_rate_in_uhz + 1000000 - 1) / 1000000))
+-		nominal_field_rate_in_range = false;
+-
+ 	// Full range may be larger than current video timing, so cap at nominal
+ 	if (min_refresh_in_uhz > nominal_field_rate_in_uhz)
+ 		min_refresh_in_uhz = nominal_field_rate_in_uhz;
+@@ -658,10 +648,14 @@ void mod_freesync_build_vrr_params(struct mod_freesync *mod_freesync,
+ 
+ 	in_out_vrr->state = in_config->state;
+ 
+-	if ((in_config->state == VRR_STATE_UNSUPPORTED) ||
+-				(!nominal_field_rate_in_range)) {
++	if (in_config->state == VRR_STATE_UNSUPPORTED) {
+ 		in_out_vrr->state = VRR_STATE_UNSUPPORTED;
+ 		in_out_vrr->supported = false;
++		in_out_vrr->adjust.v_total_min = stream->timing.v_total;
++		in_out_vrr->adjust.v_total_max = stream->timing.v_total;
++
++		return;
++
+ 	} else {
+ 		in_out_vrr->min_refresh_in_uhz = min_refresh_in_uhz;
+ 		in_out_vrr->max_duration_in_us =
+-- 
+2.7.4
+

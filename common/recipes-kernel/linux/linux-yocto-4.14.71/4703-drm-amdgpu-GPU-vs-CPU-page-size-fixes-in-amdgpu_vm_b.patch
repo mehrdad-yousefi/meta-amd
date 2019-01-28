@@ -1,0 +1,63 @@
+From 9004422e8083985f599e8f05534514c0187092a5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Thu, 21 Jun 2018 11:27:46 +0200
+Subject: [PATCH 4703/5725] drm/amdgpu: GPU vs CPU page size fixes in
+ amdgpu_vm_bo_split_mapping
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+start / last / max_entries are numbers of GPU pages, pfn / count are
+numbers of CPU pages. Convert between them accordingly.
+
+Fixes badness on systems with > 4K page size.
+
+Cc: stable@vger.kernel.org
+Bugzilla: https://bugs.freedesktop.org/106258
+Reported-by: Matt Corallo <freedesktop@bluematt.me>
+Tested-by: foxbat@ruin.net
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index d9e3d48..fcd52d8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1561,7 +1561,9 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 			case TTM_PL_TT:
+ 				max_entries = min(max_entries, 16ull * 1024ull);
+ 
+-				for (count = 1; count < max_entries; ++count) {
++				for (count = 1;
++				     count < max_entries / (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
++				     ++count) {
+ 					uint64_t idx = pfn + count;
+ 
+ 					if (pages_addr[idx] !=
+@@ -1574,7 +1576,7 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 					dma_addr = pages_addr;
+ 				} else {
+ 					addr = pages_addr[pfn];
+-					max_entries = count;
++					max_entries = count * (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
+ 				}
+ 				break;
+ 			case AMDGPU_PL_DGMA_IMPORT:
+@@ -1610,7 +1612,7 @@ static int amdgpu_vm_bo_split_mapping(struct amdgpu_device *adev,
+ 		if (r)
+ 			return r;
+ 
+-		pfn += last - start + 1;
++		pfn += (last - start + 1) / (PAGE_SIZE / AMDGPU_GPU_PAGE_SIZE);
+ 		if (nodes && nodes->size == pfn) {
+ 			pfn = 0;
+ 			++nodes;
+-- 
+2.7.4
+

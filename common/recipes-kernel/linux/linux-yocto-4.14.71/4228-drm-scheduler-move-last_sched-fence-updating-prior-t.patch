@@ -1,0 +1,51 @@
+From 79410781814b5434dc9847d5af8f1e5b27a2971d Mon Sep 17 00:00:00 2001
+From: Pixel Ding <Pixel.Ding@amd.com>
+Date: Wed, 18 Apr 2018 04:37:40 -0400
+Subject: [PATCH 4228/5725] drm/scheduler: move last_sched fence updating prior
+ to job popping
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Make sure main thread won't update last_sched fence when entity
+is cleanup.
+
+Fix a racing issue which is caused by putting last_sched fence
+twice. Running vulkaninfo in tight loop can produce this issue
+as seeing wild fence pointer.
+
+Signed-off-by: Pixel Ding <Pixel.Ding@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Monk Liu <Monk.Liu@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/scheduler/gpu_scheduler.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/scheduler/gpu_scheduler.c b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+index c8ec777..1e40d3b 100644
+--- a/drivers/gpu/drm/scheduler/gpu_scheduler.c
++++ b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+@@ -401,6 +401,9 @@ drm_sched_entity_pop_job(struct drm_sched_entity *entity)
+ 	if (entity->guilty && atomic_read(entity->guilty))
+ 		dma_fence_set_error(&sched_job->s_fence->finished, -ECANCELED);
+ 
++	dma_fence_put(entity->last_scheduled);
++	entity->last_scheduled = dma_fence_get(&s_fence->finished);
++
+ 	spsc_queue_pop(&entity->job_queue);
+ 	return sched_job;
+ }
+@@ -714,9 +717,6 @@ static int drm_sched_main(void *param)
+ 		fence = sched->ops->run_job(sched_job);
+ 		drm_sched_fence_scheduled(s_fence);
+ 
+-		dma_fence_put(entity->last_scheduled);
+-		entity->last_scheduled = dma_fence_get(&s_fence->finished);
+-
+ 		if (fence) {
+ 			s_fence->parent = dma_fence_get(fence);
+ 			r = dma_fence_add_callback(fence, &s_fence->cb,
+-- 
+2.7.4
+

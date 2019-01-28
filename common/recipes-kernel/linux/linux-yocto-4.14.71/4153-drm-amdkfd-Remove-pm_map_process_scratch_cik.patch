@@ -1,0 +1,115 @@
+From edf9c86fdd95914288fcb7744381724ee3523ed8 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Tue, 27 Mar 2018 15:07:49 -0400
+Subject: [PATCH 4153/5725] drm/amdkfd: Remove pm_map_process_scratch_cik
+
+The packet structure is identical with the VI packet. So we can use
+pm_map_process_vi instead.
+
+Change-Id: Ifff68999017d86f91869ab40435b9f973e37dd3b
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_cik.c | 42 ++---------------------
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c  |  2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h             |  2 ++
+ 3 files changed, 5 insertions(+), 41 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_cik.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_cik.c
+index 2808422..b8a7c4a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_cik.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_cik.c
+@@ -85,47 +85,10 @@ static int pm_map_process_cik(struct packet_manager *pm, uint32_t *buffer,
+ 	return 0;
+ }
+ 
+-static int pm_map_process_scratch_cik(struct packet_manager *pm,
+-		uint32_t *buffer, struct qcm_process_device *qpd)
+-{
+-	struct pm4_map_process_scratch_kv *packet;
+-
+-	packet = (struct pm4_map_process_scratch_kv *)buffer;
+-
+-	memset(buffer, 0, sizeof(struct pm4_map_process_scratch_kv));
+-
+-	packet->header.u32all = pm_build_pm4_header(IT_MAP_PROCESS,
+-				sizeof(struct pm4_map_process_scratch_kv));
+-	packet->bitfields2.diq_enable = (qpd->is_debug) ? 1 : 0;
+-	packet->bitfields2.process_quantum = 1;
+-	packet->bitfields2.pasid = qpd->pqm->process->pasid;
+-	packet->bitfields3.page_table_base = qpd->page_table_base;
+-	packet->bitfields14.gds_size = qpd->gds_size;
+-	packet->bitfields14.num_gws = qpd->num_gws;
+-	packet->bitfields14.num_oac = qpd->num_oac;
+-	packet->bitfields14.num_queues = (qpd->is_debug) ? 0 : qpd->queue_count;
+-
+-	packet->sh_mem_config = qpd->sh_mem_config;
+-	packet->sh_mem_bases = qpd->sh_mem_bases;
+-	packet->sh_mem_ape1_base = qpd->sh_mem_ape1_base;
+-	packet->sh_mem_ape1_limit = qpd->sh_mem_ape1_limit;
+-
+-	packet->sh_hidden_private_base_vmid = qpd->sh_hidden_private_base;
+-
+-	packet->gds_addr_lo = lower_32_bits(qpd->gds_context_area);
+-	packet->gds_addr_hi = upper_32_bits(qpd->gds_context_area);
+-
+-	return 0;
+-}
+-
+ static uint32_t pm_get_map_process_packet_size_cik(void)
+ {
+ 	return sizeof(struct pm4_map_process);
+ }
+-static uint32_t pm_get_map_process_scratch_packet_size_cik(void)
+-{
+-	return sizeof(struct pm4_map_process_scratch_kv);
+-}
+ 
+ 
+ static struct packet_manager_funcs kfd_cik_pm_funcs = {
+@@ -146,15 +109,14 @@ static struct packet_manager_funcs kfd_cik_pm_funcs = {
+ };
+ 
+ static struct packet_manager_funcs kfd_cik_scratch_pm_funcs = {
+-	.map_process			= pm_map_process_scratch_cik,
++	.map_process			= pm_map_process_vi,
+ 	.runlist			= pm_runlist_vi,
+ 	.set_resources			= pm_set_resources_vi,
+ 	.map_queues			= pm_map_queues_vi,
+ 	.unmap_queues			= pm_unmap_queues_vi,
+ 	.query_status			= pm_query_status_vi,
+ 	.release_mem			= pm_release_mem_vi,
+-	.get_map_process_packet_size	=
+-				pm_get_map_process_scratch_packet_size_cik,
++	.get_map_process_packet_size	= pm_get_map_process_packet_size_vi,
+ 	.get_runlist_packet_size	= pm_get_runlist_packet_size_vi,
+ 	.get_set_resources_packet_size	= pm_get_set_resources_packet_size_vi,
+ 	.get_map_queues_packet_size	= pm_get_map_queues_packet_size_vi,
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
+index 9022ecb..13ff604d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
+@@ -67,7 +67,7 @@ static void submit_packet_vi(struct kernel_queue *kq)
+ 				kq->pending_wptr);
+ }
+ 
+-static int pm_map_process_vi(struct packet_manager *pm,
++int pm_map_process_vi(struct packet_manager *pm,
+ 		uint32_t *buffer, struct qcm_process_device *qpd)
+ {
+ 	struct pm4_mes_map_process *packet;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index a33984c..795bec1 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -1004,6 +1004,8 @@ void pm_release_ib(struct packet_manager *pm);
+ 
+ /* Following  PM funcs can be shared among CIK and VI  */
+ unsigned int pm_build_pm4_header(unsigned int opcode, size_t packet_size);
++int pm_map_process_vi(struct packet_manager *pm,
++			uint32_t *buffer, struct qcm_process_device *qpd);
+ int pm_runlist_vi(struct packet_manager *pm, uint32_t *buffer,
+ 			uint64_t ib, size_t ib_size_in_dwords, bool chain);
+ int pm_map_queues_vi(struct packet_manager *pm, uint32_t *buffer,
+-- 
+2.7.4
+

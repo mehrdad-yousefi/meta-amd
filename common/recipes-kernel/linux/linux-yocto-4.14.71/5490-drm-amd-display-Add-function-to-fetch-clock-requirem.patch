@@ -1,0 +1,92 @@
+From b47834e8cdc08bac7a352af0fb857ae093857c4b Mon Sep 17 00:00:00 2001
+From: Eryk Brol <eryk.brol@amd.com>
+Date: Fri, 7 Sep 2018 13:24:28 -0400
+Subject: [PATCH 5490/5725] drm/amd/display: Add function to fetch clock
+ requirements
+
+Also add dram clock to clocks struct, for systems that uses them.
+
+Signed-off-by: Eryk Brol <eryk.brol@amd.com>
+Reviewed-by: Jun Lei <Jun.Lei@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c  | 13 +++++++++++++
+ drivers/gpu/drm/amd/display/dc/dc.h       |  4 +++-
+ drivers/gpu/drm/amd/display/dc/dc_types.h | 12 ++++++++++++
+ 3 files changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 2d1e774..fc77cbf 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1887,3 +1887,16 @@ void dc_link_remove_remote_sink(struct dc_link *link, struct dc_sink *sink)
+ 		}
+ 	}
+ }
++
++void get_clock_requirements_for_state(struct dc_state *state, struct AsicStateEx *info)
++{
++	info->displayClock				= (unsigned int)state->bw.dcn.clk.dispclk_khz;
++	info->engineClock				= (unsigned int)state->bw.dcn.clk.dcfclk_khz;
++	info->memoryClock				= (unsigned int)state->bw.dcn.clk.dramclk_khz;
++	info->maxSupportedDppClock		= (unsigned int)state->bw.dcn.clk.max_supported_dppclk_khz;
++	info->dppClock					= (unsigned int)state->bw.dcn.clk.dppclk_khz;
++	info->socClock					= (unsigned int)state->bw.dcn.clk.socclk_khz;
++	info->dcfClockDeepSleep			= (unsigned int)state->bw.dcn.clk.dcfclk_deep_sleep_khz;
++	info->fClock					= (unsigned int)state->bw.dcn.clk.fclk_khz;
++	info->phyClock					= (unsigned int)state->bw.dcn.clk.phyclk_khz;
++}
+\ No newline at end of file
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 748f484..7185cfa 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -44,7 +44,6 @@
+ #define MAX_STREAMS 6
+ #define MAX_SINKS_PER_LINK 4
+ 
+-
+ /*******************************************************************************
+  * Display Core Interfaces
+  ******************************************************************************/
+@@ -208,6 +207,7 @@ struct dc_clocks {
+ 	int dcfclk_deep_sleep_khz;
+ 	int fclk_khz;
+ 	int phyclk_khz;
++	int dramclk_khz;
+ };
+ 
+ struct dc_debug_options {
+@@ -613,6 +613,8 @@ struct dc_validation_set {
+ 
+ enum dc_status dc_validate_plane(struct dc *dc, const struct dc_plane_state *plane_state);
+ 
++void get_clock_requirements_for_state(struct dc_state *state, struct AsicStateEx *info);
++
+ enum dc_status dc_validate_global_state(
+ 		struct dc *dc,
+ 		struct dc_state *new_ctx);
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_types.h b/drivers/gpu/drm/amd/display/dc/dc_types.h
+index 4fb6278..6e12d64 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_types.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_types.h
+@@ -659,4 +659,16 @@ enum i2c_mot_mode {
+ 	I2C_MOT_FALSE
+ };
+ 
++struct AsicStateEx {
++	unsigned int memoryClock;
++	unsigned int displayClock;
++	unsigned int engineClock;
++	unsigned int maxSupportedDppClock;
++	unsigned int dppClock;
++	unsigned int socClock;
++	unsigned int dcfClockDeepSleep;
++	unsigned int fClock;
++	unsigned int phyClock;
++};
++
+ #endif /* DC_TYPES_H_ */
+-- 
+2.7.4
+

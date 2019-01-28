@@ -1,0 +1,118 @@
+From 2b76af6798d25fe3a9249e250b0f3ebc690a2ddf Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 12 Jul 2018 14:59:22 -0500
+Subject: [PATCH 4950/5725] drm/amdgpu/pp: switch smu callback type for
+ get_argument()
+
+return a uint32_t rather than an int to properly reflect
+what the function does.
+
+Reviewed-by: Rex Zhu <rezhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h           | 2 +-
+ drivers/gpu/drm/amd/powerplay/inc/smumgr.h          | 2 +-
+ drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c | 2 +-
+ drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c  | 4 ++--
+ drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.c  | 2 +-
+ drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.h  | 2 +-
+ drivers/gpu/drm/amd/powerplay/smumgr/smumgr.c       | 2 +-
+ 7 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index b3363f2..d3d9626 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -194,7 +194,7 @@ struct pp_smumgr_func {
+ 	int (*request_smu_load_fw)(struct pp_hwmgr  *hwmgr);
+ 	int (*request_smu_load_specific_fw)(struct pp_hwmgr  *hwmgr,
+ 					    uint32_t firmware);
+-	int (*get_argument)(struct pp_hwmgr  *hwmgr);
++	uint32_t (*get_argument)(struct pp_hwmgr  *hwmgr);
+ 	int (*send_msg_to_smc)(struct pp_hwmgr  *hwmgr, uint16_t msg);
+ 	int (*send_msg_to_smc_with_parameter)(struct pp_hwmgr  *hwmgr,
+ 					  uint16_t msg, uint32_t parameter);
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/smumgr.h b/drivers/gpu/drm/amd/powerplay/inc/smumgr.h
+index 89dfbf5..82550a8 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/smumgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/smumgr.h
+@@ -80,7 +80,7 @@ enum SMU10_TABLE_ID {
+ 	SMU10_CLOCKTABLE,
+ };
+ 
+-extern int smum_get_argument(struct pp_hwmgr *hwmgr);
++extern uint32_t smum_get_argument(struct pp_hwmgr *hwmgr);
+ 
+ extern int smum_download_powerplay_table(struct pp_hwmgr *hwmgr, void **table);
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+index 0a563f6..bb07d43 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+@@ -68,7 +68,7 @@ static int smu10_send_msg_to_smc_without_waiting(struct pp_hwmgr *hwmgr,
+ 	return 0;
+ }
+ 
+-static int smu10_read_arg_from_smc(struct pp_hwmgr *hwmgr)
++static uint32_t smu10_read_arg_from_smc(struct pp_hwmgr *hwmgr)
+ {
+ 	struct amdgpu_device *adev = hwmgr->adev;
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+index c861d30..f7e3bc2 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+@@ -52,10 +52,10 @@ static const enum smu8_scratch_entry firmware_list[] = {
+ 	SMU8_SCRATCH_ENTRY_UCODE_ID_RLC_G,
+ };
+ 
+-static int smu8_get_argument(struct pp_hwmgr *hwmgr)
++static uint32_t smu8_get_argument(struct pp_hwmgr *hwmgr)
+ {
+ 	if (hwmgr == NULL || hwmgr->device == NULL)
+-		return -EINVAL;
++		return 0;
+ 
+ 	return cgs_read_register(hwmgr->device,
+ 					mmSMU_MP1_SRBM2P_ARG_0);
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.c
+index aad8f07..079fc8e 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.c
+@@ -142,7 +142,7 @@ int smu9_send_msg_to_smc_with_parameter(struct pp_hwmgr *hwmgr,
+ 	return 0;
+ }
+ 
+-int smu9_get_argument(struct pp_hwmgr *hwmgr)
++uint32_t smu9_get_argument(struct pp_hwmgr *hwmgr)
+ {
+ 	struct amdgpu_device *adev = hwmgr->adev;
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.h b/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.h
+index a8da281..1462279 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.h
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu9_smumgr.h
+@@ -27,6 +27,6 @@ bool smu9_is_smc_ram_running(struct pp_hwmgr *hwmgr);
+ int smu9_send_msg_to_smc(struct pp_hwmgr *hwmgr, uint16_t msg);
+ int smu9_send_msg_to_smc_with_parameter(struct pp_hwmgr *hwmgr,
+ 					uint16_t msg, uint32_t parameter);
+-int smu9_get_argument(struct pp_hwmgr *hwmgr);
++uint32_t smu9_get_argument(struct pp_hwmgr *hwmgr);
+ 
+ #endif
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smumgr.c
+index c983793..99d5e4f 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smumgr.c
+@@ -96,7 +96,7 @@ int smum_process_firmware_header(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
+-int smum_get_argument(struct pp_hwmgr *hwmgr)
++uint32_t smum_get_argument(struct pp_hwmgr *hwmgr)
+ {
+ 	if (NULL != hwmgr->smumgr_funcs->get_argument)
+ 		return hwmgr->smumgr_funcs->get_argument(hwmgr);
+-- 
+2.7.4
+

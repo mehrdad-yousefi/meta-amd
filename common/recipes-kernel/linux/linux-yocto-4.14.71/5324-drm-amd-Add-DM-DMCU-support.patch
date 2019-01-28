@@ -1,0 +1,172 @@
+From 407b52c8b48feb8b02f1d97e273a946734b7268c Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Tue, 11 Sep 2018 13:49:49 -0400
+Subject: [PATCH 5324/5725] drm/amd: Add DM DMCU support
+
+DMCU (Display Microcontroller Unit) is a GPU chip involved in
+eDP features like Adaptive Backlight Modulation and Panel Self
+Refresh.
+
+DC is already fully equipped to initialize DMCU as long as the
+firmware is loaded.
+
+At the moment only the raven firmware is available.
+
+A single .bin file is loaded by the kernel's loading mechanism
+and split into two ucodes according to the header.
+
+DMCU is optional, so if the firmware is not found, no error or
+warning is raised.
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 91 ++++++++++++++++++++++-
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h |  2 +
+ 2 files changed, 92 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index f6afa4e..3954196 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -30,6 +30,7 @@
+ #include "vid.h"
+ #include "amdgpu.h"
+ #include "amdgpu_display.h"
++#include "amdgpu_ucode.h"
+ #include "atom.h"
+ #include "amdgpu_dm.h"
+ #include "amdgpu_pm.h"
+@@ -50,6 +51,7 @@
+ #include <linux/version.h>
+ #include <linux/types.h>
+ #include <linux/pm_runtime.h>
++#include <linux/firmware.h>
+ 
+ #include <drm/drmP.h>
+ #include <drm/drm_atomic.h>
+@@ -71,6 +73,9 @@
+ 
+ #include "modules/inc/mod_freesync.h"
+ 
++#define FIRMWARE_RAVEN_DMCU		"amdgpu/raven_dmcu.bin"
++MODULE_FIRMWARE(FIRMWARE_RAVEN_DMCU);
++
+ /* basic init/fini API */
+ static int amdgpu_dm_init(struct amdgpu_device *adev);
+ static void amdgpu_dm_fini(struct amdgpu_device *adev);
+@@ -516,13 +521,97 @@ static void amdgpu_dm_fini(struct amdgpu_device *adev)
+ 	return;
+ }
+ 
+-static int dm_sw_init(void *handle)
++static int load_dmcu_fw(struct amdgpu_device *adev)
+ {
++	const char *fw_name_dmcu;
++	int r;
++	const struct dmcu_firmware_header_v1_0 *hdr;
++
++	switch(adev->asic_type) {
++	case CHIP_BONAIRE:
++	case CHIP_HAWAII:
++	case CHIP_KAVERI:
++	case CHIP_KABINI:
++	case CHIP_MULLINS:
++	case CHIP_TONGA:
++	case CHIP_FIJI:
++	case CHIP_CARRIZO:
++	case CHIP_STONEY:
++	case CHIP_POLARIS11:
++	case CHIP_POLARIS10:
++	case CHIP_POLARIS12:
++	case CHIP_VEGAM:
++	case CHIP_VEGA10:
++	case CHIP_VEGA12:
++	case CHIP_VEGA20:
++		return 0;
++	case CHIP_RAVEN:
++		fw_name_dmcu = FIRMWARE_RAVEN_DMCU;
++		break;
++	default:
++		DRM_ERROR("Unsupported ASIC type: 0x%X\n", adev->asic_type);
++		return -1;
++	}
++
++	if (adev->firmware.load_type != AMDGPU_FW_LOAD_PSP) {
++		DRM_DEBUG_KMS("dm: DMCU firmware not supported on direct or SMU loading\n");
++		return 0;
++	}
++
++	r = request_firmware_direct(&adev->dm.fw_dmcu, fw_name_dmcu, adev->dev);
++	if (r == -ENOENT) {
++		/* DMCU firmware is not necessary, so don't raise a fuss if it's missing */
++		DRM_DEBUG_KMS("dm: DMCU firmware not found\n");
++		adev->dm.fw_dmcu = NULL;
++		return 0;
++	}
++	if (r) {
++		dev_err(adev->dev, "amdgpu_dm: Can't load firmware \"%s\"\n",
++			fw_name_dmcu);
++		return r;
++	}
++
++	r = amdgpu_ucode_validate(adev->dm.fw_dmcu);
++	if (r) {
++		dev_err(adev->dev, "amdgpu_dm: Can't validate firmware \"%s\"\n",
++			fw_name_dmcu);
++		release_firmware(adev->dm.fw_dmcu);
++		adev->dm.fw_dmcu = NULL;
++		return r;
++	}
++
++	hdr = (const struct dmcu_firmware_header_v1_0 *)adev->dm.fw_dmcu->data;
++	adev->firmware.ucode[AMDGPU_UCODE_ID_DMCU_ERAM].ucode_id = AMDGPU_UCODE_ID_DMCU_ERAM;
++	adev->firmware.ucode[AMDGPU_UCODE_ID_DMCU_ERAM].fw = adev->dm.fw_dmcu;
++	adev->firmware.fw_size +=
++		ALIGN(le32_to_cpu(hdr->header.ucode_size_bytes) - le32_to_cpu(hdr->intv_size_bytes), PAGE_SIZE);
++
++	adev->firmware.ucode[AMDGPU_UCODE_ID_DMCU_INTV].ucode_id = AMDGPU_UCODE_ID_DMCU_INTV;
++	adev->firmware.ucode[AMDGPU_UCODE_ID_DMCU_INTV].fw = adev->dm.fw_dmcu;
++	adev->firmware.fw_size +=
++		ALIGN(le32_to_cpu(hdr->intv_size_bytes), PAGE_SIZE);
++
++	DRM_DEBUG_KMS("PSP loading DMCU firmware\n");
++
+ 	return 0;
+ }
+ 
++static int dm_sw_init(void *handle)
++{
++	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
++
++	return load_dmcu_fw(adev);
++}
++
+ static int dm_sw_fini(void *handle)
+ {
++	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
++
++	if(adev->dm.fw_dmcu) {
++		release_firmware(adev->dm.fw_dmcu);
++		adev->dm.fw_dmcu = NULL;
++	}
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+index 772368c..49b9572 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+@@ -142,6 +142,8 @@ struct amdgpu_display_manager {
+ 	struct drm_atomic_state *cached_state;
+ 
+ 	struct dm_comressor_info compressor;
++
++	const struct firmware *fw_dmcu;
+ };
+ 
+ struct amdgpu_dm_connector {
+-- 
+2.7.4
+

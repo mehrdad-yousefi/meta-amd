@@ -1,0 +1,47 @@
+From e5a62fa1758732956b100f59dadc3eff48a6eaf2 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Fri, 17 Aug 2018 14:24:26 -0400
+Subject: [PATCH 5362/5725] drm/amd/display: Remove call to
+ amdgpu_pm_compute_clocks
+
+[Why]
+The extraneous call to amdgpu_pm_compute_clocks is deprecated.
+
+[How]
+Remove it.
+
+Change-Id: I0bfee7f1aca4184b441c39efbdc580394bdd1020
+Signed-off-by: David Francis <David.Francis@amd.com>
+Signed-off-by: Leo Li <sunpeng.li@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+index cfa907b..6d16b4a 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+@@ -101,18 +101,10 @@ bool dm_pp_apply_display_requirements(
+ 			adev->pm.pm_display_cfg.displays[i].controller_id = dc_cfg->pipe_idx + 1;
+ 		}
+ 
+-		/* TODO: complete implementation of
+-		 * pp_display_configuration_change().
+-		 * Follow example of:
+-		 * PHM_StoreDALConfigurationData - powerplay\hwmgr\hardwaremanager.c
+-		 * PP_IRI_DisplayConfigurationChange - powerplay\eventmgr\iri.c */
+ 		if (adev->powerplay.pp_funcs->display_configuration_change)
+ 			adev->powerplay.pp_funcs->display_configuration_change(
+ 				adev->powerplay.pp_handle,
+ 				&adev->pm.pm_display_cfg);
+-
+-		/* TODO: replace by a separate call to 'apply display cfg'? */
+-		amdgpu_pm_compute_clocks(adev);
+ 	}
+ 
+ 	return true;
+-- 
+2.7.4
+

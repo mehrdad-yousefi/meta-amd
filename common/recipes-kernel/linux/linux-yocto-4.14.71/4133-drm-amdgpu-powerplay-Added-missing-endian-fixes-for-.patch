@@ -1,0 +1,45 @@
+From 781c7828a3b57d912ba68593e2e9a16350d5edde Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Fri, 8 Jul 2016 10:12:10 -0400
+Subject: [PATCH 4133/5725] drm/amdgpu/powerplay: Added missing endian fixes
+ for ppatomctrl.c
+
+V2
+Atom tables are in LE format.
+
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+index f591b68..63d1060 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+@@ -1073,8 +1073,10 @@ int atomctrl_get_voltage_evv_on_sclk(
+ 			GetIndexIntoMasterTable(COMMAND, GetVoltageInfo),
+ 			(uint32_t *)&get_voltage_info_param_space);
+ 
+-	*voltage = result ? 0 :
+-			le16_to_cpu(((GET_EVV_VOLTAGE_INFO_OUTPUT_PARAMETER_V1_2 *)
++	if (0 != result)
++		return result;
++
++	*voltage = le16_to_cpu(((GET_EVV_VOLTAGE_INFO_OUTPUT_PARAMETER_V1_2 *)
+ 				(&get_voltage_info_param_space))->usVoltageLevel);
+ 
+ 	return result;
+@@ -1279,7 +1281,8 @@ int atomctrl_read_efuse(struct pp_hwmgr *hwmgr, uint16_t start_index,
+ 	result = amdgpu_atom_execute_table(adev->mode_info.atom_context,
+ 			GetIndexIntoMasterTable(COMMAND, ReadEfuseValue),
+ 			(uint32_t *)&efuse_param);
+-	*efuse = result ? 0 : le32_to_cpu(efuse_param.ulEfuseValue) & mask;
++	if (!result)
++		*efuse = le32_to_cpu(efuse_param.ulEfuseValue) & mask;
+ 
+ 	return result;
+ }
+-- 
+2.7.4
+

@@ -1,0 +1,52 @@
+From 82de7bf123e36b48ab08a847511703161671000d Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Wed, 18 Jul 2018 10:59:02 +0800
+Subject: [PATCH 5143/5725] drm/amd/powerplay: remove setting soc floor voltage
+ before sending pptable
+
+SOC voltage is not able to switch and forced to low 0.8V when running HEVC.
+Thus the test failed.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Rex Zhu <rezhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 9 +--------
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h | 1 -
+ 2 files changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index ed928c5..ad6ce14 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -707,14 +707,7 @@ static int vega20_init_smc_table(struct pp_hwmgr *hwmgr)
+ 	data->vbios_boot_state.vclock = boot_up_values.ulVClk;
+ 	data->vbios_boot_state.dclock = boot_up_values.ulDClk;
+ 	data->vbios_boot_state.uc_cooling_id = boot_up_values.ucCoolingID;
+-	if (0 != boot_up_values.usVddc) {
+-		smum_send_msg_to_smc_with_parameter(hwmgr,
+-					PPSMC_MSG_SetFloorSocVoltage,
+-					(boot_up_values.usVddc * 4));
+-		data->vbios_boot_state.bsoc_vddc_lock = true;
+-	} else {
+-		data->vbios_boot_state.bsoc_vddc_lock = false;
+-	}
++
+ 	smum_send_msg_to_smc_with_parameter(hwmgr,
+ 			PPSMC_MSG_SetMinDeepSleepDcefclk,
+ 		(uint32_t)(data->vbios_boot_state.dcef_clock / 100));
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
+index 130052a..72e4f2a 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
+@@ -203,7 +203,6 @@ struct vega20_dpmlevel_enable_mask {
+ };
+ 
+ struct vega20_vbios_boot_state {
+-	bool        bsoc_vddc_lock;
+ 	uint8_t     uc_cooling_id;
+ 	uint16_t    vddc;
+ 	uint16_t    vddci;
+-- 
+2.7.4
+

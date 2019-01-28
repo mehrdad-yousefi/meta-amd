@@ -1,0 +1,43 @@
+From f6fc73f0a096c34b6043723e5b48657d04f2da9f Mon Sep 17 00:00:00 2001
+From: "Leo (Sunpeng) Li" <sunpeng.li@amd.com>
+Date: Wed, 16 May 2018 10:31:30 -0400
+Subject: [PATCH 4548/5725] drm/amd/display: Destroy connector state on reset
+
+When a DRM mode reset is called on resume, the connector state's
+destructor is not called. This leaves a dangling reference on the CRTC
+commit object, which was obtained by the connector state during commit
+setup.
+
+Signed-off-by: Leo (Sunpeng) Li <sunpeng.li@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index a0b16ac..0e24164 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -2886,6 +2886,9 @@ void amdgpu_dm_connector_funcs_reset(struct drm_connector *connector)
+ 	struct dm_connector_state *state =
+ 		to_dm_connector_state(connector->state);
+ 
++	if (connector->state)
++		__drm_atomic_helper_connector_destroy_state(connector->state);
++
+ 	kfree(state);
+ 
+ 	state = kzalloc(sizeof(*state), GFP_KERNEL);
+@@ -2896,8 +2899,7 @@ void amdgpu_dm_connector_funcs_reset(struct drm_connector *connector)
+ 		state->underscan_hborder = 0;
+ 		state->underscan_vborder = 0;
+ 
+-		connector->state = &state->base;
+-		connector->state->connector = connector;
++		__drm_atomic_helper_connector_reset(connector, &state->base);
+ 	}
+ }
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,148 @@
+From d4a55f30acc79996138639c9f9c79a137ff43e14 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 19 Mar 2018 18:35:35 -0400
+Subject: [PATCH 4152/5725] drm/amdkfd: Backwards compatibility with old Thunk
+
+Don't assume a fixed events page size. Old upstream KFD versions and
+corresponding Thunk builds used a smaller size. Instead use the size
+of the actual allocation or mapping to determine the event limit.
+
+Change-Id: I759095f15c2d5cd9414dc9c292fd1e2889ef45a0
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c |  5 +++--
+ drivers/gpu/drm/amd/amdkfd/kfd_events.c  | 28 ++++++++++++++++++++++------
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h    |  4 +++-
+ 3 files changed, 28 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index c5e6488..73aec76 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -986,6 +986,7 @@ static int kfd_ioctl_create_event(struct file *filp, struct kfd_process *p,
+ 		struct kfd_dev *kfd;
+ 		struct kfd_process_device *pdd;
+ 		void *mem, *kern_addr;
++		uint64_t size;
+ 
+ 		if (p->signal_page) {
+ 			pr_err("Event page is already set\n");
+@@ -1016,13 +1017,13 @@ static int kfd_ioctl_create_event(struct file *filp, struct kfd_process *p,
+ 		mutex_unlock(&p->mutex);
+ 
+ 		err = kfd->kfd2kgd->map_gtt_bo_to_kernel(kfd->kgd,
+-						mem, &kern_addr, NULL);
++						mem, &kern_addr, &size);
+ 		if (err) {
+ 			pr_err("Failed to map event page to kernel\n");
+ 			return err;
+ 		}
+ 
+-		err = kfd_event_page_set(p, kern_addr);
++		err = kfd_event_page_set(p, kern_addr, size);
+ 		if (err) {
+ 			pr_err("Failed to set event page\n");
+ 			return err;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_events.c b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+index d002016..644ce9d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_events.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+@@ -100,9 +100,17 @@ static int allocate_event_notification_slot(struct kfd_process *p,
+ 		p->signal_page = allocate_signal_page(p);
+ 		if (!p->signal_page)
+ 			return -ENOMEM;
++		/* Oldest user mode expects 256 event slots */
++		p->signal_mapped_size = 256*8;
+ 	}
+ 
+-	id = idr_alloc(&p->event_idr, ev, 0, KFD_SIGNAL_EVENT_LIMIT,
++	/*
++	 * Compatibility with old user mode: Only use signal slots
++	 * user mode has mapped, may be less than
++	 * KFD_SIGNAL_EVENT_LIMIT. This also allows future increase
++	 * of the event limit without breaking user mode.
++	 */
++	id = idr_alloc(&p->event_idr, ev, 0, p->signal_mapped_size / 8,
+ 		       GFP_KERNEL);
+ 	if (id < 0)
+ 		return id;
+@@ -176,7 +184,8 @@ static int create_signal_event(struct file *devkfd,
+ {
+ 	int ret;
+ 
+-	if (p->signal_event_count == KFD_SIGNAL_EVENT_LIMIT) {
++	if (p->signal_mapped_size &&
++	    p->signal_event_count == p->signal_mapped_size / 8) {
+ 		if (!p->signal_event_limit_reached) {
+ 			pr_warn("Signal event wasn't created because limit was reached\n");
+ 			p->signal_event_limit_reached = true;
+@@ -286,7 +295,8 @@ static bool event_can_be_cpu_signaled(const struct kfd_event *ev)
+ 	return ev->type == KFD_EVENT_TYPE_SIGNAL;
+ }
+ 
+-int kfd_event_page_set(struct kfd_process *p, void *kernel_address)
++int kfd_event_page_set(struct kfd_process *p, void *kernel_address,
++		       uint64_t size)
+ {
+ 	struct kfd_signal_page *page;
+ 
+@@ -304,6 +314,7 @@ int kfd_event_page_set(struct kfd_process *p, void *kernel_address)
+ 	page->kernel_address = kernel_address;
+ 
+ 	p->signal_page = page;
++	p->signal_mapped_size = size;
+ 
+ 	return 0;
+ }
+@@ -769,9 +780,10 @@ int kfd_event_mmap(struct kfd_process *p, struct vm_area_struct *vma)
+ 
+ 	unsigned long pfn;
+ 	struct kfd_signal_page *page;
++	int ret;
+ 
+-	/* check required size is logical */
+-	if (get_order(KFD_SIGNAL_EVENT_LIMIT * 8) !=
++	/* check required size doesn't exceed the allocated size */
++	if (get_order(KFD_SIGNAL_EVENT_LIMIT * 8) <
+ 			get_order(vma->vm_end - vma->vm_start)) {
+ 		pr_err("Event page mmap requested illegal size\n");
+ 		return -EINVAL;
+@@ -801,8 +813,12 @@ int kfd_event_mmap(struct kfd_process *p, struct vm_area_struct *vma)
+ 	page->user_address = (uint64_t __user *)vma->vm_start;
+ 
+ 	/* mapping the page to user process */
+-	return remap_pfn_range(vma, vma->vm_start, pfn,
++	ret = remap_pfn_range(vma, vma->vm_start, pfn,
+ 			vma->vm_end - vma->vm_start, vma->vm_page_prot);
++	if (!ret)
++		p->signal_mapped_size = vma->vm_end - vma->vm_start;
++
++	return ret;
+ }
+ 
+ /*
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 5928080..a33984c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -712,6 +712,7 @@ struct kfd_process {
+ 	struct idr event_idr;
+ 	/* Event page */
+ 	struct kfd_signal_page *signal_page;
++	size_t signal_mapped_size;
+ 	size_t signal_event_count;
+ 	bool signal_event_limit_reached;
+ 
+@@ -1056,7 +1057,8 @@ void kfd_signal_iommu_event(struct kfd_dev *dev,
+ void kfd_signal_hw_exception_event(unsigned int pasid);
+ int kfd_set_event(struct kfd_process *p, uint32_t event_id);
+ int kfd_reset_event(struct kfd_process *p, uint32_t event_id);
+-int kfd_event_page_set(struct kfd_process *p, void *kernel_address);
++int kfd_event_page_set(struct kfd_process *p, void *kernel_address,
++		       uint64_t size);
+ int kfd_event_create(struct file *devkfd, struct kfd_process *p,
+ 		     uint32_t event_type, bool auto_reset, uint32_t node_id,
+ 		     uint32_t *event_id, uint32_t *event_trigger_data,
+-- 
+2.7.4
+

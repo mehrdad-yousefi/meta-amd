@@ -1,0 +1,43 @@
+From 837ff93e2b22e80dd59ee7456ef7f412c57a7c78 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 18 Apr 2018 21:09:35 +0800
+Subject: [PATCH 4247/5725] drm/amd/pp: Change voltage/clk range for OD feature
+ on VI
+
+read vddc range from vbios.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+index d3eeafb..7766f5c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+@@ -1520,17 +1520,15 @@ void atomctrl_get_voltage_range(struct pp_hwmgr *hwmgr, uint32_t *max_vddc,
+ 		case CHIP_FIJI:
+ 			*max_vddc = le32_to_cpu(((ATOM_ASIC_PROFILING_INFO_V3_3 *)profile)->ulMaxVddc/4);
+ 			*min_vddc = le32_to_cpu(((ATOM_ASIC_PROFILING_INFO_V3_3 *)profile)->ulMinVddc/4);
+-			return;
++			break;
+ 		case CHIP_POLARIS11:
+ 		case CHIP_POLARIS10:
+ 		case CHIP_POLARIS12:
+ 			*max_vddc = le32_to_cpu(((ATOM_ASIC_PROFILING_INFO_V3_6 *)profile)->ulMaxVddc/100);
+ 			*min_vddc = le32_to_cpu(((ATOM_ASIC_PROFILING_INFO_V3_6 *)profile)->ulMinVddc/100);
+-			return;
+-		default:
+ 			break;
++		default:
++			return;
+ 		}
+ 	}
+-	*max_vddc = 0;
+-	*min_vddc = 0;
+ }
+-- 
+2.7.4
+

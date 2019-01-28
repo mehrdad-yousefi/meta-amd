@@ -1,0 +1,33 @@
+From 209ba2ae43f262bb7cf17bc97bbf4a3e55cd3521 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Mon, 10 Sep 2018 15:23:40 -0400
+Subject: [PATCH 5461/5725] drm/amdgpu:Add DPG support flag
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add DPG support flag for VCN DPG mode.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/include/amd_shared.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/include/amd_shared.h b/drivers/gpu/drm/amd/include/amd_shared.h
+index f7b9453..76a7c1f 100644
+--- a/drivers/gpu/drm/amd/include/amd_shared.h
++++ b/drivers/gpu/drm/amd/include/amd_shared.h
+@@ -109,6 +109,7 @@ enum amd_powergating_state {
+ #define AMD_PG_SUPPORT_GFX_PIPELINE		(1 << 12)
+ #define AMD_PG_SUPPORT_MMHUB			(1 << 13)
+ #define AMD_PG_SUPPORT_VCN			(1 << 14)
++#define AMD_PG_SUPPORT_VCN_DPG	(1 << 15)
+ 
+ enum PP_FEATURE_MASK {
+ 	PP_SCLK_DPM_MASK = 0x1,
+-- 
+2.7.4
+

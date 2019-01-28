@@ -1,0 +1,346 @@
+From b29e8e1e503c7f93a9815cf68973236532c49793 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 14 Aug 2018 14:53:52 -0500
+Subject: [PATCH 5193/5725] drm/amdgpu/display: add support for LVDS (v5)
+
+This adds support for LVDS displays.
+
+v2: add support for spread spectrum, sink detect
+v3: clean up enable_lvds_output
+v4: fix up link_detect
+v5: remove assert on 888 format
+
+Bug: https://bugs.freedesktop.org/show_bug.cgi?id=105880
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c  |  2 +
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c      | 45 ++++++++++++++++++++++
+ .../gpu/drm/amd/display/dc/dce/dce_clock_source.c  | 10 +++++
+ .../gpu/drm/amd/display/dc/dce/dce_clock_source.h  |  2 +
+ .../gpu/drm/amd/display/dc/dce/dce_link_encoder.c  | 34 ++++++++++++++++
+ .../gpu/drm/amd/display/dc/dce/dce_link_encoder.h  |  6 +++
+ .../drm/amd/display/dc/dce/dce_stream_encoder.c    | 24 ++++++++++++
+ .../gpu/drm/amd/display/dc/inc/hw/link_encoder.h   |  3 ++
+ .../gpu/drm/amd/display/dc/inc/hw/stream_encoder.h |  4 ++
+ drivers/gpu/drm/amd/display/include/signal_types.h |  5 +++
+ 10 files changed, 135 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 2704c7f..7dc0e7f 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3632,6 +3632,8 @@ static int to_drm_connector_type(enum signal_type st)
+ 		return DRM_MODE_CONNECTOR_HDMIA;
+ 	case SIGNAL_TYPE_EDP:
+ 		return DRM_MODE_CONNECTOR_eDP;
++	case SIGNAL_TYPE_LVDS:
++		return DRM_MODE_CONNECTOR_LVDS;
+ 	case SIGNAL_TYPE_RGB:
+ 		return DRM_MODE_CONNECTOR_VGA;
+ 	case SIGNAL_TYPE_DISPLAY_PORT:
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index 42d0ce7..61cf4fe 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -203,6 +203,11 @@ bool dc_link_detect_sink(struct dc_link *link, enum dc_connection_type *type)
+ 	uint32_t is_hpd_high = 0;
+ 	struct gpio *hpd_pin;
+ 
++	if (link->connector_signal == SIGNAL_TYPE_LVDS) {
++		*type = dc_connection_single;
++		return true;
++	}
++
+ 	/* todo: may need to lock gpio access */
+ 	hpd_pin = get_hpd_gpio(link->ctx->dc_bios, link->link_id, link->ctx->gpio_service);
+ 	if (hpd_pin == NULL)
+@@ -616,6 +621,10 @@ bool dc_link_detect(struct dc_link *link, enum dc_detect_reason reason)
+ 			link->local_sink)
+ 		return true;
+ 
++	if (link->connector_signal == SIGNAL_TYPE_LVDS &&
++			link->local_sink)
++		return true;
++
+ 	prev_sink = link->local_sink;
+ 	if (prev_sink != NULL) {
+ 		dc_sink_retain(prev_sink);
+@@ -649,6 +658,12 @@ bool dc_link_detect(struct dc_link *link, enum dc_detect_reason reason)
+ 			break;
+ 		}
+ 
++		case SIGNAL_TYPE_LVDS: {
++			sink_caps.transaction_type = DDC_TRANSACTION_TYPE_I2C;
++			sink_caps.signal = SIGNAL_TYPE_LVDS;
++			break;
++		}
++
+ 		case SIGNAL_TYPE_EDP: {
+ 			detect_edp_sink_caps(link);
+ 			sink_caps.transaction_type =
+@@ -1087,6 +1102,9 @@ static bool construct(
+ 					dal_irq_get_rx_source(hpd_gpio);
+ 		}
+ 		break;
++	case CONNECTOR_ID_LVDS:
++		link->connector_signal = SIGNAL_TYPE_LVDS;
++		break;
+ 	default:
+ 		DC_LOG_WARNING("Unsupported Connector type:%d!\n", link->link_id.id);
+ 		goto create_fail;
+@@ -1920,6 +1938,24 @@ static void enable_link_hdmi(struct pipe_ctx *pipe_ctx)
+ 		dal_ddc_service_read_scdc_data(link->ddc);
+ }
+ 
++static void enable_link_lvds(struct pipe_ctx *pipe_ctx)
++{
++	struct dc_stream_state *stream = pipe_ctx->stream;
++	struct dc_link *link = stream->sink->link;
++
++	if (stream->phy_pix_clk == 0)
++		stream->phy_pix_clk = stream->timing.pix_clk_khz;
++
++	memset(&stream->sink->link->cur_link_settings, 0,
++			sizeof(struct dc_link_settings));
++
++	link->link_enc->funcs->enable_lvds_output(
++			link->link_enc,
++			pipe_ctx->clock_source->id,
++			stream->phy_pix_clk);
++
++}
++
+ /****************************enable_link***********************************/
+ static enum dc_status enable_link(
+ 		struct dc_state *state,
+@@ -1943,6 +1979,10 @@ static enum dc_status enable_link(
+ 		enable_link_hdmi(pipe_ctx);
+ 		status = DC_OK;
+ 		break;
++	case SIGNAL_TYPE_LVDS:
++		enable_link_lvds(pipe_ctx);
++		status = DC_OK;
++		break;
+ 	case SIGNAL_TYPE_VIRTUAL:
+ 		status = DC_OK;
+ 		break;
+@@ -2492,6 +2532,11 @@ void core_link_enable_stream(
+ 			(pipe_ctx->stream->signal == SIGNAL_TYPE_DVI_DUAL_LINK) ?
+ 			true : false);
+ 
++	if (dc_is_lvds_signal(pipe_ctx->stream->signal))
++		pipe_ctx->stream_res.stream_enc->funcs->lvds_set_stream_attribute(
++			pipe_ctx->stream_res.stream_enc,
++			&stream->timing);
++
+ 	resource_build_info_frame(pipe_ctx);
+ 	core_dc->hwss.update_info_frame(pipe_ctx);
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+index c5069a10..217fab4 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+@@ -75,6 +75,11 @@ static const struct spread_spectrum_data *get_ss_data_entry(
+ 		entrys_num = clk_src->hdmi_ss_params_cnt;
+ 		break;
+ 
++	case SIGNAL_TYPE_LVDS:
++		ss_parm = clk_src->lvds_ss_params;
++		entrys_num = clk_src->lvds_ss_params_cnt;
++		break;
++
+ 	case SIGNAL_TYPE_DISPLAY_PORT:
+ 	case SIGNAL_TYPE_DISPLAY_PORT_MST:
+ 	case SIGNAL_TYPE_EDP:
+@@ -1182,6 +1187,11 @@ static void ss_info_from_atombios_create(
+ 		AS_SIGNAL_TYPE_DVI,
+ 		&clk_src->dvi_ss_params,
+ 		&clk_src->dvi_ss_params_cnt);
++	get_ss_info_from_atombios(
++		clk_src,
++		AS_SIGNAL_TYPE_LVDS,
++		&clk_src->lvds_ss_params,
++		&clk_src->lvds_ss_params_cnt);
+ }
+ 
+ static bool calc_pll_max_vco_construct(
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h
+index 801bb65..e1f20ed 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h
+@@ -125,6 +125,8 @@ struct dce110_clk_src {
+ 	uint32_t hdmi_ss_params_cnt;
+ 	struct spread_spectrum_data *dvi_ss_params;
+ 	uint32_t dvi_ss_params_cnt;
++	struct spread_spectrum_data *lvds_ss_params;
++	uint32_t lvds_ss_params_cnt;
+ 
+ 	uint32_t ext_clk_khz;
+ 	uint32_t ref_freq_khz;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+index eff7d22..4942590 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+@@ -102,6 +102,7 @@ static const struct link_encoder_funcs dce110_lnk_enc_funcs = {
+ 	.enable_tmds_output = dce110_link_encoder_enable_tmds_output,
+ 	.enable_dp_output = dce110_link_encoder_enable_dp_output,
+ 	.enable_dp_mst_output = dce110_link_encoder_enable_dp_mst_output,
++	.enable_lvds_output = dce110_link_encoder_enable_lvds_output,
+ 	.disable_output = dce110_link_encoder_disable_output,
+ 	.dp_set_lane_settings = dce110_link_encoder_dp_set_lane_settings,
+ 	.dp_set_phy_pattern = dce110_link_encoder_dp_set_phy_pattern,
+@@ -814,6 +815,7 @@ bool dce110_link_encoder_validate_output_with_stream(
+ 					enc110, &stream->timing);
+ 	break;
+ 	case SIGNAL_TYPE_EDP:
++	case SIGNAL_TYPE_LVDS:
+ 		is_valid =
+ 			(stream->timing.
+ 				pixel_encoding == PIXEL_ENCODING_RGB) ? true : false;
+@@ -955,6 +957,38 @@ void dce110_link_encoder_enable_tmds_output(
+ 	}
+ }
+ 
++/* TODO: still need depth or just pass in adjusted pixel clock? */
++void dce110_link_encoder_enable_lvds_output(
++	struct link_encoder *enc,
++	enum clock_source_id clock_source,
++	uint32_t pixel_clock)
++{
++	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
++	struct bp_transmitter_control cntl = { 0 };
++	enum bp_result result;
++
++	/* Enable the PHY */
++	cntl.connector_obj_id = enc110->base.connector;
++	cntl.action = TRANSMITTER_CONTROL_ENABLE;
++	cntl.engine_id = enc->preferred_engine;
++	cntl.transmitter = enc110->base.transmitter;
++	cntl.pll_id = clock_source;
++	cntl.signal = SIGNAL_TYPE_LVDS;
++	cntl.lanes_number = 4;
++
++	cntl.hpd_sel = enc110->base.hpd_source;
++
++	cntl.pixel_clock = pixel_clock;
++
++	result = link_transmitter_control(enc110, &cntl);
++
++	if (result != BP_RESULT_OK) {
++		DC_LOG_ERROR("%s: Failed to execute VBIOS command table!\n",
++			__func__);
++		BREAK_TO_DEBUGGER();
++	}
++}
++
+ /* enables DP PHY output */
+ void dce110_link_encoder_enable_dp_output(
+ 	struct link_encoder *enc,
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.h b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.h
+index 3470694..3c9368d 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.h
+@@ -225,6 +225,12 @@ void dce110_link_encoder_enable_dp_mst_output(
+ 	const struct dc_link_settings *link_settings,
+ 	enum clock_source_id clock_source);
+ 
++/* enables LVDS PHY output */
++void dce110_link_encoder_enable_lvds_output(
++	struct link_encoder *enc,
++	enum clock_source_id clock_source,
++	uint32_t pixel_clock);
++
+ /* disable PHY output */
+ void dce110_link_encoder_disable_output(
+ 	struct link_encoder *enc,
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c b/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
+index b139b40..d65cc8c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
+@@ -674,6 +674,28 @@ static void dce110_stream_encoder_dvi_set_stream_attribute(
+ 	dce110_stream_encoder_set_stream_attribute_helper(enc110, crtc_timing);
+ }
+ 
++/* setup stream encoder in LVDS mode */
++static void dce110_stream_encoder_lvds_set_stream_attribute(
++	struct stream_encoder *enc,
++	struct dc_crtc_timing *crtc_timing)
++{
++	struct dce110_stream_encoder *enc110 = DCE110STRENC_FROM_STRENC(enc);
++	struct bp_encoder_control cntl = {0};
++
++	cntl.action = ENCODER_CONTROL_SETUP;
++	cntl.engine_id = enc110->base.id;
++	cntl.signal = SIGNAL_TYPE_LVDS;
++	cntl.enable_dp_audio = false;
++	cntl.pixel_clock = crtc_timing->pix_clk_khz;
++	cntl.lanes_number = LANE_COUNT_FOUR;
++
++	if (enc110->base.bp->funcs->encoder_control(
++			enc110->base.bp, &cntl) != BP_RESULT_OK)
++		return;
++
++	ASSERT(crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB);
++}
++
+ static void dce110_stream_encoder_set_mst_bandwidth(
+ 	struct stream_encoder *enc,
+ 	struct fixed31_32 avg_time_slots_per_mtp)
+@@ -1564,6 +1586,8 @@ static const struct stream_encoder_funcs dce110_str_enc_funcs = {
+ 		dce110_stream_encoder_hdmi_set_stream_attribute,
+ 	.dvi_set_stream_attribute =
+ 		dce110_stream_encoder_dvi_set_stream_attribute,
++	.lvds_set_stream_attribute =
++		dce110_stream_encoder_lvds_set_stream_attribute,
+ 	.set_mst_bandwidth =
+ 		dce110_stream_encoder_set_mst_bandwidth,
+ 	.update_hdmi_info_packets =
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h b/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
+index cf6df2e..5881892 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
+@@ -131,6 +131,9 @@ struct link_encoder_funcs {
+ 	void (*enable_dp_mst_output)(struct link_encoder *enc,
+ 		const struct dc_link_settings *link_settings,
+ 		enum clock_source_id clock_source);
++	void (*enable_lvds_output)(struct link_encoder *enc,
++		enum clock_source_id clock_source,
++		uint32_t pixel_clock);
+ 	void (*disable_output)(struct link_encoder *link_enc,
+ 		enum signal_type signal);
+ 	void (*dp_set_lane_settings)(struct link_encoder *enc,
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/stream_encoder.h b/drivers/gpu/drm/amd/display/dc/inc/hw/stream_encoder.h
+index cfa7ec9..53a9b64 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/stream_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/stream_encoder.h
+@@ -101,6 +101,10 @@ struct stream_encoder_funcs {
+ 		struct dc_crtc_timing *crtc_timing,
+ 		bool is_dual_link);
+ 
++	void (*lvds_set_stream_attribute)(
++		struct stream_encoder *enc,
++		struct dc_crtc_timing *crtc_timing);
++
+ 	void (*set_mst_bandwidth)(
+ 		struct stream_encoder *enc,
+ 		struct fixed31_32 avg_time_slots_per_mtp);
+diff --git a/drivers/gpu/drm/amd/display/include/signal_types.h b/drivers/gpu/drm/amd/display/include/signal_types.h
+index 199c5db..03476b1 100644
+--- a/drivers/gpu/drm/amd/display/include/signal_types.h
++++ b/drivers/gpu/drm/amd/display/include/signal_types.h
+@@ -68,6 +68,11 @@ static inline bool dc_is_embedded_signal(enum signal_type signal)
+ 	return (signal == SIGNAL_TYPE_EDP || signal == SIGNAL_TYPE_LVDS);
+ }
+ 
++static inline bool dc_is_lvds_signal(enum signal_type signal)
++{
++	return (signal == SIGNAL_TYPE_LVDS);
++}
++
+ static inline bool dc_is_dvi_signal(enum signal_type signal)
+ {
+ 	switch (signal) {
+-- 
+2.7.4
+

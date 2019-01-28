@@ -1,0 +1,76 @@
+From fd5cb8c9b8c72a3fd6eb462bb173d4da80c0c8b8 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Fri, 31 Aug 2018 16:54:12 -0400
+Subject: [PATCH 5720/5725] drm/amdgpu: Clean up KFD init and fini
+
+Only initialize KFD once by moving amdgpu_amdkfd_init from
+amdgpu_pci_probe to amdgpu_init. This fixes kernel oopses and hangs
+when booting multi-GPU systems.
+
+Also removed some vestiges of KFD being its own module.
+
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c |  5 +----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c    | 10 ++--------
+ 2 files changed, 3 insertions(+), 12 deletions(-)
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index 446b013..09070d0 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -31,7 +31,6 @@
+ #include <linux/module.h>
+ 
+ const struct kgd2kfd_calls *kgd2kfd;
+-bool (*kgd2kfd_init_p)(unsigned int, const struct kgd2kfd_calls**);
+ 
+ static unsigned int compute_vmid_bitmap = 0xFF00;
+ 
+@@ -53,10 +52,8 @@ int amdgpu_amdkfd_init(void)
+ 
+ void amdgpu_amdkfd_fini(void)
+ {
+-	if (kgd2kfd) {
++	if (kgd2kfd)
+ 		kgd2kfd->exit();
+-		symbol_put(kgd2kfd_init);
+-	}
+ }
+ 
+ void amdgpu_amdkfd_device_probe(struct amdgpu_device *adev)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+old mode 100644
+new mode 100755
+index bc8f35a..da922c6
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -959,14 +959,6 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
+ 		return -ENODEV;
+ 	}
+ 
+-	/*
+-	 * Initialize amdkfd before starting radeon. If it was not loaded yet,
+-	 * defer radeon probing
+-	 */
+-	ret = amdgpu_amdkfd_init();
+-	if (ret == -EPROBE_DEFER)
+-		return ret;
+-
+ 	/* Get rid of things like offb */
+ 	ret = amdgpu_kick_out_firmware_fb(pdev);
+ 	if (ret)
+@@ -1321,6 +1313,8 @@ static int __init amdgpu_init(void)
+ 	msleep(2000);
+ 	amdgpu_register_atpx_handler();
+ 	msleep(100);
++	/* Ignore KFD init failures. Normal when CONFIG_HSA_AMD is not set. */
++	amdgpu_amdkfd_init();
+ 	/* let modprobe override vga console setting */
+ 	return pci_register_driver(pdriver);
+ 
+-- 
+2.7.4
+

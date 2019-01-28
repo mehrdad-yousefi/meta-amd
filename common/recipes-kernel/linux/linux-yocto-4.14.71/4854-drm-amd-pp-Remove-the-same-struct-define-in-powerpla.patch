@@ -1,0 +1,212 @@
+From a469669039b295cd69144db8a224b7ca2e5a536c Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 20 Jun 2018 15:05:04 +0800
+Subject: [PATCH 4854/5725] drm/amd/pp: Remove the same struct define in
+ powerplay
+
+delete the same struct define in powerplay, share the struct
+with display.
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/dm_pp_interface.h      | 37 ++-----------------
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c  |  2 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c   | 42 +++++++++++-----------
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h   |  2 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c |  2 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c |  2 +-
+ 6 files changed, 27 insertions(+), 60 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/dm_pp_interface.h b/drivers/gpu/drm/amd/include/dm_pp_interface.h
+index 7852952..1d93a0c 100644
+--- a/drivers/gpu/drm/amd/include/dm_pp_interface.h
++++ b/drivers/gpu/drm/amd/include/dm_pp_interface.h
+@@ -23,6 +23,8 @@
+ #ifndef _DM_PP_INTERFACE_
+ #define _DM_PP_INTERFACE_
+ 
++#include "dm_services_types.h"
++
+ #define PP_MAX_CLOCK_LEVELS 16
+ 
+ enum amd_pp_display_config_type{
+@@ -189,39 +191,4 @@ struct pp_display_clock_request {
+ 	uint32_t clock_freq_in_khz;
+ };
+ 
+-#define PP_MAX_WM_SETS 4
+-
+-enum pp_wm_set_id {
+-	DC_WM_SET_A = 0,
+-	DC_WM_SET_B,
+-	DC_WM_SET_C,
+-	DC_WM_SET_D,
+-	DC_WM_SET_INVALID = 0xffff,
+-};
+-
+-struct pp_wm_set_with_dmif_clock_range_soc15 {
+-	enum pp_wm_set_id wm_set_id;
+-	uint32_t wm_min_dcefclk_in_khz;
+-	uint32_t wm_max_dcefclk_in_khz;
+-	uint32_t wm_min_memclk_in_khz;
+-	uint32_t wm_max_memclk_in_khz;
+-};
+-
+-struct pp_wm_set_with_mcif_clock_range_soc15 {
+-	enum pp_wm_set_id wm_set_id;
+-	uint32_t wm_min_socclk_in_khz;
+-	uint32_t wm_max_socclk_in_khz;
+-	uint32_t wm_min_memclk_in_khz;
+-	uint32_t wm_max_memclk_in_khz;
+-};
+-
+-struct pp_wm_sets_with_clock_ranges_soc15 {
+-	uint32_t num_wm_sets_dmif;
+-	uint32_t num_wm_sets_mcif;
+-	struct pp_wm_set_with_dmif_clock_range_soc15
+-		wm_sets_dmif[PP_MAX_WM_SETS];
+-	struct pp_wm_set_with_mcif_clock_range_soc15
+-		wm_sets_mcif[PP_MAX_WM_SETS];
+-};
+-
+ #endif /* _DM_PP_INTERFACE_ */
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index 02fc0bc..a63e006 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -1111,7 +1111,7 @@ static int smu10_set_watermarks_for_clocks_ranges(struct pp_hwmgr *hwmgr,
+ 		void *clock_ranges)
+ {
+ 	struct smu10_hwmgr *data = hwmgr->backend;
+-	struct pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges = clock_ranges;
++	struct dm_pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges = clock_ranges;
+ 	Watermarks_t *table = &(data->water_marks_table);
+ 	int result = 0;
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c
+index 93a3d02..3effb55 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.c
+@@ -652,7 +652,7 @@ int smu_get_voltage_dependency_table_ppt_v1(
+ }
+ 
+ int smu_set_watermarks_for_clocks_ranges(void *wt_table,
+-		struct pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges)
++		struct dm_pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges)
+ {
+ 	uint32_t i;
+ 	struct watermarks *table = wt_table;
+@@ -660,49 +660,49 @@ int smu_set_watermarks_for_clocks_ranges(void *wt_table,
+ 	if (!table || !wm_with_clock_ranges)
+ 		return -EINVAL;
+ 
+-	if (wm_with_clock_ranges->num_wm_sets_dmif > 4 || wm_with_clock_ranges->num_wm_sets_mcif > 4)
++	if (wm_with_clock_ranges->num_wm_dmif_sets > 4 || wm_with_clock_ranges->num_wm_mcif_sets > 4)
+ 		return -EINVAL;
+ 
+-	for (i = 0; i < wm_with_clock_ranges->num_wm_sets_dmif; i++) {
++	for (i = 0; i < wm_with_clock_ranges->num_wm_dmif_sets; i++) {
+ 		table->WatermarkRow[1][i].MinClock =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_dmif[i].wm_min_dcefclk_in_khz) /
+-			100);
++			(wm_with_clock_ranges->wm_dmif_clocks_ranges[i].wm_min_dcfclk_clk_in_khz) /
++			1000);
+ 		table->WatermarkRow[1][i].MaxClock =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_dmif[i].wm_max_dcefclk_in_khz) /
++			(wm_with_clock_ranges->wm_dmif_clocks_ranges[i].wm_max_dcfclk_clk_in_khz) /
+ 			100);
+ 		table->WatermarkRow[1][i].MinUclk =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_dmif[i].wm_min_memclk_in_khz) /
+-			100);
++			(wm_with_clock_ranges->wm_dmif_clocks_ranges[i].wm_min_mem_clk_in_khz) /
++			1000);
+ 		table->WatermarkRow[1][i].MaxUclk =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_dmif[i].wm_max_memclk_in_khz) /
+-			100);
++			(wm_with_clock_ranges->wm_dmif_clocks_ranges[i].wm_max_mem_clk_in_khz) /
++			1000);
+ 		table->WatermarkRow[1][i].WmSetting = (uint8_t)
+-				wm_with_clock_ranges->wm_sets_dmif[i].wm_set_id;
++				wm_with_clock_ranges->wm_dmif_clocks_ranges[i].wm_set_id;
+ 	}
+ 
+-	for (i = 0; i < wm_with_clock_ranges->num_wm_sets_mcif; i++) {
++	for (i = 0; i < wm_with_clock_ranges->num_wm_mcif_sets; i++) {
+ 		table->WatermarkRow[0][i].MinClock =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_mcif[i].wm_min_socclk_in_khz) /
+-			100);
++			(wm_with_clock_ranges->wm_mcif_clocks_ranges[i].wm_min_socclk_clk_in_khz) /
++			1000);
+ 		table->WatermarkRow[0][i].MaxClock =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_mcif[i].wm_max_socclk_in_khz) /
+-			100);
++			(wm_with_clock_ranges->wm_mcif_clocks_ranges[i].wm_max_socclk_clk_in_khz) /
++			1000);
+ 		table->WatermarkRow[0][i].MinUclk =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_mcif[i].wm_min_memclk_in_khz) /
+-			100);
++			(wm_with_clock_ranges->wm_mcif_clocks_ranges[i].wm_min_mem_clk_in_khz) /
++			1000);
+ 		table->WatermarkRow[0][i].MaxUclk =
+ 			cpu_to_le16((uint16_t)
+-			(wm_with_clock_ranges->wm_sets_mcif[i].wm_max_memclk_in_khz) /
+-			100);
++			(wm_with_clock_ranges->wm_mcif_clocks_ranges[i].wm_max_mem_clk_in_khz) /
++			1000);
+ 		table->WatermarkRow[0][i].WmSetting = (uint8_t)
+-				wm_with_clock_ranges->wm_sets_mcif[i].wm_set_id;
++				wm_with_clock_ranges->wm_mcif_clocks_ranges[i].wm_set_id;
+ 	}
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h
+index 916cc01..5454289 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu_helper.h
+@@ -107,7 +107,7 @@ int smu_get_voltage_dependency_table_ppt_v1(
+ 		struct phm_ppt_v1_clock_voltage_dependency_table *dep_table);
+ 
+ int smu_set_watermarks_for_clocks_ranges(void *wt_table,
+-		struct pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges);
++		struct dm_pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges);
+ 
+ #define PHM_FIELD_SHIFT(reg, field) reg##__##field##__SHIFT
+ #define PHM_FIELD_MASK(reg, field) reg##__##field##_MASK
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 064b4467..2f628c3 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -4214,7 +4214,7 @@ static int vega10_set_watermarks_for_clocks_ranges(struct pp_hwmgr *hwmgr,
+ 							void *clock_range)
+ {
+ 	struct vega10_hwmgr *data = hwmgr->backend;
+-	struct pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges = clock_range;
++	struct dm_pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges = clock_range;
+ 	Watermarks_t *table = &(data->smc_state_table.water_marks_table);
+ 	int result = 0;
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index 0a09075..5749287 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -1785,7 +1785,7 @@ static int vega12_set_watermarks_for_clocks_ranges(struct pp_hwmgr *hwmgr,
+ {
+ 	struct vega12_hwmgr *data = (struct vega12_hwmgr *)(hwmgr->backend);
+ 	Watermarks_t *table = &(data->smc_state_table.water_marks_table);
+-	struct pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges = clock_ranges;
++	struct dm_pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges = clock_ranges;
+ 
+ 	if (!data->registry_data.disable_water_mark &&
+ 			data->smu_features[GNLD_DPM_DCEFCLK].supported &&
+-- 
+2.7.4
+

@@ -1,0 +1,34 @@
+From 2bbf4999eaad08630e498450f6fb353e828c77b8 Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.king@canonical.com>
+Date: Tue, 31 Jul 2018 11:42:54 +0100
+Subject: [PATCH 5036/5725] drm/amd/display: add missing void parameter to
+ dc_create_transfer_func
+
+Add a missing void parameter to function dc_create_transfer_func, fixes
+sparse warning:
+
+warning: non-ANSI function declaration of function 'dc_create_transfer_func'
+
+Signed-off-by: Colin Ian King <colin.king@canonical.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_surface.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_surface.c b/drivers/gpu/drm/amd/display/dc/core/dc_surface.c
+index 815dfb5..8fb3aef 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_surface.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_surface.c
+@@ -192,7 +192,7 @@ void dc_transfer_func_release(struct dc_transfer_func *tf)
+ 	kref_put(&tf->refcount, dc_transfer_func_free);
+ }
+ 
+-struct dc_transfer_func *dc_create_transfer_func()
++struct dc_transfer_func *dc_create_transfer_func(void)
+ {
+ 	struct dc_transfer_func *tf = kvzalloc(sizeof(*tf), GFP_KERNEL);
+ 
+-- 
+2.7.4
+

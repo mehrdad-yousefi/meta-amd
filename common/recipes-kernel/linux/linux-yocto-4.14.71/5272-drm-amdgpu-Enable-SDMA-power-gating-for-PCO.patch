@@ -1,0 +1,30 @@
+From 09e6d24225d3db318103b22277fd65ec503d4688 Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Fri, 10 Aug 2018 16:22:26 +0800
+Subject: [PATCH 5272/5725] drm/amdgpu: Enable SDMA power gating for PCO
+
+Enable SDMA power gating
+
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 2539fa7..b205a4a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -740,6 +740,8 @@ static int soc15_common_early_init(void *handle)
+ 			AMD_CG_SUPPORT_SDMA_MGCG |
+ 			AMD_CG_SUPPORT_SDMA_LS;
+ 
++		adev->pg_flags = AMD_PG_SUPPORT_SDMA;
++
+ 		if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
+ 			adev->pg_flags |= AMD_PG_SUPPORT_GFX_PG |
+ 				AMD_PG_SUPPORT_CP |
+-- 
+2.7.4
+

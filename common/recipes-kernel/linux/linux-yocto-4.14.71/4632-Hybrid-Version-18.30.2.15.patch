@@ -1,0 +1,27 @@
+From 35be4f6619eb2ab0216d5c2c51de1026e3b57723 Mon Sep 17 00:00:00 2001
+From: Junshan Fang <Junshan.Fang@amd.com>
+Date: Tue, 12 Jun 2018 10:18:16 +0800
+Subject: [PATCH 4632/5725] Hybrid Version: 18.30.2.15
+
+Change-Id: I83243cc1d9e9fd1508e46cee81e6d1f79b9648b6
+Signed-off-by: Junshan Fang <Junshan.Fang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 96694c8..c41af58 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -81,7 +81,7 @@
+ #define KMS_DRIVER_MINOR	26
+ #define KMS_DRIVER_PATCHLEVEL	0
+ 
+-#define AMDGPU_VERSION		"18.30.1.15"
++#define AMDGPU_VERSION		"18.30.2.15"
+ 
+ int amdgpu_vram_limit = 0;
+ int amdgpu_vis_vram_limit = 0;
+-- 
+2.7.4
+

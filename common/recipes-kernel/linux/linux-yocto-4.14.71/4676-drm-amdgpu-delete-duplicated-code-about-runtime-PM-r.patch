@@ -1,0 +1,37 @@
+From ca1ca1e0053c68573fd4a3056ad676f19e70b32d Mon Sep 17 00:00:00 2001
+From: Jim Qu <Jim.Qu@amd.com>
+Date: Tue, 14 Aug 2018 13:56:24 +0800
+Subject: [PATCH 4676/5725] drm/amdgpu: delete duplicated code about runtime PM
+ reference
+
+Otherwise, it will unbalance the runtime PM ref, causes GPU suspend
+under some cases.
+
+Change-Id: Icaf240d84b71315547cd149d0b73cfb7764488e4
+
+Reviewed-by: Kevin Wang <Kevin1,Wang@amd.com>
+Signed-off-by: Jim Qu <Jim.Qu@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index ef5a699..c7b5232 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -4611,11 +4611,6 @@ static void amdgpu_dm_atomic_commit_tail(struct drm_atomic_state *state)
+ 	for (i = 0; i < crtc_disable_count; i++)
+ 		pm_runtime_put_autosuspend(dev->dev);
+ 	pm_runtime_mark_last_busy(dev->dev);
+-
+-	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
+-		if (old_crtc_state->active && !new_crtc_state->active)
+-			pm_runtime_put_autosuspend(dev->dev);
+-	}
+ }
+ 
+ 
+-- 
+2.7.4
+

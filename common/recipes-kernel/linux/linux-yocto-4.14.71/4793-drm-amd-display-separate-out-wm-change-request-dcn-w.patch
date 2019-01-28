@@ -1,0 +1,108 @@
+From a8c7550543f613fdbc8411ef9eb37d1fd2ea71f7 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Tue, 5 Jun 2018 13:14:13 -0400
+Subject: [PATCH 4793/5725] drm/amd/display: separate out wm change request dcn
+ workaround
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c       | 11 ++++++-----
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.h       |  2 ++
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c |  3 +++
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c     |  1 +
+ drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h         |  1 +
+ 5 files changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c
+index 63b75ac..623db09 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c
+@@ -190,6 +190,12 @@ static uint32_t convert_and_clamp(
+ }
+ 
+ 
++void hubbub1_wm_change_req_wa(struct hubbub *hubbub)
++{
++	REG_UPDATE_SEQ(DCHUBBUB_ARB_WATERMARK_CHANGE_CNTL,
++			DCHUBBUB_ARB_WATERMARK_CHANGE_REQUEST, 0, 1);
++}
++
+ void hubbub1_program_watermarks(
+ 		struct hubbub *hubbub,
+ 		struct dcn_watermark_set *watermarks,
+@@ -203,8 +209,6 @@ void hubbub1_program_watermarks(
+ 	 */
+ 	uint32_t prog_wm_value;
+ 
+-	REG_UPDATE(DCHUBBUB_ARB_WATERMARK_CHANGE_CNTL,
+-			DCHUBBUB_ARB_WATERMARK_CHANGE_REQUEST, 0);
+ 
+ 	/* Repeat for water mark set A, B, C and D. */
+ 	/* clock state A */
+@@ -459,9 +463,6 @@ void hubbub1_program_watermarks(
+ 			watermarks->d.cstate_pstate.pstate_change_ns, prog_wm_value);
+ 	}
+ 
+-	REG_UPDATE(DCHUBBUB_ARB_WATERMARK_CHANGE_CNTL,
+-			DCHUBBUB_ARB_WATERMARK_CHANGE_REQUEST, 1);
+-
+ 	REG_UPDATE(DCHUBBUB_ARB_SAT_LEVEL,
+ 			DCHUBBUB_ARB_SAT_LEVEL, 60 * refclk_mhz);
+ 	REG_UPDATE(DCHUBBUB_ARB_DF_REQ_OUTSTAND,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.h
+index 0ca39cb..d6e596e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.h
+@@ -195,6 +195,8 @@ void hubbub1_update_dchub(
+ bool hubbub1_verify_allow_pstate_change_high(
+ 	struct hubbub *hubbub);
+ 
++void hubbub1_wm_change_req_wa(struct hubbub *hubbub);
++
+ void hubbub1_program_watermarks(
+ 		struct hubbub *hubbub,
+ 		struct dcn_watermark_set *watermarks,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index eaa8b0a..d78802e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -2320,6 +2320,9 @@ static void dcn10_apply_ctx_for_surface(
+ 		hubbub1_program_watermarks(dc->res_pool->hubbub,
+ 				&context->bw.dcn.watermarks, ref_clk_mhz, true);
+ 
++		if (dc->hwseq->wa.DEGVIDCN10_254)
++			hubbub1_wm_change_req_wa(dc->res_pool->hubbub);
++
+ 		if (dc->debug.sanity_checks) {
+ 			/* pstate stuck check after watermark update */
+ 			dcn10_verify_allow_pstate_change_high(dc);
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index 4081160..0a313dc 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -743,6 +743,7 @@ static struct dce_hwseq *dcn10_hwseq_create(
+ 		hws->masks = &hwseq_mask;
+ 		hws->wa.DEGVIDCN10_253 = true;
+ 		hws->wa.false_optc_underflow = true;
++		hws->wa.DEGVIDCN10_254 = true;
+ 	}
+ 	return hws;
+ }
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+index a71770e..1c94dae 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+@@ -44,6 +44,7 @@ struct dce_hwseq_wa {
+ 	bool blnd_crtc_trigger;
+ 	bool DEGVIDCN10_253;
+ 	bool false_optc_underflow;
++	bool DEGVIDCN10_254;
+ };
+ 
+ struct hwseq_wa_state {
+-- 
+2.7.4
+

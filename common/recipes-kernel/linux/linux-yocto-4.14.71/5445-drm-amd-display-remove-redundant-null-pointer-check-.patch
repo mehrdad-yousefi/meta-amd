@@ -1,0 +1,37 @@
+From 771455fda938b6dee45a33ca7067da4455547b16 Mon Sep 17 00:00:00 2001
+From: zhong jiang <zhongjiang@huawei.com>
+Date: Fri, 21 Sep 2018 21:12:11 +0800
+Subject: [PATCH 5445/5725] drm/amd/display: remove redundant null pointer
+ check before kfree
+
+kfree has taken the null pointer into account. hence it is safe
+to remove the redundant null pointer check before kfree.
+
+Signed-off-by: zhong jiang <zhongjiang@huawei.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/modules/stats/stats.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/stats/stats.c b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+index 480eb2c..deadf51 100644
+--- a/drivers/gpu/drm/amd/display/modules/stats/stats.c
++++ b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+@@ -188,12 +188,8 @@ void mod_stats_destroy(struct mod_stats *mod_stats)
+ 	if (mod_stats != NULL) {
+ 		struct core_stats *core_stats = MOD_STATS_TO_CORE(mod_stats);
+ 
+-		if (core_stats->time != NULL)
+-			kfree(core_stats->time);
+-
+-		if (core_stats->events != NULL)
+-			kfree(core_stats->events);
+-
++		kfree(core_stats->time);
++		kfree(core_stats->events);
+ 		kfree(core_stats);
+ 	}
+ }
+-- 
+2.7.4
+

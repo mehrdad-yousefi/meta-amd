@@ -1,0 +1,32 @@
+From 1317e920ae7fd87909bd8d58caedd7176b656507 Mon Sep 17 00:00:00 2001
+From: Tom St Denis <tom.stdenis@amd.com>
+Date: Wed, 2 May 2018 13:01:36 -0400
+Subject: [PATCH 4369/5725] drm/amd/amdgpu: Add some documentation to the
+ debugfs entries
+
+Signed-off-by: Tom St Denis <tom.stdenis@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdgpu/amdgpu_debugfs.c
+
+Change-Id: Id1bdcd57048f62ca340e23facec1699de245129e
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_debugfs.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_debugfs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_debugfs.c
+index cc19d6a..8a57c0c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_debugfs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_debugfs.c
+@@ -68,7 +68,6 @@ int amdgpu_debugfs_add_files(struct amdgpu_device *adev,
+ }
+ 
+ #if defined(CONFIG_DEBUG_FS)
+-
+ /**
+  * amdgpu_debugfs_process_reg_op - Handle MMIO register reads/writes
+  *
+-- 
+2.7.4
+

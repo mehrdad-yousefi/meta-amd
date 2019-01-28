@@ -1,0 +1,38 @@
+From e6635fc09721783e5deb63d450cd89005596f204 Mon Sep 17 00:00:00 2001
+From: "Jerry (Fangzhi) Zuo" <Jerry.Zuo@amd.com>
+Date: Tue, 31 Jul 2018 15:15:38 -0400
+Subject: [PATCH 4677/5725] drm/amd/display: Fix warning observed in mode
+ change on Vega
+
+[Why]
+DOUBLE_BUFFER_EN bit is getting cleared before enable blanking.
+That leads to CRTC_BLANK_DATA_EN is getting updated immediately.
+
+[How]
+Get DOUBLE_BUFFER_EN bit set, the same as DCE110.
+
+Change-Id: Ib88dc8b81b4e5dadca1fa086d2b509e491846396
+Signed-off-by: Jerry (Fangzhi) Zuo <Jerry.Zuo@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Acked-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce120/dce120_timing_generator.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce120/dce120_timing_generator.c b/drivers/gpu/drm/amd/display/dc/dce120/dce120_timing_generator.c
+index 2ea490f..04b866f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce120/dce120_timing_generator.c
++++ b/drivers/gpu/drm/amd/display/dc/dce120/dce120_timing_generator.c
+@@ -772,7 +772,7 @@ void dce120_tg_set_blank(struct timing_generator *tg,
+ 
+ 	CRTC_REG_SET(
+ 		CRTC0_CRTC_DOUBLE_BUFFER_CONTROL,
+-		CRTC_BLANK_DATA_DOUBLE_BUFFER_EN, 0);
++		CRTC_BLANK_DATA_DOUBLE_BUFFER_EN, 1);
+ 
+ 	if (enable_blanking)
+ 		CRTC_REG_SET(CRTC0_CRTC_BLANK_CONTROL, CRTC_BLANK_DATA_EN, 1);
+-- 
+2.7.4
+

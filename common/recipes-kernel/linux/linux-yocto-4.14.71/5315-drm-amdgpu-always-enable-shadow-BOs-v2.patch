@@ -1,0 +1,55 @@
+From 599fbd1a28b44196b63c65650421a405baa31135 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 11 Sep 2018 10:30:31 +0200
+Subject: [PATCH 5315/5725] drm/amdgpu: always enable shadow BOs v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Even when GPU recovery is disabled we could run into a manually
+triggered recovery.
+
+v2: keep accidental removed comments
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Emily Deng <Emily.Deng@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 14 +-------------
+ 1 file changed, 1 insertion(+), 13 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 2466147..68c3b94 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -51,18 +51,6 @@
+  *
+ */
+ 
+-static bool amdgpu_bo_need_backup(struct amdgpu_device *adev)
+-{
+-	if (adev->flags & AMD_IS_APU)
+-		return false;
+-
+-	if (amdgpu_gpu_recovery == 0 ||
+-	    (amdgpu_gpu_recovery == -1  && !amdgpu_sriov_vf(adev)))
+-		return false;
+-
+-	return true;
+-}
+-
+ /**
+  * amdgpu_bo_subtract_pin_size - Remove BO from pin_size accounting
+  *
+@@ -643,7 +631,7 @@ int amdgpu_bo_create(struct amdgpu_device *adev,
+ 	if (r)
+ 		return r;
+ 
+-	if ((flags & AMDGPU_GEM_CREATE_SHADOW) && amdgpu_bo_need_backup(adev)) {
++	if ((flags & AMDGPU_GEM_CREATE_SHADOW) && !(adev->flags & AMD_IS_APU)) {
+ 		if (!bp->resv)
+ 			WARN_ON(reservation_object_lock((*bo_ptr)->tbo.resv,
+ 							NULL));
+-- 
+2.7.4
+

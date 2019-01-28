@@ -1,0 +1,573 @@
+From 277d7dda6e7cf33e2cee6801564371b2894ea452 Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Tue, 29 May 2018 09:36:44 +0530
+Subject: [PATCH 4588/5725] drm/amdgpu/pp: replace mutex with spin_lock (V2)
+
+This patch replaces usage of mutex with spin_lock
+to avoid sleep in atomic context.
+
+Below is the stack trace:
+
+BUG: sleeping function called from invalid context at kernel/locking/mutex.c:**
+in_atomic(): 1, irqs_disabled(): 1, pid: 5, name: kworker/u4:0
+CPU: 1 PID: 5 Comm: kworker/u4:0 Tainted: G        W       4.14.43 #9
+Workqueue: events_unbound commit_work
+Call Trace:
+ dump_stack+0x4d/0x63
+ ___might_sleep+0x11f/0x12e
+ mutex_lock+0x20/0x42
+ amd_powerplay_display_configuration_change+0x32/0x51
+ dm_pp_apply_display_requirements+0x10b/0x118
+ dce110_set_bandwidth+0x1a1/0x1b5
+ dc_commit_updates_for_stream+0x14c/0x4cf
+ ? amdgpu_get_crtc_scanoutpos+0x82/0x16b
+ amdgpu_dm_do_flip+0x239/0x298
+ amdgpu_dm_commit_planes.isra.23+0x379/0x54b
+ ? drm_calc_timestamping_constants+0x14b/0x15c
+ amdgpu_dm_atomic_commit_tail+0x4fc/0x5d2
+ ? wait_for_common+0x5b/0x69
+ commit_tail+0x42/0x64
+ process_one_work+0x1b0/0x314
+ worker_thread+0x1cb/0x2c1
+ ? create_worker+0x1da/0x1da
+ kthread+0x156/0x15e
+ ? kthread_flush_work+0xea/0xea
+ ret_from_fork+0x22/0x40
+
+V2: Added stack trace in the commit message.
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 152 +++++++++++++-------------
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h     |   2 +-
+ 2 files changed, 77 insertions(+), 77 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 76fc45f..3cdf852 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -182,10 +182,10 @@ static int pp_late_init(void *handle)
+ 	struct pp_hwmgr *hwmgr = adev->powerplay.pp_handle;
+ 
+ 	if (hwmgr && hwmgr->pm_en) {
+-		mutex_lock(&hwmgr->smu_lock);
++		spin_lock(&hwmgr->smu_lock);
+ 		hwmgr_handle_task(hwmgr,
+ 					AMD_PP_TASK_COMPLETE_INIT, NULL);
+-		mutex_unlock(&hwmgr->smu_lock);
++		spin_unlock(&hwmgr->smu_lock);
+ 	}
+ 
+ 	if (adev->pm.smu_prv_buffer_size != 0)
+@@ -368,11 +368,11 @@ static int pp_dpm_force_performance_level(void *handle,
+ 	if (level == hwmgr->dpm_level)
+ 		return 0;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	pp_dpm_en_umd_pstate(hwmgr, &level);
+ 	hwmgr->request_dpm_level = level;
+ 	hwmgr_handle_task(hwmgr, AMD_PP_TASK_READJUST_POWER_STATE, NULL);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 
+ 	return 0;
+ }
+@@ -386,9 +386,9 @@ static enum amd_dpm_forced_level pp_dpm_get_performance_level(
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	level = hwmgr->dpm_level;
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return level;
+ }
+ 
+@@ -404,9 +404,9 @@ static uint32_t pp_dpm_get_sclk(void *handle, bool low)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	clk = hwmgr->hwmgr_func->get_sclk(hwmgr, low);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return clk;
+ }
+ 
+@@ -422,9 +422,9 @@ static uint32_t pp_dpm_get_mclk(void *handle, bool low)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	clk = hwmgr->hwmgr_func->get_mclk(hwmgr, low);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return clk;
+ }
+ 
+@@ -439,9 +439,9 @@ static void pp_dpm_powergate_vce(void *handle, bool gate)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	hwmgr->hwmgr_func->powergate_vce(hwmgr, gate);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ }
+ 
+ static void pp_dpm_powergate_uvd(void *handle, bool gate)
+@@ -455,9 +455,9 @@ static void pp_dpm_powergate_uvd(void *handle, bool gate)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	hwmgr->hwmgr_func->powergate_uvd(hwmgr, gate);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ }
+ 
+ static int pp_dpm_dispatch_tasks(void *handle, enum amd_pp_task task_id,
+@@ -469,9 +469,9 @@ static int pp_dpm_dispatch_tasks(void *handle, enum amd_pp_task task_id,
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr_handle_task(hwmgr, task_id, user_state);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 
+ 	return ret;
+ }
+@@ -485,7 +485,7 @@ static enum amd_pm_state_type pp_dpm_get_current_power_state(void *handle)
+ 	if (!hwmgr || !hwmgr->pm_en || !hwmgr->current_ps)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 
+ 	state = hwmgr->current_ps;
+ 
+@@ -506,7 +506,7 @@ static enum amd_pm_state_type pp_dpm_get_current_power_state(void *handle)
+ 			pm_type = POWER_STATE_TYPE_DEFAULT;
+ 		break;
+ 	}
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 
+ 	return pm_type;
+ }
+@@ -522,9 +522,9 @@ static void pp_dpm_set_fan_control_mode(void *handle, uint32_t mode)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	hwmgr->hwmgr_func->set_fan_control_mode(hwmgr, mode);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ }
+ 
+ static uint32_t pp_dpm_get_fan_control_mode(void *handle)
+@@ -539,9 +539,9 @@ static uint32_t pp_dpm_get_fan_control_mode(void *handle)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	mode = hwmgr->hwmgr_func->get_fan_control_mode(hwmgr);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return mode;
+ }
+ 
+@@ -557,9 +557,9 @@ static int pp_dpm_set_fan_speed_percent(void *handle, uint32_t percent)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->set_fan_speed_percent(hwmgr, percent);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -576,9 +576,9 @@ static int pp_dpm_get_fan_speed_percent(void *handle, uint32_t *speed)
+ 		return 0;
+ 	}
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->get_fan_speed_percent(hwmgr, speed);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -593,9 +593,9 @@ static int pp_dpm_get_fan_speed_rpm(void *handle, uint32_t *rpm)
+ 	if (hwmgr->hwmgr_func->get_fan_speed_rpm == NULL)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->get_fan_speed_rpm(hwmgr, rpm);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -610,7 +610,7 @@ static int pp_dpm_get_pp_num_states(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!hwmgr->ps)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 
+ 	data->nums = hwmgr->num_ps;
+ 
+@@ -634,7 +634,7 @@ static int pp_dpm_get_pp_num_states(void *handle,
+ 				data->states[i] = POWER_STATE_TYPE_DEFAULT;
+ 		}
+ 	}
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return 0;
+ }
+ 
+@@ -646,10 +646,10 @@ static int pp_dpm_get_pp_table(void *handle, char **table)
+ 	if (!hwmgr || !hwmgr->pm_en ||!hwmgr->soft_pp_table)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	*table = (char *)hwmgr->soft_pp_table;
+ 	size = hwmgr->soft_pp_table_size;
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return size;
+ }
+ 
+@@ -677,7 +677,7 @@ static int pp_dpm_set_pp_table(void *handle, const char *buf, size_t size)
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	if (!hwmgr->hardcode_pp_table) {
+ 		hwmgr->hardcode_pp_table = kmemdup(hwmgr->soft_pp_table,
+ 						   hwmgr->soft_pp_table_size,
+@@ -699,10 +699,10 @@ static int pp_dpm_set_pp_table(void *handle, const char *buf, size_t size)
+ 		if (ret)
+ 			goto err;
+ 	}
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return 0;
+ err:
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -719,12 +719,12 @@ static int pp_dpm_force_clock_level(void *handle,
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	if (hwmgr->dpm_level == AMD_DPM_FORCED_LEVEL_MANUAL)
+ 		ret = hwmgr->hwmgr_func->force_clock_level(hwmgr, type, mask);
+ 	else
+ 		ret = -EINVAL;
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -741,9 +741,9 @@ static int pp_dpm_print_clock_levels(void *handle,
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->print_clock_levels(hwmgr, type, buf);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -759,9 +759,9 @@ static int pp_dpm_get_sclk_od(void *handle)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->get_sclk_od(hwmgr);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -778,9 +778,9 @@ static int pp_dpm_set_sclk_od(void *handle, uint32_t value)
+ 		return 0;
+ 	}
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->set_sclk_od(hwmgr, value);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -796,9 +796,9 @@ static int pp_dpm_get_mclk_od(void *handle)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->get_mclk_od(hwmgr);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -814,9 +814,9 @@ static int pp_dpm_set_mclk_od(void *handle, uint32_t value)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return 0;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = hwmgr->hwmgr_func->set_mclk_od(hwmgr, value);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -837,9 +837,9 @@ static int pp_dpm_read_sensor(void *handle, int idx,
+ 		*((uint32_t *)value) = hwmgr->pstate_mclk;
+ 		return 0;
+ 	default:
+-		mutex_lock(&hwmgr->smu_lock);
++		spin_lock(&hwmgr->smu_lock);
+ 		ret = hwmgr->hwmgr_func->read_sensor(hwmgr, idx, value, size);
+-		mutex_unlock(&hwmgr->smu_lock);
++		spin_unlock(&hwmgr->smu_lock);
+ 		return ret;
+ 	}
+ }
+@@ -884,10 +884,10 @@ static int pp_set_power_profile_mode(void *handle, long *input, uint32_t size)
+ 		pr_info("%s was not implemented.\n", __func__);
+ 		return ret;
+ 	}
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	if (hwmgr->dpm_level == AMD_DPM_FORCED_LEVEL_MANUAL)
+ 		ret = hwmgr->hwmgr_func->set_power_profile_mode(hwmgr, input, size);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -924,7 +924,7 @@ static int pp_dpm_switch_power_profile(void *handle,
+ 	if (!(type < PP_SMC_POWER_PROFILE_CUSTOM))
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 
+ 	if (!en) {
+ 		hwmgr->workload_mask &= ~(1 << hwmgr->workload_prority[type]);
+@@ -940,7 +940,7 @@ static int pp_dpm_switch_power_profile(void *handle,
+ 
+ 	if (hwmgr->dpm_level != AMD_DPM_FORCED_LEVEL_MANUAL)
+ 		hwmgr->hwmgr_func->set_power_profile_mode(hwmgr, &workload, 0);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 
+ 	return 0;
+ }
+@@ -963,10 +963,10 @@ static int pp_set_power_limit(void *handle, uint32_t limit)
+ 	if (limit > hwmgr->default_power_limit)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	hwmgr->hwmgr_func->set_power_limit(hwmgr, limit);
+ 	hwmgr->power_limit = limit;
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return 0;
+ }
+ 
+@@ -977,14 +977,14 @@ static int pp_get_power_limit(void *handle, uint32_t *limit, bool default_limit)
+ 	if (!hwmgr || !hwmgr->pm_en ||!limit)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 
+ 	if (default_limit)
+ 		*limit = hwmgr->default_power_limit;
+ 	else
+ 		*limit = hwmgr->power_limit;
+ 
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 
+ 	return 0;
+ }
+@@ -997,9 +997,9 @@ static int pp_display_configuration_change(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	phm_store_dal_configuration_data(hwmgr, display_config);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return 0;
+ }
+ 
+@@ -1012,9 +1012,9 @@ static int pp_get_display_power_level(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!output)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = phm_get_dal_power_level(hwmgr, output);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -1029,7 +1029,7 @@ static int pp_get_current_clocks(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 
+ 	phm_get_dal_power_level(hwmgr, &simple_clocks);
+ 
+@@ -1043,7 +1043,7 @@ static int pp_get_current_clocks(void *handle,
+ 
+ 	if (ret) {
+ 		pr_info("Error in phm_get_clock_info \n");
+-		mutex_unlock(&hwmgr->smu_lock);
++		spin_unlock(&hwmgr->smu_lock);
+ 		return -EINVAL;
+ 	}
+ 
+@@ -1063,7 +1063,7 @@ static int pp_get_current_clocks(void *handle,
+ 		clocks->max_engine_clock_in_sr = hw_clocks.max_eng_clk;
+ 		clocks->min_engine_clock_in_sr = hw_clocks.min_eng_clk;
+ 	}
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return 0;
+ }
+ 
+@@ -1078,9 +1078,9 @@ static int pp_get_clock_by_type(void *handle, enum amd_pp_clock_type type, struc
+ 	if (clocks == NULL)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = phm_get_clock_by_type(hwmgr, type, clocks);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -1094,9 +1094,9 @@ static int pp_get_clock_by_type_with_latency(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!clocks)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = phm_get_clock_by_type_with_latency(hwmgr, type, clocks);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -1110,11 +1110,11 @@ static int pp_get_clock_by_type_with_voltage(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!clocks)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 
+ 	ret = phm_get_clock_by_type_with_voltage(hwmgr, type, clocks);
+ 
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	return ret;
+ }
+ 
+@@ -1127,10 +1127,10 @@ static int pp_set_watermarks_for_clocks_ranges(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!wm_with_clock_ranges)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = phm_set_watermarks_for_clocks_ranges(hwmgr,
+ 			wm_with_clock_ranges);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 
+ 	return ret;
+ }
+@@ -1144,9 +1144,9 @@ static int pp_display_clock_voltage_request(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!clock)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 	ret = phm_display_clock_voltage_request(hwmgr, clock);
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 
+ 	return ret;
+ }
+@@ -1160,12 +1160,12 @@ static int pp_get_display_mode_validation_clocks(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!clocks)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&hwmgr->smu_lock);
++	spin_lock(&hwmgr->smu_lock);
+ 
+ 	if (phm_cap_enabled(hwmgr->platform_descriptor.platformCaps, PHM_PlatformCaps_DynamicPatchPowerState))
+ 		ret = phm_get_max_high_clocks(hwmgr, clocks);
+ 
+-	mutex_unlock(&hwmgr->smu_lock);
++	spin_unlock(&hwmgr->smu_lock);
+ 	
+ 	return ret;
+ }
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index b99fb8a..37d1382 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -709,7 +709,7 @@ struct pp_hwmgr {
+ 	uint32_t smu_version;
+ 	bool not_vf;
+ 	bool pm_en;
+-	struct mutex smu_lock;
++	spinlock_t smu_lock;
+ 
+ 	uint32_t pp_table_version;
+ 	void *device;
+-- 
+2.7.4
+

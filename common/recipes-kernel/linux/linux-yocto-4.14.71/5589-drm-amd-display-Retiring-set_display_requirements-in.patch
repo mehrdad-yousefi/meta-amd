@@ -1,0 +1,74 @@
+From 2d731a5977cdd94dfa8935c9d405ebc6001350c2 Mon Sep 17 00:00:00 2001
+From: Fatemeh Darbehani <fatemeh.darbehani@amd.com>
+Date: Wed, 26 Sep 2018 19:12:26 -0400
+Subject: [PATCH 5589/5725] drm/amd/display: Retiring set_display_requirements
+ in dm_pp_smu.h - part1
+
+[Why]
+In DCN we want direct DAL to SMU calls, with as little as possible
+interference by pplib. The reason for each pp_smu interface mapping
+to 1 SMU message is so we can have the sequencing of different SMU
+message in dal and shared across different OS. This will also simplify
+debugging as DAL owns this interaction and there's no confusion about
+division of ownership.
+
+[How]
+Part 1: Separate set_min_deep_Sleep_dcfclk message from the SMU
+messages that are sent as part of dcn10_pplib_apply_display_requirements.
+Notify deep sleep dcfclk to smu directly
+
+Signed-off-by: Fatemeh Darbehani <fatemeh.darbehani@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
+index 0a9f944..5159a7e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
+@@ -162,6 +162,22 @@ static int get_active_display_cnt(
+ 	return display_count;
+ }
+ 
++static void notify_deep_sleep_dcfclk_to_smu(
++		struct pp_smu_funcs_rv *pp_smu, int min_dcef_deep_sleep_clk_khz)
++{
++	int min_dcef_deep_sleep_clk_mhz; //minimum required DCEF Deep Sleep clock in mhz
++	/*
++	 * if function pointer not set up, this message is
++	 * sent as part of pplib_apply_display_requirements.
++	 * So just return.
++	 */
++	if (!pp_smu || !pp_smu->set_min_deep_sleep_dcfclk)
++		return;
++
++	min_dcef_deep_sleep_clk_mhz = (min_dcef_deep_sleep_clk_khz + 999) / 1000; //Round up
++	pp_smu->set_min_deep_sleep_dcfclk(&pp_smu->pp_smu, min_dcef_deep_sleep_clk_mhz);
++}
++
+ static void dcn1_update_clocks(struct dccg *dccg,
+ 			struct dc_state *context,
+ 			bool safe_to_lower)
+@@ -244,6 +260,8 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 		dm_pp_apply_clock_for_voltage_request(dccg->ctx, &clock_voltage_req);
+ 		if (pp_smu->set_display_requirement)
+ 			pp_smu->set_display_requirement(&pp_smu->pp_smu, &smu_req);
++
++		notify_deep_sleep_dcfclk_to_smu(pp_smu, dccg->clks.dcfclk_deep_sleep_khz);
+ 		dcn1_pplib_apply_display_requirements(dc, context);
+ 	}
+ 
+@@ -264,6 +282,8 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 		dm_pp_apply_clock_for_voltage_request(dccg->ctx, &clock_voltage_req);
+ 		if (pp_smu->set_display_requirement)
+ 			pp_smu->set_display_requirement(&pp_smu->pp_smu, &smu_req);
++
++		notify_deep_sleep_dcfclk_to_smu(pp_smu, dccg->clks.dcfclk_deep_sleep_khz);
+ 		dcn1_pplib_apply_display_requirements(dc, context);
+ 	}
+ 
+-- 
+2.7.4
+

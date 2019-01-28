@@ -1,0 +1,36 @@
+From 8be3d3ff43d978593a398551cb1e4005463c6782 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Wed, 15 Aug 2018 14:04:47 +0200
+Subject: [PATCH 5174/5725] drm/amdgpu: fix VM size reporting on Raven
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Raven doesn't have an VCE block and so also no buggy VCE firmware.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Chunming Zhou <david1.zhou@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index e60cfbf..1c45f1b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -649,7 +649,8 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 		vm_size -= AMDGPU_VA_RESERVED_SIZE;
+ 
+ 		/* Older VCE FW versions are buggy and can handle only 40bits */
+-		if (adev->vce.fw_version < AMDGPU_VCE_FW_53_45)
++		if (adev->vce.fw_version &&
++		    adev->vce.fw_version < AMDGPU_VCE_FW_53_45)
+ 			vm_size = min(vm_size, 1ULL << 40);
+ 
+ 		dev_info.virtual_address_offset = AMDGPU_VA_RESERVED_SIZE;
+-- 
+2.7.4
+

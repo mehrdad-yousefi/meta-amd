@@ -1,0 +1,102 @@
+From ee1009ddef4548d44487aec9e90bbbe7369b7540 Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Tue, 10 Apr 2018 17:05:36 +0800
+Subject: [PATCH 4168/5725] drm/amd/powerplay: initialzie the dpm intial
+ enabled state
+
+To expose the right dpm levels to the sysfs
+
+Change-Id: I4dc2209a6236834df387eb3d198ad77242d4c561
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index ce79b92..835d810 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -545,6 +545,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -564,6 +565,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -584,6 +586,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -604,6 +607,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 		return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -624,6 +628,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -644,6 +649,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 		return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -665,6 +671,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -685,6 +692,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -705,6 +713,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+@@ -725,6 +734,7 @@ static int vega12_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 			return -EINVAL);
+ 
+ 		dpm_table->dpm_levels[i].value = clock;
++		dpm_table->dpm_levels[i].enabled = true;
+ 	}
+ 
+ 	vega12_init_dpm_state(&(dpm_table->dpm_state));
+-- 
+2.7.4
+

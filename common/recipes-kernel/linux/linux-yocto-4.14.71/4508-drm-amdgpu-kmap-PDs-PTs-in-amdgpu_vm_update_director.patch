@@ -1,0 +1,55 @@
+From 9aef9a096bba95093015d9fea547a7b5e15d6142 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Thu, 19 Apr 2018 13:58:42 +0200
+Subject: [PATCH 4508/5725] drm/amdgpu: kmap PDs/PTs in
+ amdgpu_vm_update_directories
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+In theory it is possible that PDs/PTs can move without eviction.
+
+Change-Id: I684783ce1ec306d2856f9e8a902d3fd88a0a6607
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index a8dbd20..cbf3a2f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -242,13 +242,6 @@ int amdgpu_vm_validate_pt_bos(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 			spin_unlock(&glob->lru_lock);
+ 		}
+ 
+-		if (bo->tbo.type == ttm_bo_type_kernel &&
+-		    vm->use_cpu_for_update) {
+-			r = amdgpu_bo_kmap(bo, NULL);
+-			if (r)
+-				break;
+-		}
+-
+ 		if (bo->tbo.type != ttm_bo_type_kernel) {
+ 			spin_lock(&vm->moved_lock);
+ 			list_move(&bo_base->vm_status, &vm->moved);
+@@ -941,6 +934,14 @@ int amdgpu_vm_update_directories(struct amdgpu_device *adev,
+ 	params.adev = adev;
+ 
+ 	if (vm->use_cpu_for_update) {
++		struct amdgpu_vm_bo_base *bo_base;
++
++		list_for_each_entry(bo_base, &vm->relocated, vm_status) {
++			r = amdgpu_bo_kmap(bo_base->bo, NULL);
++			if (unlikely(r))
++				return r;
++		}
++
+ 		r = amdgpu_vm_wait_pd(adev, vm, AMDGPU_FENCE_OWNER_VM);
+ 		if (unlikely(r))
+ 			return r;
+-- 
+2.7.4
+

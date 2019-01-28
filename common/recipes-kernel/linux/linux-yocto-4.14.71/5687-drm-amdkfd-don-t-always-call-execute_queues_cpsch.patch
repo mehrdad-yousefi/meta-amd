@@ -1,0 +1,39 @@
+From 793b1e6781101025173666788ca5bf3a013259bd Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Tue, 2 Jan 2018 13:10:50 -0500
+Subject: [PATCH 5687/5725] drm/amdkfd: don't always call
+ execute_queues_cpsch()
+
+When destroying an inactive queue, we don't need to call
+execute_queues_cpsch.
+
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+Reviewed-by: Oak Zeng <oak.zeng@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index 9befdb8..d976f1c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -1374,13 +1374,13 @@ static int destroy_queue_cpsch(struct device_queue_manager *dqm,
+ 
+ 	list_del(&q->list);
+ 	qpd->queue_count--;
+-	if (q->properties.is_active) 
++	if (q->properties.is_active) {
+ 		dqm->queue_count--;
+ 		retval = execute_queues_cpsch(dqm,
+ 				KFD_UNMAP_QUEUES_FILTER_DYNAMIC_QUEUES, 0);
+ 		if (retval == -ETIME)
+ 			qpd->reset_wavefronts = true;
+-
++	}
+ 	mqd_mgr->uninit_mqd(mqd_mgr, q->mqd, q->mqd_mem_obj);
+ 
+ 	/*
+-- 
+2.7.4
+

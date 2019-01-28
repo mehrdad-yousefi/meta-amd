@@ -1,0 +1,45 @@
+From ee746a476c690b3778c5f46ea9128387772b16cf Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Mon, 7 May 2018 16:50:26 -0400
+Subject: [PATCH 5676/5725] drm/amdkfd: Fix kernel queue 64 bit doorbell offset
+ calculation
+
+The bitmap index calculation should reverse the logic used on allocation
+so it will clear the same bit used on allocation
+
+Change-Id: Idae2b7df4eef7f51f61294223e883916ded619ed
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_doorbell.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_doorbell.c b/drivers/gpu/drm/amd/amdkfd/kfd_doorbell.c
+index c3744d8..ebe79bf 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_doorbell.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_doorbell.c
+@@ -188,9 +188,9 @@ void __iomem *kfd_get_kernel_doorbell(struct kfd_dev *kfd,
+ 	*doorbell_off = kfd->doorbell_id_offset + inx;
+ 
+ 	pr_debug("Get kernel queue doorbell\n"
+-			 "     doorbell offset   == 0x%08X\n"
+-			 "     kernel address    == %p\n",
+-		*doorbell_off, (kfd->doorbell_kernel_ptr + inx));
++			"     doorbell offset   == 0x%08X\n"
++			"     doorbell index    == 0x%x\n",
++		*doorbell_off, inx);
+ 
+ 	return kfd->doorbell_kernel_ptr + inx;
+ }
+@@ -199,7 +199,8 @@ void kfd_release_kernel_doorbell(struct kfd_dev *kfd, u32 __iomem *db_addr)
+ {
+ 	unsigned int inx;
+ 
+-	inx = (unsigned int)(db_addr - kfd->doorbell_kernel_ptr);
++	inx = (unsigned int)(db_addr - kfd->doorbell_kernel_ptr)
++		* sizeof(u32) / kfd->device_info->doorbell_size;
+ 
+ 	mutex_lock(&kfd->doorbell_mutex);
+ 	__clear_bit(inx, kfd->doorbell_available_index);
+-- 
+2.7.4
+

@@ -1,0 +1,110 @@
+From 322b5ce1ba16bec1517cdf3800fd36c5ec075b7c Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Thu, 28 Jun 2018 22:51:32 -0400
+Subject: [PATCH 4867/5725] drm/amdgpu: Add support for logging process info in
+ amdgpu_vm.
+
+Add process and thread names and pids and a function to extract
+this info from relevant amdgpu_vm.
+
+v2: Add documentation and fix identation.
+
+v3: Add getter and setter functions for amdgpu_task_info.
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Acked-by: Jim Qu <Jim.Qu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 39 ++++++++++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h | 16 ++++++++++++++
+ 2 files changed, 55 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index b1586a7..8b5dada 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -3010,3 +3010,42 @@ int amdgpu_vm_ioctl(struct drm_device *dev, void *data, struct drm_file *filp)
+ 
+ 	return 0;
+ }
++
++/**
++ * amdgpu_vm_get_task_info - Extracts task info for a PASID.
++ *
++ * @dev: drm device pointer
++ * @pasid: PASID identifier for VM
++ * @task_info: task_info to fill.
++ */
++void amdgpu_vm_get_task_info(struct amdgpu_device *adev, unsigned int pasid,
++			 struct amdgpu_task_info *task_info)
++{
++	struct amdgpu_vm *vm;
++
++	spin_lock(&adev->vm_manager.pasid_lock);
++
++	vm = idr_find(&adev->vm_manager.pasid_idr, pasid);
++	if (vm)
++		*task_info = vm->task_info;
++
++	spin_unlock(&adev->vm_manager.pasid_lock);
++}
++
++/**
++ * amdgpu_vm_set_task_info - Sets VMs task info.
++ *
++ * @vm: vm for which to set the info
++ */
++void amdgpu_vm_set_task_info(struct amdgpu_vm *vm)
++{
++	if (!vm->task_info.pid) {
++		vm->task_info.pid = current->pid;
++		get_task_comm(vm->task_info.task_name, current);
++
++		if (current->group_leader->mm == current->mm) {
++			vm->task_info.tgid = current->group_leader->pid;
++			get_task_comm(vm->task_info.process_name, current->group_leader);
++		}
++	}
++}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 7a4c967..9f70db6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -167,6 +167,14 @@ struct amdgpu_vm_pt {
+ #define AMDGPU_VM_FAULT_PASID(fault) ((u64)(fault) >> 48)
+ #define AMDGPU_VM_FAULT_ADDR(fault)  ((u64)(fault) & 0xfffffffff000ULL)
+ 
++
++struct amdgpu_task_info {
++	char	process_name[TASK_COMM_LEN];
++	char	task_name[TASK_COMM_LEN];
++	pid_t	pid;
++	pid_t	tgid;
++};
++
+ struct amdgpu_vm {
+ 	/* tree of virtual addresses mapped */
+ 	struct rb_root_cached	va;
+@@ -218,6 +226,9 @@ struct amdgpu_vm {
+ 
+ 	/* Valid while the PD is reserved or fenced */
+ 	uint64_t		pd_phys_addr;
++
++	/* Some basic info about the task */
++	struct amdgpu_task_info task_info;
+ };
+ 
+ struct amdgpu_vm_manager {
+@@ -323,4 +334,9 @@ bool amdgpu_vm_need_pipeline_sync(struct amdgpu_ring *ring,
+ 				  struct amdgpu_job *job);
+ void amdgpu_vm_check_compute_bug(struct amdgpu_device *adev);
+ 
++void amdgpu_vm_get_task_info(struct amdgpu_device *adev, unsigned int pasid,
++			 struct amdgpu_task_info *task_info);
++
++void amdgpu_vm_set_task_info(struct amdgpu_vm *vm);
++
+ #endif
+-- 
+2.7.4
+

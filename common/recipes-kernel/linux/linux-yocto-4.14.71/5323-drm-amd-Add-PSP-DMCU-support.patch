@@ -1,0 +1,39 @@
+From 805b1f56cee0a4b0a0de324063a718566608ef50 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Tue, 11 Sep 2018 13:46:41 -0400
+Subject: [PATCH 5323/5725] drm/amd: Add PSP DMCU support
+
+DMCU (Display Microcontroller Unit) is a GPU chip involved in
+eDP features like Adaptive Backlight Modulation and Panel Self
+Refresh.
+
+PSP is already equipped to handle DMCU firmware loading, all
+that is needed is to translate between the new DMCU ucode ID and
+the equivalent psp_gfx_fw_type.
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/psp_v10_0.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c b/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
+index 45f9322..295c220 100644
+--- a/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
+@@ -93,6 +93,12 @@ psp_v10_0_get_fw_type(struct amdgpu_firmware_info *ucode, enum psp_gfx_fw_type *
+ 	case AMDGPU_UCODE_ID_VCN:
+ 		*type = GFX_FW_TYPE_VCN;
+ 		break;
++	case AMDGPU_UCODE_ID_DMCU_ERAM:
++		*type = GFX_FW_TYPE_DMCU_ERAM;
++		break;
++	case AMDGPU_UCODE_ID_DMCU_INTV:
++		*type = GFX_FW_TYPE_DMCU_ISR;
++		break;
+ 	case AMDGPU_UCODE_ID_MAXIMUM:
+ 	default:
+ 		return -EINVAL;
+-- 
+2.7.4
+

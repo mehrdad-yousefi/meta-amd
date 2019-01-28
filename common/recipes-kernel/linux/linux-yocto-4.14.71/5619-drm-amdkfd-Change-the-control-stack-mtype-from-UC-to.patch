@@ -1,0 +1,51 @@
+From 5efc2a33758376e129f341ace63f5015af7f370d Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Mon, 14 May 2018 12:19:22 -0400
+Subject: [PATCH 5619/5725] drm/amdkfd: Change the control stack mtype from UC
+ to NC on GFX9
+
+Due to a HW bug on GFX9, the mtype of control stack buffers, which are
+allocated in mqd BOs on VMID 0 gart and are one page offset from mqd
+starting addresses, should be set to NC rather than the default gart
+mtype UC.
+
+Fix: KFD-381
+
+Change-Id: I865756efb038512ecb5d4071b2e3d3784db5d4ff
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c         | 3 ++-
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index a9ad2a8..ad01a983 100755
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -456,7 +456,8 @@ bool kgd2kfd_device_init(struct kfd_dev *kfd,
+ 
+ 	if (kfd->kfd2kgd->init_gtt_mem_allocation(
+ 			kfd->kgd, size, &kfd->gtt_mem,
+-			&kfd->gtt_start_gpu_addr, &kfd->gtt_start_cpu_ptr)){
++			&kfd->gtt_start_gpu_addr, &kfd->gtt_start_cpu_ptr,
++			false)) {
+ 		dev_err(kfd_device, "Could not allocate %d bytes\n", size);
+ 		goto out;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+index f4e8efc..5118995 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+@@ -115,7 +115,7 @@ static int init_mqd(struct mqd_manager *mm, void **mqd,
+ 				ALIGN(sizeof(struct v9_mqd), PAGE_SIZE),
+ 			&((*mqd_mem_obj)->gtt_mem),
+ 			&((*mqd_mem_obj)->gpu_addr),
+-			(void *)&((*mqd_mem_obj)->cpu_ptr));
++			(void *)&((*mqd_mem_obj)->cpu_ptr), true);
+ 	} else
+ 		retval = kfd_gtt_sa_allocate(mm->dev, sizeof(struct v9_mqd),
+ 				mqd_mem_obj);
+-- 
+2.7.4
+

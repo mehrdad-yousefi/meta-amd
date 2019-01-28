@@ -1,0 +1,60 @@
+From 447658699284a95a9ce3458415c954206dd3882c Mon Sep 17 00:00:00 2001
+From: welu <Wei.Lu2@amd.com>
+Date: Tue, 10 Apr 2018 17:33:17 -0400
+Subject: [PATCH 5690/5725] drm/amdkfd: Try to enable atomics for all GPUs
+
+Report failure to enable atomics only on GPUs that require them.
+This allows GPUs that don't require atomics to function, but can
+benefit if they are available. This is the case for Vega10, which
+doesn't use atomics for basic functioning of the MEC, AQL and HWS
+microcode. So it can work without atomics. But shader programs can
+still use atomic instructions on systems that support PCIe atomics.
+
+Signed-off-by: welu <Wei.Lu2@amd.com>
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Oded Gabbay <oded.gabbay@gmail.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c | 26 +++++++++++++-------------
+ 1 file changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index 20a20ed..fc7eb66 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -400,19 +400,19 @@ struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd,
+ 		dev_err(kfd_device, "kgd2kfd_probe failed\n");
+ 		return NULL;
+ 	}
+-	if (device_info->needs_pci_atomics) {
+-		/* Allow BIF to recode atomics to PCIe 3.0
+-		 * AtomicOps. 32 and 64-bit requests are possible and
+-		 * must be supported.
+-		 */
+-		 if (pci_enable_atomic_ops_to_root(pdev,
+-				PCI_EXP_DEVCAP2_ATOMIC_COMP32 |
+-				PCI_EXP_DEVCAP2_ATOMIC_COMP64) < 0) {
+-			dev_info(kfd_device,
+-				"skipped device %x:%x, PCI rejects atomics",
+-				pdev->vendor, pdev->device);
+-			return NULL;
+-		}
++
++	/* Allow BIF to recode atomics to PCIe 3.0 AtomicOps.
++	 * 32 and 64-bit requests are possible and must be
++	 * supported.
++	 */
++	ret = pci_enable_atomic_ops_to_root(pdev,
++			PCI_EXP_DEVCAP2_ATOMIC_COMP32 |
++			PCI_EXP_DEVCAP2_ATOMIC_COMP64);
++	if (device_info->needs_pci_atomics && ret < 0) {
++		dev_info(kfd_device,
++			 "skipped device %x:%x, PCI rejects atomics\n",
++			 pdev->vendor, pdev->device);
++		return NULL;
+ 	}
+ 	
+ 	kfd = kzalloc(sizeof(*kfd), GFP_KERNEL);
+-- 
+2.7.4
+

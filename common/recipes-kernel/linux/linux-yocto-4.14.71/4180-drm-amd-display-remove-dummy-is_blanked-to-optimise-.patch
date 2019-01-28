@@ -1,0 +1,75 @@
+From c49a9291e75a1396363d95e5bde011d35f913f29 Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Wed, 28 Mar 2018 12:22:22 +0530
+Subject: [PATCH 4180/5725] drm/amd/display: remove dummy is_blanked() to
+ optimise boot time
+
+is_blanked() hook is a dummy one for underlay pipe, hence
+when called, it loops for ~300ms at boot.
+
+This patch removes this dummy call and adds missing checks.
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_hw_sequencer.c             | 3 +++
+ drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.c                    | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_timing_generator_v.c | 7 -------
+ 3 files changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/core/dc_hw_sequencer.c
+index ebc96b7..481f692 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_hw_sequencer.c
+@@ -230,6 +230,9 @@ bool hwss_wait_for_blank_complete(
+ {
+ 	int counter;
+ 
++	/* Not applicable if the pipe is not primary, save 300ms of boot time */
++	if (!tg->funcs->is_blanked)
++		return true;
+ 	for (counter = 0; counter < 100; counter++) {
+ 		if (tg->funcs->is_blanked(tg))
+ 			break;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.c b/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.c
+index 4877243..0275d6d 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_hwseq.c
+@@ -53,7 +53,8 @@ void dce_pipe_control_lock(struct dc *dc,
+ 	struct dce_hwseq *hws = dc->hwseq;
+ 
+ 	/* Not lock pipe when blank */
+-	if (lock && pipe->stream_res.tg->funcs->is_blanked(pipe->stream_res.tg))
++	if (lock && pipe->stream_res.tg->funcs->is_blanked &&
++	    pipe->stream_res.tg->funcs->is_blanked(pipe->stream_res.tg))
+ 		return;
+ 
+ 	val = REG_GET_4(BLND_V_UPDATE_LOCK[pipe->stream_res.tg->inst],
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_timing_generator_v.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_timing_generator_v.c
+index 8ad0481..a3cef60 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_timing_generator_v.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_timing_generator_v.c
+@@ -648,12 +648,6 @@ static void dce110_timing_generator_v_disable_vga(
+ 	return;
+ }
+ 
+-static bool dce110_tg_v_is_blanked(struct timing_generator *tg)
+-{
+-	/* Signal comes from the primary pipe, underlay is never blanked. */
+-	return false;
+-}
+-
+ /** ********************************************************************************************
+  *
+  * DCE11 Timing Generator Constructor / Destructor
+@@ -670,7 +664,6 @@ static const struct timing_generator_funcs dce110_tg_v_funcs = {
+ 		.set_early_control = dce110_timing_generator_v_set_early_control,
+ 		.wait_for_state = dce110_timing_generator_v_wait_for_state,
+ 		.set_blank = dce110_timing_generator_v_set_blank,
+-		.is_blanked = dce110_tg_v_is_blanked,
+ 		.set_colors = dce110_timing_generator_v_set_colors,
+ 		.set_overscan_blank_color =
+ 				dce110_timing_generator_v_set_overscan_color_black,
+-- 
+2.7.4
+

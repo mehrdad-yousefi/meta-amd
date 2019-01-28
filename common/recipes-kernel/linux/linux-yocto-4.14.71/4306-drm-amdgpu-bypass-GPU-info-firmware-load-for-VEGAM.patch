@@ -1,0 +1,45 @@
+From 25866d58978f3dae1b648bfff41d9a864215ed16 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Thu, 9 Nov 2017 13:19:58 -0500
+Subject: [PATCH 4306/5725] drm/amdgpu: bypass GPU info firmware load for VEGAM
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 3 ++-
+ include/drm/amd_asic_type.h                | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index f2abcf1..7ad26d4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1417,9 +1417,10 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
+ 	case CHIP_TOPAZ:
+ 	case CHIP_TONGA:
+ 	case CHIP_FIJI:
+-	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS10:
++	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS12:
++	case CHIP_VEGAM:
+ 	case CHIP_CARRIZO:
+ 	case CHIP_STONEY:
+ #ifdef CONFIG_DRM_AMDGPU_SI
+diff --git a/include/drm/amd_asic_type.h b/include/drm/amd_asic_type.h
+index 6c731c5..695bde7 100644
+--- a/include/drm/amd_asic_type.h
++++ b/include/drm/amd_asic_type.h
+@@ -44,6 +44,7 @@ enum amd_asic_type {
+ 	CHIP_POLARIS10,
+ 	CHIP_POLARIS11,
+ 	CHIP_POLARIS12,
++	CHIP_VEGAM,
+ 	CHIP_VEGA10,
+ 	CHIP_VEGA12,
+ 	CHIP_RAVEN,
+-- 
+2.7.4
+

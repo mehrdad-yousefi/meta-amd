@@ -1,0 +1,51 @@
+From f6b86864f3ea93e60a2c3af32a14dff380886de6 Mon Sep 17 00:00:00 2001
+From: Tony Cheng <tony.cheng@amd.com>
+Date: Mon, 18 Jun 2018 18:32:43 -0400
+Subject: [PATCH 4906/5725] drm/amd/display: Expose configure_encoder for
+ link_encoder
+
+Signed-off-by: Tony Cheng <tony.cheng@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c | 3 +--
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h | 4 ++++
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+index fd9dc70..18a7cac 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+@@ -445,12 +445,11 @@ static uint8_t get_frontend_source(
+ 	}
+ }
+ 
+-static void configure_encoder(
++void configure_encoder(
+ 	struct dcn10_link_encoder *enc10,
+ 	const struct dc_link_settings *link_settings)
+ {
+ 	/* set number of lanes */
+-
+ 	REG_SET(DP_CONFIG, 0,
+ 			DP_UDI_LANES, link_settings->lane_count - LANE_COUNT_ONE);
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h
+index d8ef30b..cd3bb5d 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.h
+@@ -271,6 +271,10 @@ void dcn10_link_encoder_setup(
+ 	struct link_encoder *enc,
+ 	enum signal_type signal);
+ 
++void configure_encoder(
++	struct dcn10_link_encoder *enc10,
++	const struct dc_link_settings *link_settings);
++
+ /* enables TMDS PHY output */
+ /* TODO: still need depth or just pass in adjusted pixel clock? */
+ void dcn10_link_encoder_enable_tmds_output(
+-- 
+2.7.4
+

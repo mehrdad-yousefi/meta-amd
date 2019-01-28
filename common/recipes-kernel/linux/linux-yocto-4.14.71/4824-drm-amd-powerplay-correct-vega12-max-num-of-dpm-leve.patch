@@ -1,0 +1,72 @@
+From f59d46b2ada24965070d729c98de2d844b273b34 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 11 Jun 2018 16:33:40 +0800
+Subject: [PATCH 4824/5725] drm/amd/powerplay: correct vega12 max num of dpm
+ level
+
+Use MAX_NUM_CLOCKS instead of VG12_PSUEDO* macros for
+the max number of dpm levels.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index ea0ad3e..d0e7081 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -1643,8 +1643,8 @@ static int vega12_get_sclks(struct pp_hwmgr *hwmgr,
+ 		return -1;
+ 
+ 	dpm_table = &(data->dpm_table.gfx_table);
+-	ucount = (dpm_table->count > VG12_PSUEDO_NUM_GFXCLK_DPM_LEVELS) ?
+-		VG12_PSUEDO_NUM_GFXCLK_DPM_LEVELS : dpm_table->count;
++	ucount = (dpm_table->count > MAX_NUM_CLOCKS) ?
++		MAX_NUM_CLOCKS : dpm_table->count;
+ 
+ 	for (i = 0; i < ucount; i++) {
+ 		clocks->data[i].clocks_in_khz =
+@@ -1675,11 +1675,12 @@ static int vega12_get_memclocks(struct pp_hwmgr *hwmgr,
+ 		return -1;
+ 
+ 	dpm_table = &(data->dpm_table.mem_table);
+-	ucount = (dpm_table->count > VG12_PSUEDO_NUM_UCLK_DPM_LEVELS) ?
+-		VG12_PSUEDO_NUM_UCLK_DPM_LEVELS : dpm_table->count;
++	ucount = (dpm_table->count > MAX_NUM_CLOCKS) ?
++		MAX_NUM_CLOCKS : dpm_table->count;
+ 
+ 	for (i = 0; i < ucount; i++) {
+ 		clocks->data[i].clocks_in_khz =
++			data->mclk_latency_table.entries[i].frequency =
+ 			dpm_table->dpm_levels[i].value * 1000;
+ 
+ 		clocks->data[i].latency_in_us =
+@@ -1705,8 +1706,8 @@ static int vega12_get_dcefclocks(struct pp_hwmgr *hwmgr,
+ 
+ 
+ 	dpm_table = &(data->dpm_table.dcef_table);
+-	ucount = (dpm_table->count > VG12_PSUEDO_NUM_DCEFCLK_DPM_LEVELS) ?
+-		VG12_PSUEDO_NUM_DCEFCLK_DPM_LEVELS : dpm_table->count;
++	ucount = (dpm_table->count > MAX_NUM_CLOCKS) ?
++		MAX_NUM_CLOCKS : dpm_table->count;
+ 
+ 	for (i = 0; i < ucount; i++) {
+ 		clocks->data[i].clocks_in_khz =
+@@ -1733,8 +1734,8 @@ static int vega12_get_socclocks(struct pp_hwmgr *hwmgr,
+ 
+ 
+ 	dpm_table = &(data->dpm_table.soc_table);
+-	ucount = (dpm_table->count > VG12_PSUEDO_NUM_SOCCLK_DPM_LEVELS) ?
+-		VG12_PSUEDO_NUM_SOCCLK_DPM_LEVELS : dpm_table->count;
++	ucount = (dpm_table->count > MAX_NUM_CLOCKS) ?
++		MAX_NUM_CLOCKS : dpm_table->count;
+ 
+ 	for (i = 0; i < ucount; i++) {
+ 		clocks->data[i].clocks_in_khz =
+-- 
+2.7.4
+

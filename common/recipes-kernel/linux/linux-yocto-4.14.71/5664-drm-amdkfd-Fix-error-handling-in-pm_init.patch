@@ -1,0 +1,61 @@
+From 7c12ed786fd6619c009a95ea5e9601805ec5d380 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 25 Apr 2018 17:50:18 -0400
+Subject: [PATCH 5664/5725] drm/amdkfd: Fix error handling in pm_init
+
+Avoid BUG_ON. To avoid the need for cleaning up the kernel queue in
+case of an error, do the pm->pmf initialization first.
+
+Change-Id: I8260eacbff5101205aeab26d28a6f106eff5b00b
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c | 24 +++++++++++++-----------
+ 1 file changed, 13 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+index bc6e854..c6f3218 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+@@ -219,16 +219,7 @@ static int pm_create_runlist_ib(struct packet_manager *pm,
+ 
+ int pm_init(struct packet_manager *pm, struct device_queue_manager *dqm)
+ {
+-	pm->dqm = dqm;
+-	mutex_init(&pm->lock);
+-	pm->priv_queue = kernel_queue_init(dqm->dev, KFD_QUEUE_TYPE_HIQ);
+-	if (!pm->priv_queue) {
+-		mutex_destroy(&pm->lock);
+-		return -ENOMEM;
+-	}
+-	pm->allocated = false;
+-
+-	switch (pm->dqm->dev->device_info->asic_family) {
++	switch (dqm->dev->device_info->asic_family) {
+ 	case CHIP_KAVERI:
+ 	case CHIP_HAWAII:
+ 		/* PM4 packet structures on CIK are the same as on VI */
+@@ -244,9 +235,20 @@ int pm_init(struct packet_manager *pm, struct device_queue_manager *dqm)
+ 		pm->pmf = &kfd_v9_pm_funcs;
+ 		break;
+ 	default:
+-		BUG();
++		WARN(1, "Unexpected ASIC family %u",
++		     dqm->dev->device_info->asic_family);
++		return -EINVAL;
+ 	}
+ 
++	pm->dqm = dqm;
++	mutex_init(&pm->lock);
++	pm->priv_queue = kernel_queue_init(dqm->dev, KFD_QUEUE_TYPE_HIQ);
++	if (!pm->priv_queue) {
++		mutex_destroy(&pm->lock);
++		return -ENOMEM;
++	}
++	pm->allocated = false;
++
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

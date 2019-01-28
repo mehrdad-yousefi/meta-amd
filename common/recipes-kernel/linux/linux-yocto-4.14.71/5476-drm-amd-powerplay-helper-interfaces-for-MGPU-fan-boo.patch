@@ -1,0 +1,157 @@
+From c85ac6b963dc6307d0f1757ce3935f29d768a39e Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 27 Sep 2018 13:43:16 +0800
+Subject: [PATCH 5476/5725] drm/amd/powerplay: helper interfaces for MGPU fan
+ boost feature
+
+MGPU fan boost feature is enabled only when two or more dGPUs
+in the system.
+
+Change-Id: Ie1baebb04c1dfa05a090ad8a59089f072b0b0f32
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c     | 41 ++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h        |  4 +++
+ drivers/gpu/drm/amd/include/kgd_pp_interface.h |  1 +
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c  | 19 ++++++++++++
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h      |  1 +
+ 5 files changed, 66 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 128ed6c..b573d9f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1882,6 +1882,43 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
+ 	return 0;
+ }
+ 
++static int amdgpu_device_enable_mgpu_fan_boost(void)
++{
++	struct amdgpu_gpu_instance *gpu_ins;
++	struct amdgpu_device *adev;
++	int i, ret = 0;
++
++	mutex_lock(&mgpu_info.mutex);
++
++	/*
++	 * MGPU fan boost feature should be enabled
++	 * only when there are two or more dGPUs in
++	 * the system
++	 */
++	if (mgpu_info.num_dgpu < 2)
++		goto out;
++
++	for (i = 0; i < mgpu_info.num_dgpu; i++) {
++		gpu_ins = &(mgpu_info.gpu_ins[i]);
++		adev = gpu_ins->adev;
++		if (!(adev->flags & AMD_IS_APU) &&
++		    !gpu_ins->mgpu_fan_enabled &&
++		    adev->powerplay.pp_funcs &&
++		    adev->powerplay.pp_funcs->enable_mgpu_fan_boost) {
++			ret = amdgpu_dpm_enable_mgpu_fan_boost(adev);
++			if (ret)
++				break;
++
++			gpu_ins->mgpu_fan_enabled = 1;
++		}
++	}
++
++out:
++	mutex_unlock(&mgpu_info.mutex);
++
++	return ret;
++}
++
+ /**
+  * amdgpu_device_ip_late_init_func_handler - work handler for ib test
+  *
+@@ -1896,6 +1933,10 @@ static void amdgpu_device_ip_late_init_func_handler(struct work_struct *work)
+ 	r = amdgpu_ib_ring_tests(adev);
+ 	if (r)
+ 		DRM_ERROR("ib ring test failed (%d).\n", r);
++
++	r = amdgpu_device_enable_mgpu_fan_boost();
++	if (r)
++		DRM_ERROR("enable mgpu fan boost failed (%d).\n", r);
+ }
+ 
+ static void amdgpu_device_delay_enable_gfx_off(struct work_struct *work)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h
+index ff24e1c..42568ae 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_dpm.h
+@@ -357,6 +357,10 @@ enum amdgpu_pcie_gen {
+ 		((adev)->powerplay.pp_funcs->odn_edit_dpm_table(\
+ 			(adev)->powerplay.pp_handle, type, parameter, size))
+ 
++#define amdgpu_dpm_enable_mgpu_fan_boost(adev) \
++		((adev)->powerplay.pp_funcs->enable_mgpu_fan_boost(\
++			(adev)->powerplay.pp_handle))
++
+ struct amdgpu_dpm {
+ 	struct amdgpu_ps        *ps;
+ 	/* number of valid power states */
+diff --git a/drivers/gpu/drm/amd/include/kgd_pp_interface.h b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+index bd74045..8593850 100644
+--- a/drivers/gpu/drm/amd/include/kgd_pp_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+@@ -272,6 +272,7 @@ struct amd_pm_funcs {
+ 	int (*get_display_mode_validation_clocks)(void *handle,
+ 		struct amd_pp_simple_clock_info *clocks);
+ 	int (*notify_smu_enable_pwe)(void *handle);
++	int (*enable_mgpu_fan_boost)(void *handle);
+ };
+ 
+ #endif
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 2bdef16..147fdbb 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -1254,6 +1254,24 @@ static int pp_notify_smu_enable_pwe(void *handle)
+ 	return 0;
+ }
+ 
++static int pp_enable_mgpu_fan_boost(void *handle)
++{
++	struct pp_hwmgr *hwmgr = handle;
++
++	if (!hwmgr || !hwmgr->pm_en)
++		return -EINVAL;
++
++	if (hwmgr->hwmgr_func->enable_mgpu_fan_boost == NULL) {
++		return 0;
++	}
++
++	mutex_lock(&hwmgr->smu_lock);
++	hwmgr->hwmgr_func->enable_mgpu_fan_boost(hwmgr);
++	mutex_unlock(&hwmgr->smu_lock);
++
++	return 0;
++}
++
+ static const struct amd_pm_funcs pp_dpm_funcs = {
+ 	.load_firmware = pp_dpm_load_fw,
+ 	.wait_for_fw_loading_complete = pp_dpm_fw_loading_complete,
+@@ -1298,5 +1316,6 @@ static const struct amd_pm_funcs pp_dpm_funcs = {
+ 	.display_clock_voltage_request = pp_display_clock_voltage_request,
+ 	.get_display_mode_validation_clocks = pp_get_display_mode_validation_clocks,
+ 	.notify_smu_enable_pwe = pp_notify_smu_enable_pwe,
++	.enable_mgpu_fan_boost = pp_enable_mgpu_fan_boost,
+ };
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index e0cb7d0..f25f6b7 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -329,6 +329,7 @@ struct pp_hwmgr_func {
+ 	int (*set_power_limit)(struct pp_hwmgr *hwmgr, uint32_t n);
+ 	int (*powergate_mmhub)(struct pp_hwmgr *hwmgr);
+ 	int (*smus_notify_pwe)(struct pp_hwmgr *hwmgr);
++	int (*enable_mgpu_fan_boost)(struct pp_hwmgr *hwmgr);
+ };
+ 
+ struct pp_table_func {
+-- 
+2.7.4
+

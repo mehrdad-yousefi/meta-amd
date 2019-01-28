@@ -1,0 +1,58 @@
+From 5f44c6ee22170803f2caa43e83a3124a5936ddbd Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Mon, 28 May 2018 16:00:34 +0530
+Subject: [PATCH 4561/5725] drm/amd/display: avoid sleeping in atomic context
+ while creating new state (V2)
+
+This patch fixes the warning messages that are caused due to calling
+sleep in atomic context as below:
+
+BUG: sleeping function called from invalid context at mm/slab.h:419
+in_atomic(): 1, irqs_disabled(): 1, pid: 5, name: kworker/u4:0
+CPU: 1 PID: 5 Comm: kworker/u4:0 Tainted: G        W       4.14.35 #941
+Workqueue: events_unbound commit_work
+Call Trace:
+ dump_stack+0x4d/0x63
+ ___might_sleep+0x11f/0x12e
+ kmem_cache_alloc_trace+0x41/0xea
+ dc_create_state+0x1f/0x30
+ dc_commit_updates_for_stream+0x73/0x4cf
+ ? amdgpu_get_crtc_scanoutpos+0x82/0x16b
+ amdgpu_dm_do_flip+0x239/0x298
+ amdgpu_dm_commit_planes.isra.23+0x379/0x54b
+ ? dc_commit_state+0x3da/0x404
+ amdgpu_dm_atomic_commit_tail+0x4fc/0x5d2
+ ? wait_for_common+0x5b/0x69
+ commit_tail+0x42/0x64
+ process_one_work+0x1b0/0x314
+ worker_thread+0x1cb/0x2c1
+ ? create_worker+0x1da/0x1da
+ kthread+0x156/0x15e
+ ? kthread_flush_work+0xea/0xea
+ ret_from_fork+0x22/0x40
+
+V2: fix applicable only to dc_create_state() and not dc_create().
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index a6a09b0..36be7a3 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -970,7 +970,7 @@ bool dc_post_update_surfaces_to_stream(struct dc *dc)
+ struct dc_state *dc_create_state(void)
+ {
+ 	struct dc_state *context = kzalloc(sizeof(struct dc_state),
+-					   GFP_KERNEL);
++					   GFP_ATOMIC);
+ 
+ 	if (!context)
+ 		return NULL;
+-- 
+2.7.4
+

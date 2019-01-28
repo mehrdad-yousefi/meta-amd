@@ -1,0 +1,35 @@
+From 880c25251b0135c0b3a6f444bd7227b644d32919 Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Mon, 28 May 2018 11:22:17 -0400
+Subject: [PATCH 4565/5725] drm/amd/pp: Add cases for getting phys and disp
+ clks for SMU10
+
+Add case options to retrieve either physical or display clocks with
+voltage from SMU controller that are needed by display driver.
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index 2df791c..73c2e43 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -1000,6 +1000,12 @@ static int smu10_get_clock_by_type_with_voltage(struct pp_hwmgr *hwmgr,
+ 	case amd_pp_soc_clock:
+ 		pclk_vol_table = pinfo->vdd_dep_on_socclk;
+ 		break;
++	case amd_pp_disp_clock:
++		pclk_vol_table = pinfo->vdd_dep_on_dispclk;
++		break;
++	case amd_pp_phy_clock:
++		pclk_vol_table = pinfo->vdd_dep_on_phyclk;
++		break;
+ 	default:
+ 		return -EINVAL;
+ 	}
+-- 
+2.7.4
+

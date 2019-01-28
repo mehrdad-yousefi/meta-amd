@@ -1,0 +1,60 @@
+From 7f44c8e51ddeeb40383070b71026fb859d449ae1 Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Wed, 23 May 2018 15:53:03 +0800
+Subject: [PATCH 4511/5725] drm/amdgpu: add rcu_barrier after entity fini
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+To free the fence from the amdgpu_fence_slab, need twice call_rcu, to avoid
+the amdgpu_fence_slab_fini call kmem_cache_destroy(amdgpu_fence_slab) before
+kmem_cache_free(amdgpu_fence_slab, fence), add rcu_barrier after drm_sched_entity_fini.
+
+The kmem_cache_free(amdgpu_fence_slab, fence)'s call trace as below:
+1.drm_sched_entity_fini ->
+drm_sched_entity_cleanup ->
+dma_fence_put(entity->last_scheduled) ->
+drm_sched_fence_release_finished ->
+drm_sched_fence_release_scheduled ->
+call_rcu(&fence->finished.rcu, drm_sched_fence_free)
+
+2.drm_sched_fence_free ->
+dma_fence_put(fence->parent) ->
+amdgpu_fence_release ->
+call_rcu(&f->rcu, amdgpu_fence_free) ->
+kmem_cache_free(amdgpu_fence_slab, fence);
+
+v2:put the barrier before the kmem_cache_destroy
+v3:put the dma_fence_put(fence->parent) before call_rcu in
+drm_sched_fence_release_scheduled
+
+Change-Id: Ice5c1eab913b9202f44ebd43576d2ff33755f990
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/scheduler/sched_fence.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/scheduler/sched_fence.c b/drivers/gpu/drm/scheduler/sched_fence.c
+index b3d7b82..a3dac29 100644
+--- a/drivers/gpu/drm/scheduler/sched_fence.c
++++ b/drivers/gpu/drm/scheduler/sched_fence.c
+@@ -98,7 +98,6 @@ static void drm_sched_fence_free(struct rcu_head *rcu)
+ 	struct dma_fence *f = container_of(rcu, struct dma_fence, rcu);
+ 	struct drm_sched_fence *fence = to_drm_sched_fence(f);
+ 
+-	dma_fence_put(fence->parent);
+ 	kmem_cache_free(sched_fence_slab, fence);
+ }
+ 
+@@ -114,6 +113,7 @@ static void drm_sched_fence_release_scheduled(struct dma_fence *f)
+ {
+ 	struct drm_sched_fence *fence = to_drm_sched_fence(f);
+ 
++	dma_fence_put(fence->parent);
+ 	call_rcu(&fence->finished.rcu, drm_sched_fence_free);
+ }
+ 
+-- 
+2.7.4
+

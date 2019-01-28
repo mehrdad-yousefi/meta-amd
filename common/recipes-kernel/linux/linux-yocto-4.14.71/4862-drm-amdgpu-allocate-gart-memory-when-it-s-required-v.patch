@@ -1,0 +1,180 @@
+From 1cbe9fdbfb3204fe79d0e9f6496c0ac90d67bd5d Mon Sep 17 00:00:00 2001
+From: Junwei Zhang <Jerry.Zhang@amd.com>
+Date: Mon, 25 Jun 2018 13:32:24 +0800
+Subject: [PATCH 4862/5725] drm/amdgpu: allocate gart memory when it's required
+ (v3)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Instead of calling gart address space on every bo pin,
+allocates it on demand
+
+v2: fix error handling
+v3: drop the change on amdgpu_amdkfd_gpuvm.c, not needed.
+
+Signed-off-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Acked-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c    |  6 ++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_benchmark.c | 14 ++++++++++++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_display.c   |  6 ++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c        |  8 ++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c    | 15 +++++++++------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_test.c      |  5 +++++
+ 6 files changed, 46 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index 3593c35..0adee23 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -333,6 +333,12 @@ int alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
+ 		goto allocate_mem_pin_bo_failed;
+ 	}
+ 
++	r = amdgpu_ttm_alloc_gart(&bo->tbo);
++	if (r) {
++		dev_err(adev->dev, "%p bind failed\n", bo);
++		goto allocate_mem_kmap_bo_failed;
++	}
++
+ 	r = amdgpu_bo_kmap(bo, &cpu_ptr_tmp);
+ 	if (r) {
+ 		dev_err(adev->dev,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_benchmark.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_benchmark.c
+index cb88d7e..3079ea8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_benchmark.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_benchmark.c
+@@ -96,11 +96,16 @@ static void amdgpu_benchmark_move(struct amdgpu_device *adev, unsigned size,
+ 	if (unlikely(r != 0))
+ 		goto out_cleanup;
+ 	r = amdgpu_bo_pin(sobj, sdomain);
+-	saddr = amdgpu_bo_gpu_offset(sobj);
++	if (r) {
++		amdgpu_bo_unreserve(sobj);
++		goto out_cleanup;
++	}
++	r = amdgpu_ttm_alloc_gart(&sobj->tbo);
+ 	amdgpu_bo_unreserve(sobj);
+ 	if (r) {
+ 		goto out_cleanup;
+ 	}
++	saddr = amdgpu_bo_gpu_offset(sobj);
+ 	bp.domain = ddomain;
+ 	r = amdgpu_bo_create(adev, &bp, &dobj);
+ 	if (r) {
+@@ -110,11 +115,16 @@ static void amdgpu_benchmark_move(struct amdgpu_device *adev, unsigned size,
+ 	if (unlikely(r != 0))
+ 		goto out_cleanup;
+ 	r = amdgpu_bo_pin(dobj, ddomain);
+-	daddr = amdgpu_bo_gpu_offset(dobj);
++	if (r) {
++		amdgpu_bo_unreserve(sobj);
++		goto out_cleanup;
++	}
++	r = amdgpu_ttm_alloc_gart(&dobj->tbo);
+ 	amdgpu_bo_unreserve(dobj);
+ 	if (r) {
+ 		goto out_cleanup;
+ 	}
++	daddr = amdgpu_bo_gpu_offset(dobj);
+ 
+ 	if (adev->mman.buffer_funcs) {
+ 		time = amdgpu_benchmark_do_move(adev, size, saddr, daddr, n);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c
+index 9dd5daf..36e3ddf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c
+@@ -196,6 +196,12 @@ int amdgpu_display_crtc_page_flip_target(struct drm_crtc *crtc,
+ 		goto unreserve;
+ 	}
+ 
++	r = amdgpu_ttm_alloc_gart(&new_abo->tbo);
++	if (unlikely(r != 0)) {
++		DRM_ERROR("%p bind failed\n", new_abo);
++		goto unpin;
++	}
++
+ 	r = reservation_object_get_fences_rcu(new_abo->tbo.resv, &work->excl,
+ 					      &work->shared_count,
+ 					      &work->shared);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
+index 92ef673..f2c7dbd 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
+@@ -173,6 +173,14 @@ static int amdgpufb_create_pinned_object(struct amdgpu_fbdev *rfbdev,
+ 		amdgpu_bo_unreserve(abo);
+ 		goto out_unref;
+ 	}
++
++	ret = amdgpu_ttm_alloc_gart(&abo->tbo);
++	if (ret) {
++		amdgpu_bo_unreserve(abo);
++		dev_err(adev->dev, "%p bind failed\n", abo);
++		goto out_unref;
++	}
++
+ 	ret = amdgpu_bo_kmap(abo, NULL);
+ 	amdgpu_bo_unreserve(abo);
+ 	if (ret) {
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index dab26e10..f6b58c5 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -280,6 +280,13 @@ int amdgpu_bo_create_reserved(struct amdgpu_device *adev,
+ 		dev_err(adev->dev, "(%d) kernel bo pin failed\n", r);
+ 		goto error_unreserve;
+ 	}
++
++	r = amdgpu_ttm_alloc_gart(&(*bo_ptr)->tbo);
++	if (r) {
++		dev_err(adev->dev, "%p bind failed\n", *bo_ptr);
++		goto error_unpin;
++	}
++
+ 	if (gpu_addr)
+ 		*gpu_addr = amdgpu_bo_gpu_offset(*bo_ptr);
+ 
+@@ -293,6 +300,8 @@ int amdgpu_bo_create_reserved(struct amdgpu_device *adev,
+ 
+ 	return 0;
+ 
++error_unpin:
++	amdgpu_bo_unpin(*bo_ptr);
+ error_unreserve:
+ 	amdgpu_bo_unreserve(*bo_ptr);
+ 
+@@ -943,12 +952,6 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+ 		goto error;
+ 	}
+ 
+-	r = amdgpu_ttm_alloc_gart(&bo->tbo);
+-	if (unlikely(r)) {
+-		dev_err(adev->dev, "%p bind failed\n", bo);
+-		goto error;
+-	}
+-
+ 	bo->pin_count = 1;
+ 
+ 	domain = amdgpu_mem_type_to_domain(bo->tbo.mem.mem_type);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c
+index a66f81aa..af6c783 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c
+@@ -103,6 +103,11 @@ static void amdgpu_do_test_moves(struct amdgpu_device *adev)
+ 			DRM_ERROR("Failed to pin GTT object %d\n", i);
+ 			goto out_lclean_unres;
+ 		}
++		r = amdgpu_ttm_alloc_gart(&gtt_obj[i]->tbo);
++		if (r) {
++			DRM_ERROR("%p bind failed\n", gtt_obj[i]);
++			goto out_lclean_unpin;
++		}
+ 		gart_addr = amdgpu_bo_gpu_offset(gtt_obj[i]);
+ 
+ 		r = amdgpu_bo_kmap(gtt_obj[i], &gtt_map);
+-- 
+2.7.4
+

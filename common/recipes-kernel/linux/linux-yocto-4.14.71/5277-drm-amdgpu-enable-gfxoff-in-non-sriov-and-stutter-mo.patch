@@ -1,0 +1,47 @@
+From 06f34b75563870d1fc7c07eeda212516b6a85517 Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Thu, 6 Sep 2018 14:56:19 +0800
+Subject: [PATCH 5277/5725] drm/amdgpu:enable gfxoff in non-sriov and stutter
+ mode by default
+
+enable gfxoff in non-sriov and stutter mode by default
+
+Change-Id: I91a5db7cabbfa66d97bfb522a671a12695b51b22
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 ++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c    | 4 ++--
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 44adc15..9fb469d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1542,6 +1542,8 @@ static int amdgpu_device_ip_early_init(struct amdgpu_device *adev)
+ 	}
+ 
+ 	adev->powerplay.pp_feature = amdgpu_pp_feature_mask;
++	if (amdgpu_sriov_vf(adev))
++		adev->powerplay.pp_feature &= ~PP_GFXOFF_MASK;
+ 
+ 	for (i = 0; i < adev->num_ip_blocks; i++) {
+ 		if ((amdgpu_ip_block_mask & (1 << i)) == 0) {
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index a434b2c..22f4538 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -120,8 +120,8 @@ uint amdgpu_pg_mask = 0xffffffff;
+ uint amdgpu_sdma_phase_quantum = 32;
+ char *amdgpu_disable_cu = NULL;
+ char *amdgpu_virtual_display = NULL;
+-/* OverDrive(bit 14),gfxoff(bit 15),stutter mode(bit 17) disabled by default*/
+-uint amdgpu_pp_feature_mask = 0xfffd3fff;
++/* OverDrive(bit 14) disabled by default*/
++uint amdgpu_pp_feature_mask = 0xffffbfff;
+ int amdgpu_ngg = 0;
+ int amdgpu_prim_buf_per_se = 0;
+ int amdgpu_pos_buf_per_se = 0;
+-- 
+2.7.4
+

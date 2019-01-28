@@ -1,0 +1,46 @@
+From ae7548fc5b5bdac26fa7abe9ae8a6004b893bbc8 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 30 Aug 2018 09:46:27 -0500
+Subject: [PATCH 5244/5725] drm/amdgpu/gmc9: don't keep stolen memory on vega20
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Vega20 does not appear to be affected by the same issue
+as vega10.  Enable the full stolen memory handling on
+vega20.  Reserve the appropriate size at init time to avoid
+display artifacts and then free it at the end of init once
+the new FB is up and running.
+
+Change-Id: I46c569cb06638381c400ece457dfa13693803690
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index be59cb8..7e9d1c6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -704,14 +704,13 @@ static bool gmc_v9_0_keep_stolen_memory(struct amdgpu_device *adev)
+ 	 * Also check code in gmc_v9_0_get_vbios_fb_size and gmc_v9_0_late_init
+ 	 */
+ 	switch (adev->asic_type) {
++	case CHIP_VEGA10:
++		return true;
+ 	case CHIP_RAVEN:
+-		return false;
+ 	case CHIP_VEGA12:
+-		return false;
+-	case CHIP_VEGA10:
+ 	case CHIP_VEGA20:
+ 	default:
+-		return true;
++		return false;
+ 	}
+ }
+ 
+-- 
+2.7.4
+

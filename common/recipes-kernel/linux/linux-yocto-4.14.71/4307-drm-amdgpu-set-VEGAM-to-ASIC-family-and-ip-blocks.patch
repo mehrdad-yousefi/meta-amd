@@ -1,0 +1,31 @@
+From ffbfeb2d15f3148f2cb6c781a7e21b3ff744d178 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Thu, 9 Nov 2017 13:22:54 -0500
+Subject: [PATCH 4307/5725] drm/amdgpu: set VEGAM to ASIC family and ip blocks
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 7ad26d4..f18252b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1526,9 +1526,10 @@ static int amdgpu_device_ip_early_init(struct amdgpu_device *adev)
+ 	case CHIP_TOPAZ:
+ 	case CHIP_TONGA:
+ 	case CHIP_FIJI:
+-	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS10:
++	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS12:
++	case CHIP_VEGAM:
+ 	case CHIP_CARRIZO:
+ 	case CHIP_STONEY:
+ 		if (adev->asic_type == CHIP_CARRIZO || adev->asic_type == CHIP_STONEY)
+-- 
+2.7.4
+

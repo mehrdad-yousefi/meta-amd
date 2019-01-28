@@ -1,0 +1,42 @@
+From 2dda1c0568c6c85cf1cf4f6c95af71a03ec8a649 Mon Sep 17 00:00:00 2001
+From: Michel Daenzer <michel.daenzer@amd.com>
+Date: Fri, 1 Jun 2018 12:29:45 +0200
+Subject: [PATCH 4591/5725] drm/amdgpu: Fix-ups for amdgpu_object.c
+ documentation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+* Fix format of return value descriptions
+* Document all parameters of amdgpu_bo_free_kernel
+* Document amdgpu_bo_get_preferred_pin_domain
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 82ab087..8574f39 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -1373,6 +1373,14 @@ u64 amdgpu_bo_gpu_offset(struct amdgpu_bo *bo)
+ 	return bo->tbo.offset;
+ }
+ 
++/**
++ * amdgpu_bo_get_preferred_pin_domain - get preferred domain for scanout
++ * @adev: amdgpu device object
++ * @domain: allowed :ref:`memory domains <amdgpu_memory_domains>`
++ *
++ * Returns:
++ * Which of the allowed domains is preferred for pinning the BO for scanout.
++ */
+ uint32_t amdgpu_bo_get_preferred_pin_domain(struct amdgpu_device *adev,
+ 					    uint32_t domain)
+ {
+-- 
+2.7.4
+

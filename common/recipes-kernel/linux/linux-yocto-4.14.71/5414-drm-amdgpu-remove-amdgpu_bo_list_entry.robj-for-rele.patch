@@ -1,0 +1,36 @@
+From 71b04857751ff1d8d5b84d68bd776f4b6880d8e6 Mon Sep 17 00:00:00 2001
+From: Prike Liang <Prike.Liang@amd.com>
+Date: Thu, 20 Sep 2018 13:32:10 +0800
+Subject: [PATCH 5414/5725] drm/amdgpu:remove amdgpu_bo_list_entry.robj for
+ release_pages
+
+Change-Id: I7574db0f5e355a400bf023b8bc41775068217fd5
+Signed-off-by: Prike Liang <Prike.Liang@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index bbfcd76..a6e65a5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -748,12 +748,12 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
+ error_free_pages:
+ 
+ 	amdgpu_bo_list_for_each_userptr_entry(e, p->bo_list) {
++		struct amdgpu_bo *bo = ttm_to_amdgpu_bo(e->tv.bo);
+ 		if (!e->user_pages)
+ 			continue;
+ 
+ 		release_pages(e->user_pages,
+-			      e->robj->tbo.ttm->num_pages,
+-			      false);
++			      bo->tbo.ttm->num_pages, false);
+ 		kvfree(e->user_pages);			
+ 	}
+ 
+-- 
+2.7.4
+

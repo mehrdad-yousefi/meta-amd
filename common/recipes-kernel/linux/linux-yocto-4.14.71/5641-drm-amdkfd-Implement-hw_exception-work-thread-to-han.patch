@@ -1,0 +1,134 @@
+From 020476b4cb6f58460cee35a7cc946776ba396a9d Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Thu, 5 Apr 2018 15:01:40 -0400
+Subject: [PATCH 5641/5725] drm/amdkfd: Implement hw_exception work thread to
+ handle hws hang
+
+Change-Id: I021fe1e875baa4242c5347e02559a414937dfa96
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c           |  4 +---
+ .../gpu/drm/amd/amdkfd/kfd_device_queue_manager.c  | 22 +++++++++++++++++++++-
+ .../gpu/drm/amd/amdkfd/kfd_device_queue_manager.h  |  4 ++++
+ 3 files changed, 26 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 4953374..17ca06d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -137,10 +137,8 @@ static int kfd_open(struct inode *inode, struct file *filep)
+ 	if (IS_ERR(process))
+ 		return PTR_ERR(process);
+ 
+-	if (kfd_is_locked()) {
+-		kfd_unref_process(process);
++	if (kfd_is_locked())
+ 		return -EAGAIN;
+-	}
+ 
+ 	dev_dbg(kfd_device, "process %d opened, compat mode (32 bit) - %d\n",
+ 		process->pasid, process->is_32bit_user_mode);
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index b0c159a..82c7dbe 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -60,6 +60,8 @@ static int create_sdma_queue_nocpsch(struct device_queue_manager *dqm,
+ static void deallocate_sdma_queue(struct device_queue_manager *dqm,
+ 				unsigned int sdma_queue_id);
+ 
++static void kfd_process_hw_exception(struct work_struct *work);
++
+ static inline
+ enum KFD_MQD_TYPE get_mqd_type_from_queue_type(enum kfd_queue_type type)
+ {
+@@ -1021,6 +1023,8 @@ static int initialize_cpsch(struct device_queue_manager *dqm)
+ 	dqm->active_runlist = false;
+ 	dqm->sdma_bitmap = (1 << get_num_sdma_queues(dqm)) - 1;
+ 
++	INIT_WORK(&dqm->hw_exception_work, kfd_process_hw_exception);
++
+ 	return 0;
+ }
+ 
+@@ -1053,6 +1057,8 @@ static int start_cpsch(struct device_queue_manager *dqm)
+ 	init_interrupts(dqm);
+ 
+ 	mutex_lock(&dqm->lock);
++	/* clear hang status when driver try to start the hw scheduler */
++	dqm->is_hws_hang = false;
+ 	execute_queues_cpsch(dqm, KFD_UNMAP_QUEUES_FILTER_DYNAMIC_QUEUES, 0);
+ 	mutex_unlock(&dqm->lock);
+ 
+@@ -1268,6 +1274,8 @@ static int unmap_queues_cpsch(struct device_queue_manager *dqm,
+ {
+ 	int retval = 0;
+ 
++	if (dqm->is_hws_hang)
++		return -EIO;
+ 	if (!dqm->active_runlist)
+ 		return retval;
+ 
+@@ -1306,9 +1314,13 @@ static int execute_queues_cpsch(struct device_queue_manager *dqm,
+ {
+ 	int retval;
+ 
++	if (dqm->is_hws_hang)
++		return -EIO;
+ 	retval = unmap_queues_cpsch(dqm, filter, filter_param);
+ 	if (retval) {
+ 		pr_err("The cp might be in an unrecoverable state due to an unsuccessful queues preemption\n");
++		dqm->is_hws_hang = true;
++		schedule_work(&dqm->hw_exception_work);
+ 		return retval;
+ 	}
+ 
+@@ -1590,7 +1602,7 @@ static int process_termination_cpsch(struct device_queue_manager *dqm,
+ 	}
+ 
+ 	retval = execute_queues_cpsch(dqm, filter, 0);
+-	if (retval || qpd->reset_wavefronts) {
++	if ((!dqm->is_hws_hang) && (retval || qpd->reset_wavefronts)) {
+ 		pr_warn("Resetting wave fronts (cpsch) on dev %p\n", dqm->dev);
+ 		dbgdev_wave_reset_wavefronts(dqm->dev, qpd->pqm->process);
+ 		qpd->reset_wavefronts = false;
+@@ -1611,6 +1623,7 @@ static int process_termination_cpsch(struct device_queue_manager *dqm,
+ 
+ out:
+ 	mutex_unlock(&dqm->lock);
++
+ 	return retval;
+ }
+ 
+@@ -1744,6 +1757,13 @@ int kfd_process_vm_fault(struct device_queue_manager *dqm,
+ 	return ret;
+ }
+ 
++static void kfd_process_hw_exception(struct work_struct *work)
++{
++	struct device_queue_manager *dqm = container_of(work,
++			struct device_queue_manager, hw_exception_work);
++	dqm->dev->kfd2kgd->gpu_recover(dqm->dev->kgd);
++}
++
+ #if defined(CONFIG_DEBUG_FS)
+ 
+ static void seq_reg_dump(struct seq_file *m,
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
+index 978458a..3f17e5e 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
+@@ -195,6 +195,10 @@ struct device_queue_manager {
+ 	struct kfd_mem_obj	*fence_mem;
+ 	bool			active_runlist;
+ 	int			sched_policy;
++
++	/* hw exception  */
++	bool			is_hws_hang;
++	struct work_struct	hw_exception_work;
+ };
+ 
+ void device_queue_manager_init_cik(
+-- 
+2.7.4
+

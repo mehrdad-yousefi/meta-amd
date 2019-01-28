@@ -1,0 +1,31 @@
+From b4fa0de44076517d605dbdbf1bc7b747585bcbed Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Fri, 7 Sep 2018 13:31:34 -0400
+Subject: [PATCH 5427/5725] drm/amd/display: add pp_smu NULL pointer check
+
+add pp_smu NULL ptr check
+
+Change-Id: Ib810078b1f4ea29d48e197539f3c24bfe7085b75
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 1764137..bdb03be 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1421,7 +1421,7 @@ static void notify_display_count_to_smu(
+ 	 * sent as part of pplib_apply_display_requirements.
+ 	 * So just return.
+ 	 */
+-	if (!pp_smu->set_display_count)
++	if (!pp_smu || !pp_smu->set_display_count)
+ 		return;
+ 
+ 	display_count = 0;
+-- 
+2.7.4
+

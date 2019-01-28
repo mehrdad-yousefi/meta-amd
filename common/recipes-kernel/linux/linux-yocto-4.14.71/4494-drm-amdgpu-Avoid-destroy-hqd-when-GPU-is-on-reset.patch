@@ -1,0 +1,57 @@
+From a9cd1aa226d726aa2643b18129209e25e3efe2ba Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Mon, 14 May 2018 14:53:03 -0400
+Subject: [PATCH 4494/5725] drm/amdgpu: Avoid destroy hqd when GPU is on reset
+
+Change-Id: Ifd0c43973c818e592c727e994dbc77fd48e50e68
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c | 3 +++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c | 3 +++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c | 2 ++
+ 3 files changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+index f833437..468b940 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+@@ -586,6 +586,9 @@ static int kgd_hqd_destroy(struct kgd_dev *kgd, void *mqd,
+ 	unsigned long flags, end_jiffies;
+ 	int retry;
+ 
++	if (adev->in_gpu_reset)
++		return -EIO;
++
+ 	acquire_queue(kgd, pipe_id, queue_id);
+ 	WREG32(mmCP_HQD_PQ_DOORBELL_CONTROL, 0);
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+index 0c7c248..e0c0e97 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+@@ -608,6 +608,9 @@ static int kgd_hqd_destroy(struct kgd_dev *kgd, void *mqd,
+ 	int retry;
+ 	struct vi_mqd *m = get_mqd(mqd);
+ 
++	if (adev->in_gpu_reset)
++		return -EIO;
++
+ 	acquire_queue(kgd, pipe_id, queue_id);
+ 
+ 	if (m->cp_hqd_vmid == 0)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+index 7af8ee6..adef83d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+@@ -745,6 +745,8 @@ static int kgd_hqd_destroy(struct kgd_dev *kgd, void *mqd,
+ 	unsigned long flags;
+ 	int retry;
+ #endif
++	if (adev->in_gpu_reset)
++		return -EIO;
+ 
+ 	acquire_queue(kgd, pipe_id, queue_id);
+ 
+-- 
+2.7.4
+

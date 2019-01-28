@@ -1,0 +1,56 @@
+From c835eecfb7c3d3f20c1a115b8a8a139ea3095145 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 5 Sep 2018 20:19:54 -0400
+Subject: [PATCH 5387/5725] drm/amdgpu: Fix compute VM BO params after rebase
+ v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The intent of two commits was lost in the last rebase:
+
+810955b drm/amdgpu: Fix acquiring VM on large-BAR systems
+b5d21aa drm/amdgpu: Don't use shadow BO for compute context
+
+This commit restores the original behaviour:
+* Don't set AMDGPU_GEM_CREATE_NO_CPU_ACCESS for page directories
+  to allow them to be reused for compute VMs
+* Don't create shadow BOs for page tables in compute VMs
+
+v2: move more logic into amdgpu_vm_bo_param
+
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Tested-by: Kent Russell <Kent.Russell@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index b54870f..ccc007c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -524,9 +524,8 @@ static void amdgpu_vm_bo_param(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 		AMDGPU_GEM_CREATE_CPU_GTT_USWC;
+ 	if (vm->use_cpu_for_update)
+ 		bp->flags |= AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
+-	else
+-		bp->flags |= AMDGPU_GEM_CREATE_SHADOW |
+-			AMDGPU_GEM_CREATE_NO_CPU_ACCESS;
++	else if (!vm->root.base.bo || vm->root.base.bo->shadow)
++		bp->flags |= AMDGPU_GEM_CREATE_SHADOW;
+ 	bp->type = ttm_bo_type_kernel;
+ 	if (vm->root.base.bo)
+ 		bp->resv = vm->root.base.bo->tbo.resv;
+@@ -2716,6 +2715,8 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	vm->last_update = NULL;
+ 
+ 	amdgpu_vm_bo_param(adev, vm, adev->vm_manager.root_level, &bp);
++	if (vm_context == AMDGPU_VM_CONTEXT_COMPUTE)
++		bp.flags &= ~AMDGPU_GEM_CREATE_SHADOW;
+ 	r = amdgpu_bo_create(adev, &bp, &root);
+ 	if (r)
+ 		goto error_free_sched_entity;
+-- 
+2.7.4
+

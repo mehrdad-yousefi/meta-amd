@@ -1,0 +1,33 @@
+From d051c9d141387eeeabca17afd872c4e8fc32a5c5 Mon Sep 17 00:00:00 2001
+From: rex zhu <rex.zhu@amd.com>
+Date: Thu, 28 Jun 2018 13:55:46 +0800
+Subject: [PATCH 4842/5725] drm/amd/pp: Switch the tolerable latency for
+ display
+
+Select the lowest MCLK frequency that is within
+the tolerable latency defined in DISPALY
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index b293a68..5f00760 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -3221,7 +3221,7 @@ static int vega10_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
+ 		/* Find the lowest MCLK frequency that is within
+ 		 * the tolerable latency defined in DAL
+ 		 */
+-		latency = 0;
++		latency = hwmgr->display_config->dce_tolerable_mclk_in_active_latency;
+ 		for (i = 0; i < data->mclk_latency_table.count; i++) {
+ 			if ((data->mclk_latency_table.entries[i].latency <= latency) &&
+ 				(data->mclk_latency_table.entries[i].frequency >=
+-- 
+2.7.4
+

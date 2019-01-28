@@ -1,0 +1,41 @@
+From 341ac73f0f5d693ef6797a6ab1c795abef03e2b7 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Tue, 9 Oct 2018 16:40:56 -0400
+Subject: [PATCH 5562/5725] drm/amdgpu/vcn:Update SPG mode VCN memory control
+
+Update Static Power Gate  mode VCN memory control
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu <leo.liu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 0371b67..e1df632 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -787,13 +787,12 @@ static int vcn_v1_0_start_spg_mode(struct amdgpu_device *adev)
+ 	mdelay(5);
+ 
+ 	/* initialize VCN memory controller */
+-	WREG32_SOC15(UVD, 0, mmUVD_LMI_CTRL,
+-		(0x40 << UVD_LMI_CTRL__WRITE_CLEAN_TIMER__SHIFT) |
+-		UVD_LMI_CTRL__WRITE_CLEAN_TIMER_EN_MASK |
+-		UVD_LMI_CTRL__DATA_COHERENCY_EN_MASK |
+-		UVD_LMI_CTRL__VCPU_DATA_COHERENCY_EN_MASK |
+-		UVD_LMI_CTRL__REQ_MODE_MASK |
+-		0x00100000L);
++	tmp = RREG32_SOC15(UVD, 0, mmUVD_LMI_CTRL);
++	WREG32_SOC15(UVD, 0, mmUVD_LMI_CTRL, tmp		|
++		UVD_LMI_CTRL__WRITE_CLEAN_TIMER_EN_MASK	|
++		UVD_LMI_CTRL__MASK_MC_URGENT_MASK			|
++		UVD_LMI_CTRL__DATA_COHERENCY_EN_MASK		|
++		UVD_LMI_CTRL__VCPU_DATA_COHERENCY_EN_MASK);
+ 
+ #ifdef __BIG_ENDIAN
+ 	/* swap (8 in 32) RB and IB */
+-- 
+2.7.4
+

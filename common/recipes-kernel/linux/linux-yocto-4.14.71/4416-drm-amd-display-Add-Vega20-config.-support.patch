@@ -1,0 +1,34 @@
+From 6d8a620884cc42750d7bfff11f8c4b5448530234 Mon Sep 17 00:00:00 2001
+From: "Jerry (Fangzhi) Zuo" <Jerry.Zuo@amd.com>
+Date: Fri, 11 May 2018 13:46:19 -0500
+Subject: [PATCH 4416/5725] drm/amd/display: Add Vega20 config. support
+
+Signed-off-by: Jerry (Fangzhi) Zuo <Jerry.Zuo@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/Kconfig | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/Kconfig b/drivers/gpu/drm/amd/display/Kconfig
+index e5b309f..23fbd99 100644
+--- a/drivers/gpu/drm/amd/display/Kconfig
++++ b/drivers/gpu/drm/amd/display/Kconfig
+@@ -41,4 +41,12 @@ config DEBUG_KERNEL_DC
+ 	  Choose this option if you want to have
+ 	  VEGAM support for display engine
+ 
++config DRM_AMD_DC_VG20
++	bool "Vega20 support"
++	depends on DRM_AMD_DC
++	help
++		Choose this option if you want to have
++		Vega20 support for display engine
++
++
+ endmenu
+-- 
+2.7.4
+

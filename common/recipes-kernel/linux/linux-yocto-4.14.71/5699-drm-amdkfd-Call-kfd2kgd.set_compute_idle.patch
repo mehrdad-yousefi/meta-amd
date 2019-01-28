@@ -1,0 +1,153 @@
+From cde4316001fa528d4c9dd7d5a3d79a2ac696ac16 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 16 Jul 2018 19:10:37 -0400
+Subject: [PATCH 5699/5725] drm/amdkfd: Call kfd2kgd.set_compute_idle
+
+User mode queue submissions don't go through KFD. Therefore we don't
+know exactly when compute is idle or not idle. We use the existence
+of user mode queues on a device as an approximation.
+
+register_process is called when the first queue of a process is
+created. Conversely unregister_process is called when the last queue
+is destroyed. The first process that is registered takes compute
+out of idle. The last process that is unregisters sets compute back
+to idle.
+
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Eric Huang <JinHuiEric.Huang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c            | 8 ++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h            | 1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c     | 3 ++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c     | 3 ++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c     | 3 ++-
+ drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c | 7 +++++--
+ drivers/gpu/drm/amd/include/kgd_kfd_interface.h       | 5 +++++
+ 7 files changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index 9ff80a5..f27bcd0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -583,6 +583,14 @@ int amdgpu_amdkfd_submit_ib(struct kgd_dev *kgd, enum kgd_engine_type engine,
+ 	return ret;
+ }
+ 
++void amdgpu_amdkfd_set_compute_idle(struct kgd_dev *kgd, bool idle)
++{
++	struct amdgpu_device *adev = (struct amdgpu_device *)kgd;
++
++	amdgpu_dpm_switch_power_profile(adev,
++					PP_SMC_POWER_PROFILE_COMPUTE, !idle);
++}
++
+ bool amdgpu_amdkfd_is_kfd_vmid(struct amdgpu_device *adev,
+ 			u32 vmid)
+ {
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
+index 23ac8a6..f9d21a6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
+@@ -117,6 +117,7 @@ int amdgpu_amdkfd_evict_userptr(struct kgd_mem *mem, struct mm_struct *mm);
+ int amdgpu_amdkfd_submit_ib(struct kgd_dev *kgd, enum kgd_engine_type engine,
+ 				uint32_t vmid, uint64_t gpu_addr,
+ 				uint32_t *ib_cmd, uint32_t ib_len);
++void amdgpu_amdkfd_set_compute_idle(struct kgd_dev *kgd, bool idle);
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_7_get_functions(void);
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_8_0_get_functions(void);
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_9_0_get_functions(void);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+index d2702b0..ef482bc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+@@ -229,7 +229,8 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.restore_process_bos = amdgpu_amdkfd_gpuvm_restore_process_bos,
+ 	.copy_mem_to_mem = amdgpu_amdkfd_copy_mem_to_mem,
+ 	.get_vram_usage = amdgpu_amdkfd_get_vram_usage,
+-	.gpu_recover = amdgpu_amdkfd_gpu_reset
++	.gpu_recover = amdgpu_amdkfd_gpu_reset,
++	.set_compute_idle = amdgpu_amdkfd_set_compute_idle
+ };
+ 
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_7_get_functions()
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+index 69ac7be..e6cfa22 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+@@ -202,7 +202,8 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.restore_process_bos = amdgpu_amdkfd_gpuvm_restore_process_bos,
+ 	.copy_mem_to_mem = amdgpu_amdkfd_copy_mem_to_mem,
+ 	.get_vram_usage = amdgpu_amdkfd_get_vram_usage,
+-	.gpu_recover = amdgpu_amdkfd_gpu_reset
++	.gpu_recover = amdgpu_amdkfd_gpu_reset,
++	.set_compute_idle = amdgpu_amdkfd_set_compute_idle
+ };
+ 
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_8_0_get_functions()
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+index c47a75d..eee3a3e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+@@ -252,7 +252,8 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.restore_process_bos = amdgpu_amdkfd_gpuvm_restore_process_bos,
+ 	.copy_mem_to_mem = amdgpu_amdkfd_copy_mem_to_mem,
+ 	.get_vram_usage = amdgpu_amdkfd_get_vram_usage,
+-	.gpu_recover = amdgpu_amdkfd_gpu_reset
++	.gpu_recover = amdgpu_amdkfd_gpu_reset,
++	.set_compute_idle = amdgpu_amdkfd_set_compute_idle
+ };
+ 
+ struct kfd2kgd_calls *amdgpu_amdkfd_gfx_9_0_get_functions()
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index d976f1c..147dc01 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -782,7 +782,8 @@ static int register_process(struct device_queue_manager *dqm,
+ 
+ 	retval = dqm->asic_ops.update_qpd(dqm, qpd);
+ 
+-	dqm->processes_count++;
++	if (dqm->processes_count++ == 0)
++		dqm->dev->kfd2kgd->set_compute_idle(dqm->dev->kgd, false);
+ 
+ 	mutex_unlock(&dqm->lock);
+ 
+@@ -805,7 +806,9 @@ static int unregister_process(struct device_queue_manager *dqm,
+ 		if (qpd == cur->qpd) {
+ 			list_del(&cur->list);
+ 			kfree(cur);
+-			dqm->processes_count--;
++			if (--dqm->processes_count == 0)
++				dqm->dev->kfd2kgd->set_compute_idle(
++					dqm->dev->kgd, true);
+ 			goto out;
+ 		}
+ 	}
+diff --git a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+index ad6ee1b..88dbade 100755
+--- a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+@@ -250,6 +250,9 @@ struct tile_config {
+  *
+  * @gpu_recover: let kgd reset gpu after kfd detect CPC hang
+  *
++ * @set_compute_idle: Indicates that compute is idle on a device. This
++ * can be used to change power profiles depending on compute activity.
++ *
+  * This structure contains function pointers to services that the kgd driver
+  * provides to amdkfd driver.
+  *
+@@ -402,6 +405,8 @@ struct kfd2kgd_calls {
+ 	uint64_t (*get_vram_usage)(struct kgd_dev *kgd);
+ 
+ 	void (*gpu_recover)(struct kgd_dev *kgd);
++
++	void (*set_compute_idle)(struct kgd_dev *kgd, bool idle);
+ };
+ 
+ /**
+-- 
+2.7.4
+

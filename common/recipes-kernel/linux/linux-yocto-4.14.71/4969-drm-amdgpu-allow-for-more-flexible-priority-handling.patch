@@ -1,0 +1,36 @@
+From e058320957ab91b7f4fcf566951abad3aa549ee9 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 16 Jul 2018 13:47:34 +0200
+Subject: [PATCH 4969/5725] drm/amdgpu: allow for more flexible priority
+ handling
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Allow to call amdgpu_ring_priority_get() after pushing the ring to the
+scheduler.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
+index 19e45a3..93794a8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
+@@ -211,7 +211,8 @@ void amdgpu_ring_priority_get(struct amdgpu_ring *ring,
+ 	if (!ring->funcs->set_priority)
+ 		return;
+ 
+-	atomic_inc(&ring->num_jobs[priority]);
++	if (atomic_inc_return(&ring->num_jobs[priority]) <= 0)
++		return;
+ 
+ 	mutex_lock(&ring->priority_mutex);
+ 	if (priority <= ring->priority)
+-- 
+2.7.4
+

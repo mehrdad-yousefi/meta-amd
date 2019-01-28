@@ -1,0 +1,54 @@
+From 4471426bb73511848e746ea72a1bfea5709b57e4 Mon Sep 17 00:00:00 2001
+From: Jun Lei <Jun.Lei@amd.com>
+Date: Fri, 22 Jun 2018 16:51:47 -0400
+Subject: [PATCH 4958/5725] drm/amd/display: add new dc debug structure to
+ track debug data
+
+[why]
+Some DTN tests still failing @ 2%  Need to reduce.
+
+[how]
+add instrumentation code to driver so we can get more information from failed runs.
+
+Signed-off-by: Jun Lei <Jun.Lei@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c | 3 +++
+ drivers/gpu/drm/amd/display/dc/dc.h              | 5 +++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+index fd73a9c..3bb75b1 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+@@ -1028,6 +1028,9 @@ enum link_training_result dc_link_dp_perform_link_training(
+ 			lt_settings.lane_settings[0].VOLTAGE_SWING,
+ 			lt_settings.lane_settings[0].PRE_EMPHASIS);
+ 
++	if (status != LINK_TRAINING_SUCCESS)
++		link->ctx->dc->debug.debug_data.ltFailCount++;
++
+ 	return status;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 966e9b9..c106d58 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -260,6 +260,11 @@ struct dc_debug {
+ 	bool scl_reset_length10;
+ 	bool hdmi20_disable;
+ 
++	struct {
++		uint32_t ltFailCount;
++		uint32_t i2cErrorCount;
++		uint32_t auxErrorCount;
++	} debug_data;
+ };
+ struct dc_state;
+ struct resource_pool;
+-- 
+2.7.4
+

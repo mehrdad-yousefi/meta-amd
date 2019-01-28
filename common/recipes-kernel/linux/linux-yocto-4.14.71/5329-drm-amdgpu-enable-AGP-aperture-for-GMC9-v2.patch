@@ -1,0 +1,88 @@
+From c0bf5944a681b76983f31c3ca53913895e1ec641 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 27 Aug 2018 18:23:11 +0200
+Subject: [PATCH 5329/5725] drm/amdgpu: enable AGP aperture for GMC9 v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Enable the old AGP aperture to avoid GART mappings.
+
+v2: don't enable it for SRIOV
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c | 10 +++++-----
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c    |  2 ++
+ drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c  | 10 +++++-----
+ 3 files changed, 12 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c
+index 3403ded..ffd0ec9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c
+@@ -65,16 +65,16 @@ static void gfxhub_v1_0_init_system_aperture_regs(struct amdgpu_device *adev)
+ {
+ 	uint64_t value;
+ 
+-	/* Disable AGP. */
++	/* Program the AGP BAR */
+ 	WREG32_SOC15(GC, 0, mmMC_VM_AGP_BASE, 0);
+-	WREG32_SOC15(GC, 0, mmMC_VM_AGP_TOP, 0);
+-	WREG32_SOC15(GC, 0, mmMC_VM_AGP_BOT, 0xFFFFFFFF);
++	WREG32_SOC15(GC, 0, mmMC_VM_AGP_BOT, adev->gmc.agp_start >> 24);
++	WREG32_SOC15(GC, 0, mmMC_VM_AGP_TOP, adev->gmc.agp_end >> 24);
+ 
+ 	/* Program the system aperture low logical page number. */
+ 	WREG32_SOC15(GC, 0, mmMC_VM_SYSTEM_APERTURE_LOW_ADDR,
+-		     adev->gmc.vram_start >> 18);
++		     min(adev->gmc.vram_start, adev->gmc.agp_start) >> 18);
+ 	WREG32_SOC15(GC, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
+-		     adev->gmc.vram_end >> 18);
++		     max(adev->gmc.vram_end, adev->gmc.agp_end) >> 18);
+ 
+ 	/* Set default page address. */
+ 	value = adev->vram_scratch.gpu_addr - adev->gmc.vram_start
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 5b04b45..d7d6d0c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -771,6 +771,8 @@ static void gmc_v9_0_vram_gtt_location(struct amdgpu_device *adev,
+ 		base = mmhub_v1_0_get_fb_location(adev);
+ 	amdgpu_gmc_vram_location(adev, &adev->gmc, base);
+ 	amdgpu_gmc_gart_location(adev, mc);
++	if (!amdgpu_sriov_vf(adev))
++		amdgpu_gmc_agp_location(adev, mc);
+ 	/* base offset of vram pages */
+ 	adev->vm_manager.vram_base_offset = gfxhub_v1_0_get_mc_fb_offset(adev);
+ }
+diff --git a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+index 63fec50..21a822f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+@@ -76,16 +76,16 @@ static void mmhub_v1_0_init_system_aperture_regs(struct amdgpu_device *adev)
+ 	uint64_t value;
+ 	uint32_t tmp;
+ 
+-	/* Disable AGP. */
++	/* Program the AGP BAR */
+ 	WREG32_SOC15(MMHUB, 0, mmMC_VM_AGP_BASE, 0);
+-	WREG32_SOC15(MMHUB, 0, mmMC_VM_AGP_TOP, 0);
+-	WREG32_SOC15(MMHUB, 0, mmMC_VM_AGP_BOT, 0x00FFFFFF);
++	WREG32_SOC15(MMHUB, 0, mmMC_VM_AGP_BOT, adev->gmc.agp_start >> 24);
++	WREG32_SOC15(MMHUB, 0, mmMC_VM_AGP_TOP, adev->gmc.agp_end >> 24);
+ 
+ 	/* Program the system aperture low logical page number. */
+ 	WREG32_SOC15(MMHUB, 0, mmMC_VM_SYSTEM_APERTURE_LOW_ADDR,
+-		     adev->gmc.vram_start >> 18);
++		     min(adev->gmc.vram_start, adev->gmc.agp_start) >> 18);
+ 	WREG32_SOC15(MMHUB, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
+-		     adev->gmc.vram_end >> 18);
++		     max(adev->gmc.vram_end, adev->gmc.agp_end) >> 18);
+ 
+ 	/* Set default page address. */
+ 	value = adev->vram_scratch.gpu_addr - adev->gmc.vram_start +
+-- 
+2.7.4
+

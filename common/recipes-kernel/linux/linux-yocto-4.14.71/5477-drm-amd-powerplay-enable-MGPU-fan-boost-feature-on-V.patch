@@ -1,0 +1,52 @@
+From e3071552df93aefed1c7fdcdad5c5ace47c53e16 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 27 Sep 2018 13:48:45 +0800
+Subject: [PATCH 5477/5725] drm/amd/powerplay: enable MGPU fan boost feature on
+ Vega20
+
+Added Vega20 specific implementation for MGPU fan boost
+feature.
+
+Change-Id: I2521c5b5019261228302c51aa74fc3d9d249c87c
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 7884ae3..958af7b 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -1477,6 +1477,19 @@ static int vega20_init_max_sustainable_clocks(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
++static int vega20_enable_mgpu_fan_boost(struct pp_hwmgr *hwmgr)
++{
++	int result;
++
++	result = smum_send_msg_to_smc(hwmgr,
++		PPSMC_MSG_SetMGpuFanBoostLimitRpm);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableMgpuFan] Failed to enable mgpu fan boost!",
++			return result);
++
++	return 0;
++}
++
+ static void vega20_init_powergate_state(struct pp_hwmgr *hwmgr)
+ {
+ 	struct vega20_hwmgr *data =
+@@ -3488,6 +3501,8 @@ static const struct pp_hwmgr_func vega20_hwmgr_funcs = {
+ 	/* smu memory related */
+ 	.notify_cac_buffer_info =
+ 		vega20_notify_cac_buffer_info,
++	.enable_mgpu_fan_boost =
++		vega20_enable_mgpu_fan_boost,
+ };
+ 
+ int vega20_hwmgr_init(struct pp_hwmgr *hwmgr)
+-- 
+2.7.4
+

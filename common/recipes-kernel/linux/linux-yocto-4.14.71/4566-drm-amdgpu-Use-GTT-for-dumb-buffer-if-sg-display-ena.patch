@@ -1,0 +1,60 @@
+From 51a0c473e5a12afd8529c2fe0b11625a174aa69a Mon Sep 17 00:00:00 2001
+From: Deepak Sharma <Deepak.Sharma@amd.com>
+Date: Tue, 22 May 2018 15:31:23 -0700
+Subject: [PATCH 4566/5725] drm/amdgpu: Use GTT for dumb buffer if sg display
+ enabled (v2)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When vram size <= THRESHOLD(256M) lets use GTT for dumb buffer
+allocation. As SG will be enabled with vram size <= 256M
+scan out will not be an issue.
+
+v2: Use amdgpu_display_supported_domains to get supported domain.
+
+Signed-off-by: Deepak Sharma <Deepak.Sharma@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 6c41cf9..2f4a6a7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -30,6 +30,7 @@
+ #include <drm/drmP.h>
+ #include <drm/amdgpu_drm.h>
+ #include "amdgpu.h"
++#include "amdgpu_display.h"
+ 
+ void amdgpu_gem_object_free(struct drm_gem_object *gobj)
+ {
+@@ -900,15 +901,20 @@ int amdgpu_mode_dumb_create(struct drm_file *file_priv,
+ 	struct amdgpu_device *adev = dev->dev_private;
+ 	struct drm_gem_object *gobj;
+ 	uint32_t handle;
++	u32 domain = amdgpu_display_supported_domains(adev);
+ 	int r;
+ 
+ 	args->pitch = amdgpu_align_pitch(adev, args->width,
+ 					 DIV_ROUND_UP(args->bpp, 8), 0);
+ 	args->size = (u64)args->pitch * args->height;
+ 	args->size = ALIGN(args->size, PAGE_SIZE);
++	if (domain == (AMDGPU_GEM_DOMAIN_VRAM | AMDGPU_GEM_DOMAIN_GTT)) {
++		domain = AMDGPU_GEM_DOMAIN_VRAM;
++		if (adev->gmc.real_vram_size <= AMDGPU_SG_THRESHOLD)
++			domain = AMDGPU_GEM_DOMAIN_GTT;
++	}
+ 
+-	r = amdgpu_gem_object_create(adev, args->size, 0,
+-				     AMDGPU_GEM_DOMAIN_VRAM,
++	r = amdgpu_gem_object_create(adev, args->size, 0, domain,
+ 				     AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED,
+ 				     false, NULL, &gobj);
+ 	if (r)
+-- 
+2.7.4
+

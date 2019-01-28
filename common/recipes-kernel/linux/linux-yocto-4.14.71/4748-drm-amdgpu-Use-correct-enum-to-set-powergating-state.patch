@@ -1,0 +1,38 @@
+From 2f3efd16076cacf90aa033123d3e751ab2a28ffc Mon Sep 17 00:00:00 2001
+From: Stefan Agner <stefan@agner.ch>
+Date: Tue, 19 Jun 2018 11:16:56 +0200
+Subject: [PATCH 4748/5725] drm/amdgpu: Use correct enum to set powergating
+ state
+
+Use enum amd_powergating_state instead of enum amd_clockgating_state.
+The underlying value stays the same, so there is no functional change
+in practise. This fixes a warning seen with clang:
+drivers/gpu/drm/amd/amdgpu/amdgpu_device.c:1930:14: warning: implicit
+      conversion from enumeration type 'enum amd_clockgating_state' to
+      different enumeration type 'enum amd_powergating_state'
+      [-Wenum-conversion]
+                                                       AMD_CG_STATE_UNGATE);
+                                                       ^~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Stefan Agner <stefan@agner.ch>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 5791f58..78d6c99 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1974,7 +1974,7 @@ int amdgpu_device_ip_suspend(struct amdgpu_device *adev)
+ 	if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
+ 		amdgpu_device_ip_set_powergating_state(adev,
+ 						       AMD_IP_BLOCK_TYPE_SMC,
+-						       AMD_CG_STATE_UNGATE);
++						       AMD_PG_STATE_UNGATE);
+ 
+ 	/* ungate SMC block first */
+ 	r = amdgpu_device_ip_set_clockgating_state(adev, AMD_IP_BLOCK_TYPE_SMC,
+-- 
+2.7.4
+

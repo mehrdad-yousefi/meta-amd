@@ -1,0 +1,49 @@
+From 018cc8b6204b0cce3be79c30706179d841953e2c Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Wed, 11 Jul 2018 22:32:53 -0400
+Subject: [PATCH 5632/5725] drm/amd: Add kfd ioctl defines for hw_exception
+ event
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ include/uapi/linux/kfd_ioctl.h | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/include/uapi/linux/kfd_ioctl.h b/include/uapi/linux/kfd_ioctl.h
+index 7a6bb85..1ec5289 100644
+--- a/include/uapi/linux/kfd_ioctl.h
++++ b/include/uapi/linux/kfd_ioctl.h
+@@ -210,6 +210,15 @@ struct kfd_ioctl_dbg_wave_control_args {
+ 
+ #define KFD_SIGNAL_EVENT_LIMIT		4096
+ 
++/* For kfd_event_data.hw_exception_data.reset_type. */
++#define KFD_HW_EXCEPTION_WHOLE_GPU_RESET	0
++#define KFD_HW_EXCEPTION_PER_ENGINE_RESET	1
++
++/* For kfd_event_data.hw_exception_data.reset_cause. */
++#define KFD_HW_EXCEPTION_GPU_HANG	0
++#define KFD_HW_EXCEPTION_ECC		1
++
++
+ struct kfd_ioctl_create_event_args {
+ 	uint64_t event_page_offset;	/* from KFD */
+ 	uint32_t event_trigger_data;	/* from KFD - signal events only */
+@@ -263,6 +272,7 @@ struct kfd_hsa_hw_exception_data {
+ struct kfd_event_data {
+ 	union {
+ 		struct kfd_hsa_memory_exception_data memory_exception_data;
++		struct kfd_hsa_hw_exception_data hw_exception_data;
+ 	};				/* From KFD */
+ 	uint64_t kfd_event_data_ext;	/* pointer to an extension structure
+ 	 	 	 	 	   for future exception types */
+-- 
+2.7.4
+

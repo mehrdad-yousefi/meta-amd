@@ -1,0 +1,221 @@
+From 27c3e0af6f78219da54f2ca154084cd31249174e Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Thu, 9 Aug 2018 09:50:12 -0500
+Subject: [PATCH 5089/5725] drm/amdgpu: move display definitions into
+ amdgpu_display header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Demangle amdgpu.h.
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h            | 12 ------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_acpi.c       |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c   |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_connectors.c |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_display.h    | 15 +++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_encoders.c   |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c        |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c         |  1 +
+ drivers/gpu/drm/amd/amdgpu/atombios_encoders.c |  1 +
+ drivers/gpu/drm/amd/amdgpu/dce_v10_0.c         |  1 +
+ drivers/gpu/drm/amd/amdgpu/dce_v11_0.c         |  1 +
+ drivers/gpu/drm/amd/amdgpu/dce_v6_0.c          |  1 +
+ drivers/gpu/drm/amd/amdgpu/dce_v8_0.c          |  1 +
+ 13 files changed, 26 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index f3e06d8..403d2b8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -1310,24 +1310,12 @@ int emu_soc_asic_init(struct amdgpu_device *adev);
+ #define amdgpu_vm_copy_pte(adev, ib, pe, src, count) ((adev)->vm_manager.vm_pte_funcs->copy_pte((ib), (pe), (src), (count)))
+ #define amdgpu_vm_write_pte(adev, ib, pe, value, count, incr) ((adev)->vm_manager.vm_pte_funcs->write_pte((ib), (pe), (value), (count), (incr)))
+ #define amdgpu_vm_set_pte_pde(adev, ib, pe, addr, count, incr, flags) ((adev)->vm_manager.vm_pte_funcs->set_pte_pde((ib), (pe), (addr), (count), (incr), (flags)))
+-#define amdgpu_display_vblank_get_counter(adev, crtc) (adev)->mode_info.funcs->vblank_get_counter((adev), (crtc))
+-#define amdgpu_display_backlight_set_level(adev, e, l) (adev)->mode_info.funcs->backlight_set_level((e), (l))
+-#define amdgpu_display_backlight_get_level(adev, e) (adev)->mode_info.funcs->backlight_get_level((e))
+-#define amdgpu_display_hpd_sense(adev, h) (adev)->mode_info.funcs->hpd_sense((adev), (h))
+-#define amdgpu_display_hpd_set_polarity(adev, h) (adev)->mode_info.funcs->hpd_set_polarity((adev), (h))
+-#define amdgpu_display_hpd_get_gpio_reg(adev) (adev)->mode_info.funcs->hpd_get_gpio_reg((adev))
+-#define amdgpu_display_bandwidth_update(adev) (adev)->mode_info.funcs->bandwidth_update((adev))
+-#define amdgpu_display_page_flip(adev, crtc, base, async) (adev)->mode_info.funcs->page_flip((adev), (crtc), (base), (async))
+-#define amdgpu_display_page_flip_get_scanoutpos(adev, crtc, vbl, pos) (adev)->mode_info.funcs->page_flip_get_scanoutpos((adev), (crtc), (vbl), (pos))
+-#define amdgpu_display_add_encoder(adev, e, s, c) (adev)->mode_info.funcs->add_encoder((adev), (e), (s), (c))
+-#define amdgpu_display_add_connector(adev, ci, sd, ct, ib, coi, h, r) (adev)->mode_info.funcs->add_connector((adev), (ci), (sd), (ct), (ib), (coi), (h), (r))
+ 
+ /* Common functions */
+ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+ 			      struct amdgpu_job* job, bool force);
+ void amdgpu_device_pci_config_reset(struct amdgpu_device *adev);
+ bool amdgpu_device_need_post(struct amdgpu_device *adev);
+-void amdgpu_display_update_priority(struct amdgpu_device *adev);
+ 
+ void amdgpu_cs_report_moved_bytes(struct amdgpu_device *adev, u64 num_bytes,
+ 				  u64 num_vis_bytes);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_acpi.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_acpi.c
+index 3539932..6488e90 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_acpi.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_acpi.c
+@@ -31,6 +31,7 @@
+ #include <drm/drm_crtc_helper.h>
+ #include "amdgpu.h"
+ #include "amdgpu_pm.h"
++#include "amdgpu_display.h"
+ #include "amd_acpi.h"
+ #include "atom.h"
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c
+index b5773e8..b38275d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_atombios.c
+@@ -29,6 +29,7 @@
+ #include "amdgpu_atombios.h"
+ #include "amdgpu_atomfirmware.h"
+ #include "amdgpu_i2c.h"
++#include "amdgpu_display.h"
+ 
+ #include "atom.h"
+ #include "atom-bits.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_connectors.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_connectors.c
+index c0b2ab9..370071b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_connectors.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_connectors.c
+@@ -34,6 +34,7 @@
+ #include "atombios_dp.h"
+ #include "amdgpu_connectors.h"
+ #include "amdgpu_i2c.h"
++#include "amdgpu_display.h"
+ 
+ #include <linux/pm_runtime.h>
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h
+index ec11434..8a34ec8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h
+@@ -23,6 +23,21 @@
+ #ifndef __AMDGPU_DISPLAY_H__
+ #define __AMDGPU_DISPLAY_H__
+ 
++#define amdgpu_display_vblank_get_counter(adev, crtc) (adev)->mode_info.funcs->vblank_get_counter((adev), (crtc))
++#define amdgpu_display_backlight_set_level(adev, e, l) (adev)->mode_info.funcs->backlight_set_level((e), (l))
++#define amdgpu_display_backlight_get_level(adev, e) (adev)->mode_info.funcs->backlight_get_level((e))
++#define amdgpu_display_hpd_sense(adev, h) (adev)->mode_info.funcs->hpd_sense((adev), (h))
++#define amdgpu_display_hpd_set_polarity(adev, h) (adev)->mode_info.funcs->hpd_set_polarity((adev), (h))
++#define amdgpu_display_hpd_get_gpio_reg(adev) (adev)->mode_info.funcs->hpd_get_gpio_reg((adev))
++#define amdgpu_display_bandwidth_update(adev) (adev)->mode_info.funcs->bandwidth_update((adev))
++#define amdgpu_display_page_flip(adev, crtc, base, async) (adev)->mode_info.funcs->page_flip((adev), (crtc), (base), (async))
++#define amdgpu_display_page_flip_get_scanoutpos(adev, crtc, vbl, pos) (adev)->mode_info.funcs->page_flip_get_scanoutpos((adev), (crtc), (vbl), (pos))
++#define amdgpu_display_add_encoder(adev, e, s, c) (adev)->mode_info.funcs->add_encoder((adev), (e), (s), (c))
++#define amdgpu_display_add_connector(adev, ci, sd, ct, ib, coi, h, r) (adev)->mode_info.funcs->add_connector((adev), (ci), (sd), (ct), (ib), (coi), (h), (r))
++
++int amdgpu_display_freesync_ioctl(struct drm_device *dev, void *data,
++				  struct drm_file *filp);
++void amdgpu_display_update_priority(struct amdgpu_device *adev);
+ uint32_t amdgpu_display_supported_domains(struct amdgpu_device *adev);
+ struct drm_framebuffer *
+ amdgpu_display_user_framebuffer_create(struct drm_device *dev,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_encoders.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_encoders.c
+index 94138ab..0f43b19 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_encoders.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_encoders.c
+@@ -28,6 +28,7 @@
+ #include <drm/amdgpu_drm.h>
+ #include "amdgpu.h"
+ #include "amdgpu_connectors.h"
++#include "amdgpu_display.h"
+ #include "atom.h"
+ #include "atombios_encoders.h"
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 1d7c70d..98c0c38 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -38,6 +38,7 @@
+ #include <linux/pm_runtime.h>
+ #include "amdgpu_amdkfd.h"
+ #include "amdgpu_gem.h"
++#include "amdgpu_display.h"
+ 
+ /**
+  * amdgpu_driver_unload_kms - Main unload function for KMS.
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index 2a78a3c..1e9ed55 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -27,6 +27,7 @@
+ #include "amdgpu_drv.h"
+ #include "amdgpu_pm.h"
+ #include "amdgpu_dpm.h"
++#include "amdgpu_display.h"
+ #include "atom.h"
+ #include <linux/power_supply.h>
+ #include <linux/hwmon.h>
+diff --git a/drivers/gpu/drm/amd/amdgpu/atombios_encoders.c b/drivers/gpu/drm/amd/amdgpu/atombios_encoders.c
+index d702fb8..60e2447 100644
+--- a/drivers/gpu/drm/amd/amdgpu/atombios_encoders.c
++++ b/drivers/gpu/drm/amd/amdgpu/atombios_encoders.c
+@@ -28,6 +28,7 @@
+ #include <drm/amdgpu_drm.h>
+ #include "amdgpu.h"
+ #include "amdgpu_connectors.h"
++#include "amdgpu_display.h"
+ #include "atom.h"
+ #include "atombios_encoders.h"
+ #include "atombios_dp.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c
+index 85649e9..34cdcc8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c
+@@ -31,6 +31,7 @@
+ #include "atombios_encoders.h"
+ #include "amdgpu_pll.h"
+ #include "amdgpu_connectors.h"
++#include "amdgpu_display.h"
+ #include "dce_v10_0.h"
+ 
+ #include "dce/dce_10_0_d.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c
+index 4e4e5fc..fd3441e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c
+@@ -31,6 +31,7 @@
+ #include "atombios_encoders.h"
+ #include "amdgpu_pll.h"
+ #include "amdgpu_connectors.h"
++#include "amdgpu_display.h"
+ #include "dce_v11_0.h"
+ 
+ #include "dce/dce_11_0_d.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c
+index 1cbc20c..b185bd7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c
+@@ -30,6 +30,7 @@
+ #include "atombios_encoders.h"
+ #include "amdgpu_pll.h"
+ #include "amdgpu_connectors.h"
++#include "amdgpu_display.h"
+ 
+ #include "bif/bif_3_0_d.h"
+ #include "bif/bif_3_0_sh_mask.h"
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c
+index 26fcb39..bff4b94 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c
+@@ -31,6 +31,7 @@
+ #include "atombios_encoders.h"
+ #include "amdgpu_pll.h"
+ #include "amdgpu_connectors.h"
++#include "amdgpu_display.h"
+ #include "dce_v8_0.h"
+ 
+ #include "dce/dce_8_0_d.h"
+-- 
+2.7.4
+

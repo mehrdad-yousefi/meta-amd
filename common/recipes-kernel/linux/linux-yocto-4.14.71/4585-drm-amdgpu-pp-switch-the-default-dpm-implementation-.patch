@@ -1,0 +1,49 @@
+From fa9fb4403bf47cf19de5fad9ea515c66bfc8f9dc Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 31 May 2018 12:46:08 -0500
+Subject: [PATCH 4585/5725] drm/amdgpu/pp: switch the default dpm
+ implementation for CI
+
+Switch hawaii and bonaire to use powerplay rather than the old
+dpm implementation.  Powerplay supports more features and is
+better maintained.  Ultimately, we can drop the older dpm
+implementation like we did for other older asics.
+
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Rex Zhu <rezhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/cik.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/cik.c b/drivers/gpu/drm/amd/amdgpu/cik.c
+index 8ff4c60..702e257 100644
+--- a/drivers/gpu/drm/amd/amdgpu/cik.c
++++ b/drivers/gpu/drm/amd/amdgpu/cik.c
+@@ -2003,9 +2003,9 @@ int cik_set_ip_blocks(struct amdgpu_device *adev)
+ 		amdgpu_device_ip_block_add(adev, &gmc_v7_0_ip_block);
+ 		amdgpu_device_ip_block_add(adev, &cik_ih_ip_block);
+ 		if (amdgpu_dpm == -1)
+-			amdgpu_device_ip_block_add(adev, &ci_smu_ip_block);
+-		else
+ 			amdgpu_device_ip_block_add(adev, &pp_smu_ip_block);
++		else
++			amdgpu_device_ip_block_add(adev, &ci_smu_ip_block);
+ 		if (adev->enable_virtual_display)
+ 			amdgpu_device_ip_block_add(adev, &dce_virtual_ip_block);
+ #if defined(CONFIG_DRM_AMD_DC)
+@@ -2024,9 +2024,9 @@ int cik_set_ip_blocks(struct amdgpu_device *adev)
+ 		amdgpu_device_ip_block_add(adev, &gmc_v7_0_ip_block);
+ 		amdgpu_device_ip_block_add(adev, &cik_ih_ip_block);
+ 		if (amdgpu_dpm == -1)
+-			amdgpu_device_ip_block_add(adev, &ci_smu_ip_block);
+-		else
+ 			amdgpu_device_ip_block_add(adev, &pp_smu_ip_block);
++		else
++			amdgpu_device_ip_block_add(adev, &ci_smu_ip_block);
+ 		if (adev->enable_virtual_display)
+ 			amdgpu_device_ip_block_add(adev, &dce_virtual_ip_block);
+ #if defined(CONFIG_DRM_AMD_DC)
+-- 
+2.7.4
+

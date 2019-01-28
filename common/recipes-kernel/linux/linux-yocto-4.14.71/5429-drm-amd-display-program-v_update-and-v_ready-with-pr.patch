@@ -1,0 +1,97 @@
+From bf53f5dcd7221d4138bdae96c9640477f4c4df03 Mon Sep 17 00:00:00 2001
+From: Su Sung Chung <su.chung@amd.com>
+Date: Fri, 7 Sep 2018 16:51:42 -0400
+Subject: [PATCH 5429/5725] drm/amd/display: program v_update and v_ready with
+ proper field
+
+[WHY]
+There are two different variables used to calculate v_update and v_ready,
+one for validation and the other for performance parameter calculation.
+Before the variable for validation was used which caused underflow on
+1080edp with vsr enabled
+
+[HOW]
+program v_update and v_ready with the variables for performance parameter
+calculation
+
+Change-Id: I23aaa71289fa6739422fb7c789cf63f2cdbdc6b2
+Signed-off-by: Su Sung Chung <su.chung@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/calcs/dcn_calc_auto.c |  8 ++++----
+ drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c     | 12 ++++++------
+ drivers/gpu/drm/amd/display/dc/inc/dcn_calcs.h       |  6 +++---
+ 3 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calc_auto.c b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calc_auto.c
+index 5e2ea12..d0fc54f 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calc_auto.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calc_auto.c
+@@ -1625,11 +1625,11 @@ void dispclkdppclkdcfclk_deep_sleep_prefetch_parameters_watermarks_and_performan
+ 				else {
+ 					v->dsty_after_scaler = 0.0;
+ 				}
+-				v->v_update_offset_pix =dcn_bw_ceil2(v->htotal[k] / 4.0, 1.0);
++				v->v_update_offset_pix[k] = dcn_bw_ceil2(v->htotal[k] / 4.0, 1.0);
+ 				v->total_repeater_delay_time = v->max_inter_dcn_tile_repeaters * (2.0 / v->dppclk + 3.0 / v->dispclk);
+-				v->v_update_width_pix = (14.0 / v->dcf_clk_deep_sleep + 12.0 / v->dppclk + v->total_repeater_delay_time) * v->pixel_clock[k];
+-				v->v_ready_offset_pix =dcn_bw_max2(150.0 / v->dppclk, v->total_repeater_delay_time + 20.0 / v->dcf_clk_deep_sleep + 10.0 / v->dppclk) * v->pixel_clock[k];
+-				v->t_setup = (v->v_update_offset_pix + v->v_update_width_pix + v->v_ready_offset_pix) / v->pixel_clock[k];
++				v->v_update_width_pix[k] = (14.0 / v->dcf_clk_deep_sleep + 12.0 / v->dppclk + v->total_repeater_delay_time) * v->pixel_clock[k];
++				v->v_ready_offset_pix[k] = dcn_bw_max2(150.0 / v->dppclk, v->total_repeater_delay_time + 20.0 / v->dcf_clk_deep_sleep + 10.0 / v->dppclk) * v->pixel_clock[k];
++				v->t_setup = (v->v_update_offset_pix[k] + v->v_update_width_pix[k] + v->v_ready_offset_pix[k]) / v->pixel_clock[k];
+ 				v->v_startup[k] =dcn_bw_min2(v->v_startup_lines, v->max_vstartup_lines[k]);
+ 				if (v->prefetch_mode == 0.0) {
+ 					v->t_wait =dcn_bw_max3(v->dram_clock_change_latency + v->urgent_latency, v->sr_enter_plus_exit_time, v->urgent_latency);
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+index 80ec09e..3208188 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+@@ -1096,9 +1096,9 @@ bool dcn_validate_bandwidth(
+ 			if (pipe->top_pipe && pipe->top_pipe->plane_state == pipe->plane_state)
+ 				continue;
+ 
+-			pipe->pipe_dlg_param.vupdate_width = v->v_update_width[input_idx][v->dpp_per_plane[input_idx] == 2 ? 1 : 0];
+-			pipe->pipe_dlg_param.vupdate_offset = v->v_update_offset[input_idx][v->dpp_per_plane[input_idx] == 2 ? 1 : 0];
+-			pipe->pipe_dlg_param.vready_offset = v->v_ready_offset[input_idx][v->dpp_per_plane[input_idx] == 2 ? 1 : 0];
++			pipe->pipe_dlg_param.vupdate_width = v->v_update_width_pix[input_idx];
++			pipe->pipe_dlg_param.vupdate_offset = v->v_update_offset_pix[input_idx];
++			pipe->pipe_dlg_param.vready_offset = v->v_ready_offset_pix[input_idx];
+ 			pipe->pipe_dlg_param.vstartup_start = v->v_startup[input_idx];
+ 
+ 			pipe->pipe_dlg_param.htotal = pipe->stream->timing.h_total;
+@@ -1137,9 +1137,9 @@ bool dcn_validate_bandwidth(
+ 					 TIMING_3D_FORMAT_SIDE_BY_SIDE))) {
+ 					if (hsplit_pipe && hsplit_pipe->plane_state == pipe->plane_state) {
+ 						/* update previously split pipe */
+-						hsplit_pipe->pipe_dlg_param.vupdate_width = v->v_update_width[input_idx][v->dpp_per_plane[input_idx] == 2 ? 1 : 0];
+-						hsplit_pipe->pipe_dlg_param.vupdate_offset = v->v_update_offset[input_idx][v->dpp_per_plane[input_idx] == 2 ? 1 : 0];
+-						hsplit_pipe->pipe_dlg_param.vready_offset = v->v_ready_offset[input_idx][v->dpp_per_plane[input_idx] == 2 ? 1 : 0];
++						hsplit_pipe->pipe_dlg_param.vupdate_width = v->v_update_width_pix[input_idx];
++						hsplit_pipe->pipe_dlg_param.vupdate_offset = v->v_update_offset_pix[input_idx];
++						hsplit_pipe->pipe_dlg_param.vready_offset = v->v_ready_offset_pix[input_idx];
+ 						hsplit_pipe->pipe_dlg_param.vstartup_start = v->v_startup[input_idx];
+ 
+ 						hsplit_pipe->pipe_dlg_param.htotal = pipe->stream->timing.h_total;
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/dcn_calcs.h b/drivers/gpu/drm/amd/display/dc/inc/dcn_calcs.h
+index ddbb673..e688eb9 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/dcn_calcs.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/dcn_calcs.h
+@@ -504,10 +504,10 @@ struct dcn_bw_internal_vars {
+ 	float prefetch_mode;
+ 	float dstx_after_scaler;
+ 	float dsty_after_scaler;
+-	float v_update_offset_pix;
++	float v_update_offset_pix[number_of_planes_minus_one + 1];
+ 	float total_repeater_delay_time;
+-	float v_update_width_pix;
+-	float v_ready_offset_pix;
++	float v_update_width_pix[number_of_planes_minus_one + 1];
++	float v_ready_offset_pix[number_of_planes_minus_one + 1];
+ 	float t_setup;
+ 	float t_wait;
+ 	float bandwidth_available_for_immediate_flip;
+-- 
+2.7.4
+

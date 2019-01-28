@@ -1,0 +1,35 @@
+From 602f61c760885ef0151f7b99618d01d2368e37b5 Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Fri, 20 Apr 2018 11:05:07 -0400
+Subject: [PATCH 4362/5725] drm/amd/display: Add VG12 ASIC IDs
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/include/dal_asic_id.h | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/include/dal_asic_id.h b/drivers/gpu/drm/amd/display/include/dal_asic_id.h
+index 3e8e535..1b987b6 100644
+--- a/drivers/gpu/drm/amd/display/include/dal_asic_id.h
++++ b/drivers/gpu/drm/amd/display/include/dal_asic_id.h
+@@ -120,9 +120,14 @@
+ 
+ #define AI_GREENLAND_P_A0 1
+ #define AI_GREENLAND_P_A1 2
++#define AI_UNKNOWN 0xFF
+ 
+-#define ASICREV_IS_GREENLAND_M(eChipRev)  (eChipRev < AI_UNKNOWN)
+-#define ASICREV_IS_GREENLAND_P(eChipRev)  (eChipRev < AI_UNKNOWN)
++#define AI_VEGA12_P_A0 20
++#define ASICREV_IS_GREENLAND_M(eChipRev)  (eChipRev < AI_VEGA12_P_A0)
++#define ASICREV_IS_GREENLAND_P(eChipRev)  (eChipRev < AI_VEGA12_P_A0)
++
++#define ASICREV_IS_VEGA12_P(eChipRev) ((eChipRev >= AI_VEGA12_P_A0) && (eChipRev < AI_UNKNOWN))
++#define ASICREV_IS_VEGA12_p(eChipRev) ((eChipRev >= AI_VEGA12_P_A0) && (eChipRev < AI_UNKNOWN))
+ 
+ /* DCN1_0 */
+ #define INTERNAL_REV_RAVEN_A0             0x00    /* First spin of Raven */
+-- 
+2.7.4
+

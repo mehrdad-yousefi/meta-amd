@@ -1,0 +1,54 @@
+From da5f24c016704e073d38ee23f06159f25a05fbbb Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Tue, 14 Aug 2018 10:33:25 +0800
+Subject: [PATCH 5151/5725] drm/amdgpu/psp: Enlarge PSP TMR SIZE from 3M to 4M.
+
+Enlarge the PSP TMR SIZE to 4M for dual UVD fw front-door loading.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c | 6 ++++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_psp.h | 1 +
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+index 70b7d42..f74f155 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+@@ -162,7 +162,7 @@ static int psp_tmr_init(struct psp_context *psp)
+ 	 * Note: this memory need be reserved till the driver
+ 	 * uninitializes.
+ 	 */
+-	ret = amdgpu_bo_create_kernel(psp->adev, 0x300000, 0x100000,
++	ret = amdgpu_bo_create_kernel(psp->adev, PSP_TMR_SIZE, 0x100000,
+ 				      AMDGPU_GEM_DOMAIN_VRAM,
+ 				      &psp->tmr_bo, &psp->tmr_mc_addr, &psp->tmr_buf);
+ 
+@@ -178,7 +178,9 @@ static int psp_tmr_load(struct psp_context *psp)
+ 	if (!cmd)
+ 		return -ENOMEM;
+ 
+-	psp_prep_tmr_cmd_buf(cmd, psp->tmr_mc_addr, 0x300000);
++	psp_prep_tmr_cmd_buf(cmd, psp->tmr_mc_addr, PSP_TMR_SIZE);
++	DRM_INFO("reserve 0x%x from 0x%llx for PSP TMR SIZE\n",
++			PSP_TMR_SIZE, psp->tmr_mc_addr);
+ 
+ 	ret = psp_cmd_submit_buf(psp, NULL, cmd,
+ 				 psp->fence_buf_mc_addr, 1);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.h
+index d772545..981887c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.h
+@@ -32,6 +32,7 @@
+ #define PSP_CMD_BUFFER_SIZE	0x1000
+ #define PSP_ASD_SHARED_MEM_SIZE	0x4000
+ #define PSP_1_MEG		0x100000
++#define PSP_TMR_SIZE	0x400000
+ 
+ struct psp_context;
+ 
+-- 
+2.7.4
+

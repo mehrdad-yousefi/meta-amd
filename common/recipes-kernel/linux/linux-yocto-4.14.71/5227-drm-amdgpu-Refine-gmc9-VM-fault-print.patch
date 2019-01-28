@@ -1,0 +1,36 @@
+From 3e9b16e776ee6f6698042c01a04f3685df075945 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Mon, 27 Aug 2018 14:17:26 -0400
+Subject: [PATCH 5227/5725] drm/amdgpu: Refine gmc9 VM fault print.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The fault reports the page number where the fault happend and not
+the exact faulty address. Update the print message to reflect that.
+
+Change-Id: Ib94e5424a63f135d2e8a972b0aa46ec05ddfcbe4
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Marek Olšák <marek.olsak@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index a2625e2..9e8b52c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -269,7 +269,7 @@ static int gmc_v9_0_process_interrupt(struct amdgpu_device *adev,
+ 			entry->src_id, entry->ring_id, entry->vmid,
+ 			entry->pasid, task_info.process_name, task_info.tgid,
+ 			task_info.task_name, task_info.pid);
+-		dev_err(adev->dev, "  at address 0x%016llx from %d\n",
++		dev_err(adev->dev, "  in page starting at address 0x%016llx from %d\n",
+ 			addr, entry->client_id);
+ 		if (!amdgpu_sriov_vf(adev))
+ 			dev_err(adev->dev,
+-- 
+2.7.4
+

@@ -1,0 +1,57 @@
+From 3d821a20d973174032f63283b6cfe7183af03d40 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 28 Sep 2018 16:57:34 +0800
+Subject: [PATCH 5483/5725] drm/amd/pp: Remove uncessary extra vcn pg cntl in
+ smu
+
+the vcn power will be controlled by VCN.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c | 16 +---------------
+ 1 file changed, 1 insertion(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+index d78d864..d0eb8ab 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+@@ -186,26 +186,12 @@ static int smu10_verify_smc_interface(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
+-/* vcn is disabled by default in vbios, need to re-enable in driver */
+-static void smu10_smc_enable_vcn(struct pp_hwmgr *hwmgr)
+-{
+-	smu10_send_msg_to_smc_with_parameter(hwmgr,
+-			PPSMC_MSG_PowerUpVcn, 0);
+-}
+-
+-static void smu10_smc_disable_vcn(struct pp_hwmgr *hwmgr)
+-{
+-	smu10_send_msg_to_smc_with_parameter(hwmgr,
+-			PPSMC_MSG_PowerDownVcn, 0);
+-}
+-
+ static int smu10_smu_fini(struct pp_hwmgr *hwmgr)
+ {
+ 	struct smu10_smumgr *priv =
+ 			(struct smu10_smumgr *)(hwmgr->smu_backend);
+ 
+ 	if (priv) {
+-		smu10_smc_disable_vcn(hwmgr);
+ 		amdgpu_bo_free_kernel(&priv->smu_tables.entry[SMU10_WMTABLE].handle,
+ 					&priv->smu_tables.entry[SMU10_WMTABLE].mc_addr,
+ 					&priv->smu_tables.entry[SMU10_WMTABLE].table);
+@@ -229,7 +215,7 @@ static int smu10_start_smu(struct pp_hwmgr *hwmgr)
+ 
+ 	if (smu10_verify_smc_interface(hwmgr))
+ 		return -EINVAL;
+-	smu10_smc_enable_vcn(hwmgr);
++
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

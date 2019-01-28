@@ -1,0 +1,28 @@
+From f71a255355fd9a1e47427f6dd27cd5f02ef9f1a6 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Wed, 11 Apr 2018 15:24:01 -0500
+Subject: [PATCH 4321/5725] drm/amdgpu: add VEGAM UVD encode support
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c b/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c
+index 981e233..3c58adc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c
+@@ -62,7 +62,7 @@ static void uvd_v6_0_enable_mgcg(struct amdgpu_device *adev,
+ static inline bool uvd_v6_0_enc_support(struct amdgpu_device *adev)
+ {
+ 	return ((adev->asic_type >= CHIP_POLARIS10) &&
+-			(adev->asic_type <= CHIP_POLARIS12) &&
++			(adev->asic_type <= CHIP_VEGAM) &&
+ 			(!adev->uvd.fw_version || adev->uvd.fw_version >= FW_1_130_16));
+ }
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,67 @@
+From d8cafcaa0e23ee60b242edbd2e75a2f77d0ba35b Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 30 May 2018 14:47:39 -0400
+Subject: [PATCH 4605/5725] drm/amdgpu: initialize vcn jpeg ring
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add implementations for vcn jpeg ring initialization
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 4426393..9ded8ef 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -125,6 +125,12 @@ static int vcn_v1_0_sw_init(void *handle)
+ 			return r;
+ 	}
+ 
++	ring = &adev->vcn.ring_jpeg;
++	sprintf(ring->name, "vcn_jpeg");
++	r = amdgpu_ring_init(adev, ring, 512, &adev->vcn.irq, 0);
++	if (r)
++		return r;
++
+ 	return r;
+ }
+ 
+@@ -179,6 +185,14 @@ static int vcn_v1_0_hw_init(void *handle)
+ 		}
+ 	}
+ 
++	ring = &adev->vcn.ring_jpeg;
++	ring->ready = true;
++	r = amdgpu_ring_test_ring(ring);
++	if (r) {
++		ring->ready = false;
++		goto done;
++	}
++
+ done:
+ 	if (!r)
+ 		DRM_INFO("VCN decode and encode initialized successfully.\n");
+@@ -758,6 +772,15 @@ static int vcn_v1_0_start(struct amdgpu_device *adev)
+ 	WREG32_SOC15(UVD, 0, mmUVD_RB_BASE_HI2, upper_32_bits(ring->gpu_addr));
+ 	WREG32_SOC15(UVD, 0, mmUVD_RB_SIZE2, ring->ring_size / 4);
+ 
++	ring = &adev->vcn.ring_jpeg;
++	WREG32_SOC15(UVD, 0, mmUVD_LMI_JRBC_RB_VMID, 0);
++	WREG32_SOC15(UVD, 0, mmUVD_JRBC_RB_CNTL, (0x00000001L | 0x00000002L));
++	WREG32_SOC15(UVD, 0, mmUVD_LMI_JRBC_RB_64BIT_BAR_LOW, lower_32_bits(ring->gpu_addr));
++	WREG32_SOC15(UVD, 0, mmUVD_LMI_JRBC_RB_64BIT_BAR_HIGH, upper_32_bits(ring->gpu_addr));
++	WREG32_SOC15(UVD, 0, mmUVD_JRBC_RB_RPTR, 0);
++	WREG32_SOC15(UVD, 0, mmUVD_JRBC_RB_WPTR, 0);
++	WREG32_SOC15(UVD, 0, mmUVD_JRBC_RB_CNTL, 0x00000002L);
++
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,57 @@
+From 7b42a01a2719991ab56e3dc990430d317adfd60b Mon Sep 17 00:00:00 2001
+From: Ravi Kumar <ravi1.kumar@amd.com>
+Date: Fri, 2 Nov 2018 18:43:17 +0530
+Subject: [PATCH 5623/5725] drm/amdkfd: Fixing compilation issues.
+
+Signed-off-by: Ravi Kumar <ravi1.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c | 4 ++--
+ drivers/gpu/drm/amd/include/kgd_kfd_interface.h  | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+ mode change 100644 => 100755 drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+old mode 100644
+new mode 100755
+index c3446ef..1fd2b33
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1941,7 +1941,7 @@ int amdgpu_amdkfd_evict_userptr(struct kgd_mem *mem,
+ 	evicted_bos = atomic_inc_return(&process_info->evicted_bos);
+ 	if (evicted_bos == 1) {
+ 		/* First eviction, stop the queues */
+-		r = kgd2kfd->quiesce_mm(mm);
++		r = kgd2kfd->quiesce_mm(NULL, mm);
+ 		if (r)
+ 			pr_err("Failed to quiesce KFD\n");
+ 		schedule_delayed_work(&process_info->work, 1);
+@@ -2231,7 +2231,7 @@ static void amdgpu_amdkfd_restore_userptr_worker(struct work_struct *work)
+ 	    evicted_bos)
+ 		goto unlock_out;
+ 	evicted_bos = 0;
+-	if (kgd2kfd->resume_mm(mm)) {
++	if (kgd2kfd->resume_mm(NULL, mm)) {
+ 		pr_err("%s: Failed to resume KFD\n", __func__);
+ 		/* No recovery from this failure. Probably the CP is
+ 		 * hanging. No point trying again.
+diff --git a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+old mode 100644
+new mode 100755
+index da7c6f5..ad6ee1b
+--- a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+@@ -445,8 +445,8 @@ struct kgd2kfd_calls {
+ 	void (*interrupt)(struct kfd_dev *kfd, const void *ih_ring_entry);
+ 	void (*suspend)(struct kfd_dev *kfd);
+ 	int (*resume)(struct kfd_dev *kfd);
+-	int (*quiesce_mm)(struct mm_struct *mm);
+-	int (*resume_mm)(struct mm_struct *mm);
++	int (*quiesce_mm)(struct kfd_dev *kfd, struct mm_struct *mm);
++	int (*resume_mm)(struct kfd_dev *kfd, struct mm_struct *mm);
+ 	int (*schedule_evict_and_restore_process)(struct mm_struct *mm,
+ 			struct dma_fence *fence);
+ 	int  (*pre_reset)(struct kfd_dev *kfd);
+-- 
+2.7.4
+

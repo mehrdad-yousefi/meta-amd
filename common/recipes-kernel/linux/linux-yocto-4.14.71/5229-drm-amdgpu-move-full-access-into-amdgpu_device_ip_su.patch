@@ -1,0 +1,63 @@
+From 09063ee0ba4aab71b9fd758ab08cd3a5a15142af Mon Sep 17 00:00:00 2001
+From: Yintian Tao <yttao@amd.com>
+Date: Wed, 22 Aug 2018 17:08:13 +0800
+Subject: [PATCH 5229/5725] drm/amdgpu: move full access into
+ amdgpu_device_ip_suspend
+
+It will be more safe to make full-acess include both phase1 and phase2.
+Then accessing special registeris wherever at phase1 or phase2 will not
+block any shutdown and suspend process under virtualization.
+
+Change-Id: I118925ae2d1aca54e53bd770b6e10ac4763e0c0f
+Signed-off-by: Yintian Tao <yttao@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 67adfb4..e850cde 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1981,9 +1981,6 @@ static int amdgpu_device_ip_suspend_phase1(struct amdgpu_device *adev)
+ {
+ 	int i, r;
+ 
+-	if (amdgpu_sriov_vf(adev))
+-		amdgpu_virt_request_full_gpu(adev, false);
+-
+ 	amdgpu_device_set_pg_state(adev, AMD_PG_STATE_UNGATE);
+ 	amdgpu_device_set_cg_state(adev, AMD_CG_STATE_UNGATE);
+ 
+@@ -2002,9 +1999,6 @@ static int amdgpu_device_ip_suspend_phase1(struct amdgpu_device *adev)
+ 		}
+ 	}
+ 
+-	if (amdgpu_sriov_vf(adev))
+-		amdgpu_virt_release_full_gpu(adev, false);
+-
+ 	return 0;
+ }
+ 
+@@ -2056,11 +2050,17 @@ int amdgpu_device_ip_suspend(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
++	if (amdgpu_sriov_vf(adev))
++		amdgpu_virt_request_full_gpu(adev, false);
++
+ 	r = amdgpu_device_ip_suspend_phase1(adev);
+ 	if (r)
+ 		return r;
+ 	r = amdgpu_device_ip_suspend_phase2(adev);
+ 
++	if (amdgpu_sriov_vf(adev))
++		amdgpu_virt_release_full_gpu(adev, false);
++
+ 	return r;
+ }
+ 
+-- 
+2.7.4
+

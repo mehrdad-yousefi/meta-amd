@@ -1,0 +1,31 @@
+From cad9327973f1f66df48948784f5429e4f315aee3 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 31 May 2018 09:28:47 -0500
+Subject: [PATCH 4560/5725] drm/amdgpu/display: enable CONFIG_DRM_AMD_DC_DCN1_0
+ by default
+
+It's required for displays on Raven.  The DCN bandwidth calcs use
+floating point, but DCN is APU only and it already depends on
+X86.
+
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/Kconfig b/drivers/gpu/drm/amd/display/Kconfig
+index 88e763f..b23c89a 100644
+--- a/drivers/gpu/drm/amd/display/Kconfig
++++ b/drivers/gpu/drm/amd/display/Kconfig
+@@ -12,6 +12,7 @@ config DRM_AMD_DC
+ config DRM_AMD_DC_DCN1_0
+ 	bool "DCN 1.0 Raven family"
+ 	depends on DRM_AMD_DC && X86
++	default y
+ 	help
+ 	  Choose this option if you want to have
+ 	  RV family for display engine
+-- 
+2.7.4
+

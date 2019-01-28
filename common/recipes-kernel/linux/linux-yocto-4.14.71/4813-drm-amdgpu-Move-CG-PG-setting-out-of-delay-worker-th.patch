@@ -1,0 +1,69 @@
+From fc75b73652c45234c1b5cced6dbbebfe453c3104 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 6 Jun 2018 13:42:42 +0800
+Subject: [PATCH 4813/5725] drm/amdgpu: Move CG/PG setting out of delay worker
+ thread
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Partially revert commit 2dc80b00652f
+("drm/amdgpu: optimize amdgpu driver load & resume time")'
+
+1. CG/PG enablement are part of gpu hw ip initialize, we should
+wait for them complete. otherwise, there are some potential conflicts,
+for example, Suspend and CG enablement concurrently.
+2. better run ib test after hw initialize completely. That is to say,
+   ib test should be after CG/PG enablement. otherwise, the test will
+   not cover the cg/pg/poweroff enable case.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 41cff36..c0c835a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1757,10 +1757,6 @@ static int amdgpu_device_ip_late_set_cg_state(struct amdgpu_device *adev)
+ 	if (amdgpu_emu_mode == 1)
+ 		return 0;
+ 
+-	r = amdgpu_ib_ring_tests(adev);
+-	if (r)
+-		DRM_ERROR("ib ring test failed (%d).\n", r);
+-
+ 	for (i = 0; i < adev->num_ip_blocks; i++) {
+ 		if (!adev->ip_blocks[i].status.valid)
+ 			continue;
+@@ -1841,6 +1837,9 @@ static int amdgpu_device_ip_late_init(struct amdgpu_device *adev)
+ 		}
+ 	}
+ 
++	amdgpu_device_ip_late_set_cg_state(adev);
++	amdgpu_device_ip_late_set_pg_state(adev);
++
+ 	queue_delayed_work(system_wq, &adev->late_init_work,
+ 			   msecs_to_jiffies(AMDGPU_RESUME_MS));
+ 
+@@ -1968,8 +1967,11 @@ static void amdgpu_device_ip_late_init_func_handler(struct work_struct *work)
+ {
+ 	struct amdgpu_device *adev =
+ 		container_of(work, struct amdgpu_device, late_init_work.work);
+-	amdgpu_device_ip_late_set_cg_state(adev);
+-	amdgpu_device_ip_late_set_pg_state(adev);
++	int r;
++
++	r = amdgpu_ib_ring_tests(adev);
++	if (r)
++		DRM_ERROR("ib ring test failed (%d).\n", r);
+ }
+ 
+ /**
+-- 
+2.7.4
+

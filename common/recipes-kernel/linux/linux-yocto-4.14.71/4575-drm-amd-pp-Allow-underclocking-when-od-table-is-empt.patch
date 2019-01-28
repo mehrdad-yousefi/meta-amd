@@ -1,0 +1,121 @@
+From 81a6e77c8965eabd30a4e416a30edbd3692afea9 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 30 May 2018 16:52:22 +0800
+Subject: [PATCH 4575/5725] drm/amd/pp: Allow underclocking when od table is
+ empty in vbios
+
+if max od engine clock limit and memory clock limit are not set
+in vbios. driver will allow underclocking instand of disable od feature
+completely.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c  | 6 ------
+ drivers/gpu/drm/amd/powerplay/hwmgr/processpptables.c        | 6 ------
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c             | 5 ++++-
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c           | 6 ++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_processpptables.c | 6 ------
+ 5 files changed, 10 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c b/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c
+index f0d48b1..35bd987 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c
+@@ -870,12 +870,6 @@ static int init_over_drive_limits(
+ 	hwmgr->platform_descriptor.maxOverdriveVDDC = 0;
+ 	hwmgr->platform_descriptor.overdriveVDDCStep = 0;
+ 
+-	if (hwmgr->platform_descriptor.overdriveLimit.engineClock == 0 \
+-		|| hwmgr->platform_descriptor.overdriveLimit.memoryClock == 0) {
+-		hwmgr->od_enabled = false;
+-		pr_debug("OverDrive feature not support by VBIOS\n");
+-	}
+-
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/processpptables.c
+index ce64dfa..925e171 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/processpptables.c
+@@ -1074,12 +1074,6 @@ static int init_overdrive_limits(struct pp_hwmgr *hwmgr,
+ 				powerplay_table,
+ 				(const ATOM_FIRMWARE_INFO_V2_1 *)fw_info);
+ 
+-	if (hwmgr->platform_descriptor.overdriveLimit.engineClock == 0
+-		&& hwmgr->platform_descriptor.overdriveLimit.memoryClock == 0) {
+-		hwmgr->od_enabled = false;
+-		pr_debug("OverDrive feature not support by VBIOS\n");
+-	}
+-
+ 	return result;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index f697a56..46d6368 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -791,7 +791,8 @@ static int smu7_setup_dpm_tables_v1(struct pp_hwmgr *hwmgr)
+ 			data->dpm_table.sclk_table.count++;
+ 		}
+ 	}
+-
++	if (hwmgr->platform_descriptor.overdriveLimit.engineClock == 0)
++		hwmgr->platform_descriptor.overdriveLimit.engineClock = dep_sclk_table->entries[i-1].clk;
+ 	/* Initialize Mclk DPM table based on allow Mclk values */
+ 	data->dpm_table.mclk_table.count = 0;
+ 	for (i = 0; i < dep_mclk_table->count; i++) {
+@@ -806,6 +807,8 @@ static int smu7_setup_dpm_tables_v1(struct pp_hwmgr *hwmgr)
+ 		}
+ 	}
+ 
++	if (hwmgr->platform_descriptor.overdriveLimit.memoryClock == 0)
++		hwmgr->platform_descriptor.overdriveLimit.memoryClock = dep_mclk_table->entries[i-1].clk;
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 0ad2ca3..896c10b 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -1311,6 +1311,9 @@ static int vega10_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 	vega10_setup_default_single_dpm_table(hwmgr,
+ 			dpm_table,
+ 			dep_gfx_table);
++	if (hwmgr->platform_descriptor.overdriveLimit.engineClock == 0)
++		hwmgr->platform_descriptor.overdriveLimit.engineClock =
++					dpm_table->dpm_levels[dpm_table->count-1].value;
+ 	vega10_init_dpm_state(&(dpm_table->dpm_state));
+ 
+ 	/* Initialize Mclk DPM table based on allow Mclk values */
+@@ -1319,6 +1322,9 @@ static int vega10_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 	vega10_setup_default_single_dpm_table(hwmgr,
+ 			dpm_table,
+ 			dep_mclk_table);
++	if (hwmgr->platform_descriptor.overdriveLimit.memoryClock == 0)
++		hwmgr->platform_descriptor.overdriveLimit.memoryClock =
++					dpm_table->dpm_levels[dpm_table->count-1].value;
+ 	vega10_init_dpm_state(&(dpm_table->dpm_state));
+ 
+ 	data->dpm_table.eclk_table.count = 0;
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_processpptables.c
+index 0768d25..16b1a9c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_processpptables.c
+@@ -267,12 +267,6 @@ static int init_over_drive_limits(
+ 	hwmgr->platform_descriptor.maxOverdriveVDDC = 0;
+ 	hwmgr->platform_descriptor.overdriveVDDCStep = 0;
+ 
+-	if (hwmgr->platform_descriptor.overdriveLimit.engineClock == 0 ||
+-		hwmgr->platform_descriptor.overdriveLimit.memoryClock == 0) {
+-		hwmgr->od_enabled = false;
+-		pr_debug("OverDrive feature not support by VBIOS\n");
+-	}
+-
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,26 @@
+From 6383b7b4222de7deb1b838eb9f554b81ad46b447 Mon Sep 17 00:00:00 2001
+From: "Dirk Hohndel (VMware)" <dirk@hohndel.org>
+Date: Mon, 7 May 2018 01:16:20 +0200
+Subject: [PATCH 4837/5725] drm/amd: add SPDX identifier and clarify license
+
+This is dual licensed under GPL-2.0 or MIT.
+
+Acked-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Dirk Hohndel (VMware) <dirk@hohndel.org>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_test.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c
+index d167e8a..4c600ba 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_test.c
+@@ -1,3 +1,4 @@
++// SPDX-License-Identifier: GPL-2.0 OR MIT
+ /*
+  * Copyright 2009 VMware, Inc.
+  *
+-- 
+2.7.4
+

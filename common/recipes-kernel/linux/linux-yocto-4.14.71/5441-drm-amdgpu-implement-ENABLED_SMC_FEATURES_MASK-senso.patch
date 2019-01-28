@@ -1,0 +1,75 @@
+From 88c0d1440d2e6c94ba36bc992251e15e9503fd59 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 20 Sep 2018 22:34:42 -0500
+Subject: [PATCH 5441/5725] drm/amdgpu: implement ENABLED_SMC_FEATURES_MASK
+ sensor for vega10
+
+So we can query what features are enabled for debugging.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c   | 5 +++++
+ drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c | 8 ++++----
+ drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h | 2 ++
+ 3 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 6246d2c..2471170 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -3713,6 +3713,11 @@ static int vega10_read_sensor(struct pp_hwmgr *hwmgr, int idx,
+ 			SMUSVI0_PLANE0_CURRENTVID__CURRENT_SVI0_PLANE0_VID__SHIFT;
+ 		*((uint32_t *)value) = (uint32_t)convert_to_vddc((uint8_t)val_vid);
+ 		return 0;
++	case AMDGPU_PP_SENSOR_ENABLED_SMC_FEATURES_MASK:
++		ret = vega10_get_enabled_smc_features(hwmgr, (uint64_t *)value);
++		if (!ret)
++			*size = 8;
++		break;
+ 	default:
+ 		ret = -EINVAL;
+ 		break;
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c
+index 8176d33..c81acc3 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c
+@@ -98,8 +98,8 @@ int vega10_enable_smc_features(struct pp_hwmgr *hwmgr,
+ 			msg, feature_mask);
+ }
+ 
+-static int vega10_get_smc_features(struct pp_hwmgr *hwmgr,
+-		uint32_t *features_enabled)
++int vega10_get_enabled_smc_features(struct pp_hwmgr *hwmgr,
++			    uint64_t *features_enabled)
+ {
+ 	if (features_enabled == NULL)
+ 		return -EINVAL;
+@@ -112,9 +112,9 @@ static int vega10_get_smc_features(struct pp_hwmgr *hwmgr,
+ 
+ static bool vega10_is_dpm_running(struct pp_hwmgr *hwmgr)
+ {
+-	uint32_t features_enabled = 0;
++	uint64_t features_enabled = 0;
+ 
+-	vega10_get_smc_features(hwmgr, &features_enabled);
++	vega10_get_enabled_smc_features(hwmgr, &features_enabled);
+ 
+ 	if (features_enabled & SMC_DPM_FEATURES)
+ 		return true;
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h
+index 630c0ae..bad760f 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h
+@@ -44,6 +44,8 @@ struct vega10_smumgr {
+ 
+ int vega10_enable_smc_features(struct pp_hwmgr *hwmgr,
+ 			       bool enable, uint32_t feature_mask);
++int vega10_get_enabled_smc_features(struct pp_hwmgr *hwmgr,
++				    uint64_t *features_enabled);
+ 
+ #endif
+ 
+-- 
+2.7.4
+

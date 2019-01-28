@@ -1,0 +1,38 @@
+From 0a41395f8c44c3235e5b6df7b43e424b3a356fdf Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 30 Aug 2018 09:41:12 -0500
+Subject: [PATCH 5242/5725] drm/amdgpu/gmc9: don't keep stolen memory on Raven
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Raven does not appear to be affected by the same issue
+as vega10.  Enable the full stolen memory handling on
+Raven.  Reserve the appropriate size at init time to avoid
+display artifacts and then free it at the end of init once
+the new FB is up and running.
+
+Bug: https://bugs.freedesktop.org/show_bug.cgi?id=106639
+Change-Id: I40e015a6b960afddc1af688be7200bfd656b7aa4
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 25c33e8..f5db31c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -705,6 +705,7 @@ static bool gmc_v9_0_keep_stolen_memory(struct amdgpu_device *adev)
+ 	 */
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
++		return false;
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+-- 
+2.7.4
+

@@ -1,0 +1,32 @@
+From 8187a7e1d15292a0691bea40498356fea4a301ba Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Fri, 10 Aug 2018 13:21:09 -0500
+Subject: [PATCH 5112/5725] drm/amdgpu/powerplay/vega10: enable AVFS control
+ via ppfeaturemask
+
+Allow the user to disable AFVS via ppfeaturemask for debugging.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 61c6be2..25397a3 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -129,7 +129,8 @@ static void vega10_set_default_registry_data(struct pp_hwmgr *hwmgr)
+ 	data->registry_data.thermal_support = 1;
+ 	data->registry_data.fw_ctf_enabled = 1;
+ 
+-	data->registry_data.avfs_support = 1;
++	data->registry_data.avfs_support =
++		hwmgr->feature_mask & PP_AVFS_MASK ? true : false;
+ 	data->registry_data.led_dpm_enabled = 1;
+ 
+ 	data->registry_data.vr0hot_enabled = 1;
+-- 
+2.7.4
+

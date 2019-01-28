@@ -1,0 +1,212 @@
+From 3272a1b6061148fffdb127c7869f6256f8cebc61 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 21 Aug 2018 17:07:47 +0200
+Subject: [PATCH 5198/5725] drm/amdgpu: rename gart.robj into gart.bo
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+sed -i "s/gart.robj/gart.bo/" drivers/gpu/drm/amd/amdgpu/*.c
+sed -i "s/gart.robj/gart.bo/" drivers/gpu/drm/amd/amdgpu/*.h
+
+Just cleaning up radeon leftovers.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c | 32 ++++++++++++++++----------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h |  2 +-
+ drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c    |  4 ++--
+ drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c    |  4 ++--
+ drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c    |  4 ++--
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c    |  4 ++--
+ 6 files changed, 25 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c
+index a14379c..b2e0083 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.c
+@@ -112,7 +112,7 @@ int amdgpu_gart_table_vram_alloc(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	if (adev->gart.robj == NULL) {
++	if (adev->gart.bo == NULL) {
+ 		struct amdgpu_bo_param bp;
+ 
+ 		memset(&bp, 0, sizeof(bp));
+@@ -123,7 +123,7 @@ int amdgpu_gart_table_vram_alloc(struct amdgpu_device *adev)
+ 			AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
+ 		bp.type = ttm_bo_type_kernel;
+ 		bp.resv = NULL;
+-		r = amdgpu_bo_create(adev, &bp, &adev->gart.robj);
++		r = amdgpu_bo_create(adev, &bp, &adev->gart.bo);
+ 		if (r) {
+ 			return r;
+ 		}
+@@ -145,19 +145,19 @@ int amdgpu_gart_table_vram_pin(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	r = amdgpu_bo_reserve(adev->gart.robj, false);
++	r = amdgpu_bo_reserve(adev->gart.bo, false);
+ 	if (unlikely(r != 0))
+ 		return r;
+-	r = amdgpu_bo_pin(adev->gart.robj, AMDGPU_GEM_DOMAIN_VRAM);
++	r = amdgpu_bo_pin(adev->gart.bo, AMDGPU_GEM_DOMAIN_VRAM);
+ 	if (r) {
+-		amdgpu_bo_unreserve(adev->gart.robj);
++		amdgpu_bo_unreserve(adev->gart.bo);
+ 		return r;
+ 	}
+-	r = amdgpu_bo_kmap(adev->gart.robj, &adev->gart.ptr);
++	r = amdgpu_bo_kmap(adev->gart.bo, &adev->gart.ptr);
+ 	if (r)
+-		amdgpu_bo_unpin(adev->gart.robj);
+-	amdgpu_bo_unreserve(adev->gart.robj);
+-	adev->gart.table_addr = amdgpu_bo_gpu_offset(adev->gart.robj);
++		amdgpu_bo_unpin(adev->gart.bo);
++	amdgpu_bo_unreserve(adev->gart.bo);
++	adev->gart.table_addr = amdgpu_bo_gpu_offset(adev->gart.bo);
+ 	return r;
+ }
+ 
+@@ -173,14 +173,14 @@ void amdgpu_gart_table_vram_unpin(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	if (adev->gart.robj == NULL) {
++	if (adev->gart.bo == NULL) {
+ 		return;
+ 	}
+-	r = amdgpu_bo_reserve(adev->gart.robj, true);
++	r = amdgpu_bo_reserve(adev->gart.bo, true);
+ 	if (likely(r == 0)) {
+-		amdgpu_bo_kunmap(adev->gart.robj);
+-		amdgpu_bo_unpin(adev->gart.robj);
+-		amdgpu_bo_unreserve(adev->gart.robj);
++		amdgpu_bo_kunmap(adev->gart.bo);
++		amdgpu_bo_unpin(adev->gart.bo);
++		amdgpu_bo_unreserve(adev->gart.bo);
+ 		adev->gart.ptr = NULL;
+ 	}
+ }
+@@ -196,10 +196,10 @@ void amdgpu_gart_table_vram_unpin(struct amdgpu_device *adev)
+  */
+ void amdgpu_gart_table_vram_free(struct amdgpu_device *adev)
+ {
+-	if (adev->gart.robj == NULL) {
++	if (adev->gart.bo == NULL) {
+ 		return;
+ 	}
+-	amdgpu_bo_unref(&adev->gart.robj);
++	amdgpu_bo_unref(&adev->gart.bo);
+ }
+ 
+ /*
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h
+index 456295c..35af864 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gart.h
+@@ -39,7 +39,7 @@ struct amdgpu_bo;
+ 
+ struct amdgpu_gart {
+ 	u64				table_addr;
+-	struct amdgpu_bo		*robj;
++	struct amdgpu_bo		*bo;
+ 	void				*ptr;
+ 	unsigned			num_gpu_pages;
+ 	unsigned			num_cpu_pages;
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+index a5077a9..a0f3be9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+@@ -496,7 +496,7 @@ static int gmc_v6_0_gart_enable(struct amdgpu_device *adev)
+ 	int r, i;
+ 	u32 field;
+ 
+-	if (adev->gart.robj == NULL) {
++	if (adev->gart.bo == NULL) {
+ 		dev_err(adev->dev, "No VRAM object for PCIE GART.\n");
+ 		return -EINVAL;
+ 	}
+@@ -587,7 +587,7 @@ static int gmc_v6_0_gart_init(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	if (adev->gart.robj) {
++	if (adev->gart.bo) {
+ 		dev_warn(adev->dev, "gmc_v6_0 PCIE GART already initialized\n");
+ 		return 0;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+index 46ce9f0..eadc5c2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+@@ -607,7 +607,7 @@ static int gmc_v7_0_gart_enable(struct amdgpu_device *adev)
+ 	int r, i;
+ 	u32 tmp, field;
+ 
+-	if (adev->gart.robj == NULL) {
++	if (adev->gart.bo == NULL) {
+ 		dev_err(adev->dev, "No VRAM object for PCIE GART.\n");
+ 		return -EINVAL;
+ 	}
+@@ -708,7 +708,7 @@ static int gmc_v7_0_gart_init(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	if (adev->gart.robj) {
++	if (adev->gart.bo) {
+ 		WARN(1, "R600 PCIE GART already initialized\n");
+ 		return 0;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+index 82f19e7..18b86db 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+@@ -813,7 +813,7 @@ static int gmc_v8_0_gart_enable(struct amdgpu_device *adev)
+ 	int r, i;
+ 	u32 tmp, field;
+ 
+-	if (adev->gart.robj == NULL) {
++	if (adev->gart.bo == NULL) {
+ 		dev_err(adev->dev, "No VRAM object for PCIE GART.\n");
+ 		return -EINVAL;
+ 	}
+@@ -931,7 +931,7 @@ static int gmc_v8_0_gart_init(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	if (adev->gart.robj) {
++	if (adev->gart.bo) {
+ 		WARN(1, "R600 PCIE GART already initialized\n");
+ 		return 0;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 2a96c0a..0c83829 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -836,7 +836,7 @@ static int gmc_v9_0_gart_init(struct amdgpu_device *adev)
+ {
+ 	int r;
+ 
+-	if (adev->gart.robj) {
++	if (adev->gart.bo) {
+ 		WARN(1, "VEGA10 PCIE GART already initialized\n");
+ 		return 0;
+ 	}
+@@ -1073,7 +1073,7 @@ static int gmc_v9_0_gart_enable(struct amdgpu_device *adev)
+ 						golden_settings_vega10_hdp,
+ 						ARRAY_SIZE(golden_settings_vega10_hdp));
+ 
+-	if (adev->gart.robj == NULL) {
++	if (adev->gart.bo == NULL) {
+ 		dev_err(adev->dev, "No VRAM object for PCIE GART.\n");
+ 		return -EINVAL;
+ 	}
+-- 
+2.7.4
+

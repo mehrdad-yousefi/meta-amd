@@ -1,0 +1,31 @@
+From 5e24e31f25e114183fb51b3de7d13c9224bb73a4 Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Fri, 24 Aug 2018 16:44:11 +0800
+Subject: [PATCH 5274/5725] drm/amdgpu: enable vcn powergating for PCO
+
+enable vcn pg
+
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 53159f1..7837f0c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -740,7 +740,9 @@ static int soc15_common_early_init(void *handle)
+ 			AMD_CG_SUPPORT_SDMA_MGCG |
+ 			AMD_CG_SUPPORT_SDMA_LS;
+ 
+-		adev->pg_flags = AMD_PG_SUPPORT_SDMA | AMD_PG_SUPPORT_MMHUB;
++		adev->pg_flags = AMD_PG_SUPPORT_SDMA |
++						AMD_PG_SUPPORT_MMHUB |
++						AMD_PG_SUPPORT_VCN;
+ 
+ 		if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
+ 			adev->pg_flags |= AMD_PG_SUPPORT_GFX_PG |
+-- 
+2.7.4
+

@@ -1,0 +1,351 @@
+From 1dc7e2981aa896181aa16598101d4fde9d9647ed Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Thu, 2 Aug 2018 17:23:33 +0800
+Subject: [PATCH 5077/5725] drm/amdgpu: move sdma definitions into amdgpu_sdma
+ header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Demangle amdgpu.h.
+Furthermore, SDMA is used for moving and clearing the data buffer, so the header
+also need be included in ttm.
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/Makefile      |   1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h      |  87 +-------------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.c |  44 ++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.h | 101 +++++++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c  |   1 +
+ 5 files changed, 148 insertions(+), 86 deletions(-)
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.c
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.h
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/Makefile b/drivers/gpu/drm/amd/amdgpu/Makefile
+index b16581d..68a4a06 100644
+--- a/drivers/gpu/drm/amd/amdgpu/Makefile
++++ b/drivers/gpu/drm/amd/amdgpu/Makefile
+@@ -88,6 +88,7 @@ amdgpu-y += \
+ 
+ # add async DMA block
+ amdgpu-y += \
++	amdgpu_sdma.o \
+ 	sdma_v2_4.o \
+ 	sdma_v3_0.o \
+ 	sdma_v4_0.o
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 99f3233..b2e03fb 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -70,6 +70,7 @@
+ #include "amdgpu_vcn.h"
+ #include "amdgpu_gmc.h"
+ #include "amdgpu_gfx.h"
++#include "amdgpu_sdma.h"
+ #include "amdgpu_dm.h"
+ #include "amdgpu_mn.h"
+ #include "amdgpu_virt.h"
+@@ -154,9 +155,6 @@ extern int amdgpu_cik_support;
+ #define AMDGPUFB_CONN_LIMIT			4
+ #define AMDGPU_BIOS_NUM_SCRATCH			16
+ 
+-/* max number of IP instances */
+-#define AMDGPU_MAX_SDMA_INSTANCES		2
+-
+ /* hard reset data */
+ #define AMDGPU_ASIC_RESET_DATA                  0x39d5e86b
+ 
+@@ -205,13 +203,6 @@ enum amdgpu_cp_irq {
+ 	AMDGPU_CP_IRQ_LAST
+ };
+ 
+-enum amdgpu_sdma_irq {
+-	AMDGPU_SDMA_IRQ_TRAP0 = 0,
+-	AMDGPU_SDMA_IRQ_TRAP1,
+-
+-	AMDGPU_SDMA_IRQ_LAST
+-};
+-
+ enum amdgpu_thermal_irq {
+ 	AMDGPU_THERMAL_IRQ_LOW_TO_HIGH = 0,
+ 	AMDGPU_THERMAL_IRQ_HIGH_TO_LOW,
+@@ -271,39 +262,6 @@ amdgpu_device_ip_get_ip_block(struct amdgpu_device *adev,
+ int amdgpu_device_ip_block_add(struct amdgpu_device *adev,
+ 			       const struct amdgpu_ip_block_version *ip_block_version);
+ 
+-/* provided by hw blocks that can move/clear data.  e.g., gfx or sdma */
+-struct amdgpu_buffer_funcs {
+-	/* maximum bytes in a single operation */
+-	uint32_t	copy_max_bytes;
+-
+-	/* number of dw to reserve per operation */
+-	unsigned	copy_num_dw;
+-
+-	/* used for buffer migration */
+-	void (*emit_copy_buffer)(struct amdgpu_ib *ib,
+-				 /* src addr in bytes */
+-				 uint64_t src_offset,
+-				 /* dst addr in bytes */
+-				 uint64_t dst_offset,
+-				 /* number of byte to transfer */
+-				 uint32_t byte_count);
+-
+-	/* maximum bytes in a single operation */
+-	uint32_t	fill_max_bytes;
+-
+-	/* number of dw to reserve per operation */
+-	unsigned	fill_num_dw;
+-
+-	/* used for buffer clearing */
+-	void (*emit_fill_buffer)(struct amdgpu_ib *ib,
+-				 /* value to write to memory */
+-				 uint32_t src_data,
+-				 /* dst addr in bytes */
+-				 uint64_t dst_offset,
+-				 /* number of byte to fill */
+-				 uint32_t byte_count);
+-};
+-
+ /* provided by hw blocks that can write ptes, e.g., sdma */
+ struct amdgpu_vm_pte_funcs {
+ 	/* number of dw to reserve per operation */
+@@ -780,31 +738,6 @@ int amdgpu_device_wb_get(struct amdgpu_device *adev, u32 *wb);
+ void amdgpu_device_wb_free(struct amdgpu_device *adev, u32 wb);
+ 
+ /*
+- * SDMA
+- */
+-struct amdgpu_sdma_instance {
+-	/* SDMA firmware */
+-	const struct firmware	*fw;
+-	uint32_t		fw_version;
+-	uint32_t		feature_version;
+-
+-	struct amdgpu_ring	ring;
+-	bool			burst_nop;
+-};
+-
+-struct amdgpu_sdma {
+-	struct amdgpu_sdma_instance instance[AMDGPU_MAX_SDMA_INSTANCES];
+-#ifdef CONFIG_DRM_AMDGPU_SI
+-	//SI DMA has a difference trap irq number for the second engine
+-	struct amdgpu_irq_src	trap_irq_1;
+-#endif
+-	struct amdgpu_irq_src	trap_irq;
+-	struct amdgpu_irq_src	illegal_inst_irq;
+-	int			num_instances;
+-	uint32_t                    srbm_soft_reset;
+-};
+-
+-/*
+  * Firmware
+  */
+ enum amdgpu_firmware_load_type {
+@@ -1451,22 +1384,6 @@ int emu_soc_asic_init(struct amdgpu_device *adev);
+ #define RBIOS16(i) (RBIOS8(i) | (RBIOS8((i)+1) << 8))
+ #define RBIOS32(i) ((RBIOS16(i)) | (RBIOS16((i)+2) << 16))
+ 
+-static inline struct amdgpu_sdma_instance *
+-amdgpu_get_sdma_instance(struct amdgpu_ring *ring)
+-{
+-	struct amdgpu_device *adev = ring->adev;
+-	int i;
+-
+-	for (i = 0; i < adev->sdma.num_instances; i++)
+-		if (&adev->sdma.instance[i].ring == ring)
+-			break;
+-
+-	if (i < AMDGPU_MAX_SDMA_INSTANCES)
+-		return &adev->sdma.instance[i];
+-	else
+-		return NULL;
+-}
+-
+ /*
+  * ASICs macro.
+  */
+@@ -1529,8 +1446,6 @@ amdgpu_get_sdma_instance(struct amdgpu_ring *ring)
+ #define amdgpu_display_page_flip_get_scanoutpos(adev, crtc, vbl, pos) (adev)->mode_info.funcs->page_flip_get_scanoutpos((adev), (crtc), (vbl), (pos))
+ #define amdgpu_display_add_encoder(adev, e, s, c) (adev)->mode_info.funcs->add_encoder((adev), (e), (s), (c))
+ #define amdgpu_display_add_connector(adev, ci, sd, ct, ib, coi, h, r) (adev)->mode_info.funcs->add_connector((adev), (ci), (sd), (ct), (ib), (coi), (h), (r))
+-#define amdgpu_emit_copy_buffer(adev, ib, s, d, b) (adev)->mman.buffer_funcs->emit_copy_buffer((ib),  (s), (d), (b))
+-#define amdgpu_emit_fill_buffer(adev, ib, s, d, b) (adev)->mman.buffer_funcs->emit_fill_buffer((ib), (s), (d), (b))
+ #define amdgpu_gds_switch(adev, r, v, d, w, a) (adev)->gds.funcs->patch_gds_switch((r), (v), (d), (w), (a))
+ #define amdgpu_psp_check_fw_loading_status(adev, i) (adev)->firmware.funcs->check_fw_loading_status((adev), (i))
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.c
+new file mode 100644
+index 0000000..bc9244b
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.c
+@@ -0,0 +1,44 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++#include <drm/drmP.h>
++#include "amdgpu.h"
++#include "amdgpu_sdma.h"
++
++/*
++ * GPU SDMA IP block helpers function.
++ */
++
++struct amdgpu_sdma_instance * amdgpu_get_sdma_instance(struct amdgpu_ring *ring)
++{
++	struct amdgpu_device *adev = ring->adev;
++	int i;
++
++	for (i = 0; i < adev->sdma.num_instances; i++)
++		if (&adev->sdma.instance[i].ring == ring)
++			break;
++
++	if (i < AMDGPU_MAX_SDMA_INSTANCES)
++		return &adev->sdma.instance[i];
++	else
++		return NULL;
++}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.h
+new file mode 100644
+index 0000000..d17503f
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_sdma.h
+@@ -0,0 +1,101 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#ifndef __AMDGPU_SDMA_H__
++#define __AMDGPU_SDMA_H__
++
++/* max number of IP instances */
++#define AMDGPU_MAX_SDMA_INSTANCES		2
++
++enum amdgpu_sdma_irq {
++	AMDGPU_SDMA_IRQ_TRAP0 = 0,
++	AMDGPU_SDMA_IRQ_TRAP1,
++
++	AMDGPU_SDMA_IRQ_LAST
++};
++
++struct amdgpu_sdma_instance {
++	/* SDMA firmware */
++	const struct firmware	*fw;
++	uint32_t		fw_version;
++	uint32_t		feature_version;
++
++	struct amdgpu_ring	ring;
++	bool			burst_nop;
++};
++
++struct amdgpu_sdma {
++	struct amdgpu_sdma_instance instance[AMDGPU_MAX_SDMA_INSTANCES];
++#ifdef CONFIG_DRM_AMDGPU_SI
++	//SI DMA has a difference trap irq number for the second engine
++	struct amdgpu_irq_src	trap_irq_1;
++#endif
++	struct amdgpu_irq_src	trap_irq;
++	struct amdgpu_irq_src	illegal_inst_irq;
++	int			num_instances;
++	uint32_t                    srbm_soft_reset;
++};
++
++/*
++ * Provided by hw blocks that can move/clear data.  e.g., gfx or sdma
++ * But currently, we use sdma to move data.
++ */
++struct amdgpu_buffer_funcs {
++	/* maximum bytes in a single operation */
++	uint32_t	copy_max_bytes;
++
++	/* number of dw to reserve per operation */
++	unsigned	copy_num_dw;
++
++	/* used for buffer migration */
++	void (*emit_copy_buffer)(struct amdgpu_ib *ib,
++				 /* src addr in bytes */
++				 uint64_t src_offset,
++				 /* dst addr in bytes */
++				 uint64_t dst_offset,
++				 /* number of byte to transfer */
++				 uint32_t byte_count);
++
++	/* maximum bytes in a single operation */
++	uint32_t	fill_max_bytes;
++
++	/* number of dw to reserve per operation */
++	unsigned	fill_num_dw;
++
++	/* used for buffer clearing */
++	void (*emit_fill_buffer)(struct amdgpu_ib *ib,
++				 /* value to write to memory */
++				 uint32_t src_data,
++				 /* dst addr in bytes */
++				 uint64_t dst_offset,
++				 /* number of byte to fill */
++				 uint32_t byte_count);
++};
++
++#define amdgpu_emit_copy_buffer(adev, ib, s, d, b) (adev)->mman.buffer_funcs->emit_copy_buffer((ib),  (s), (d), (b))
++#define amdgpu_emit_fill_buffer(adev, ib, s, d, b) (adev)->mman.buffer_funcs->emit_fill_buffer((ib), (s), (d), (b))
++
++struct amdgpu_sdma_instance *
++amdgpu_get_sdma_instance(struct amdgpu_ring *ring);
++
++#endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 4db7bf5..b741827 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -48,6 +48,7 @@
+ #include "amdgpu_trace.h"
+ #include "bif/bif_4_1_d.h"
+ #include "amdgpu_amdkfd.h"
++#include "amdgpu_sdma.h"
+ 
+ #define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
+ 
+-- 
+2.7.4
+

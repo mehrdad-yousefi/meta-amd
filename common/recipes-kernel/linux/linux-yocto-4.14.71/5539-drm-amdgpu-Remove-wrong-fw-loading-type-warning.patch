@@ -1,0 +1,31 @@
+From ac392c813afb5917d9bceb75f4281f9e57a90804 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 10 Oct 2018 21:04:14 +0800
+Subject: [PATCH 5539/5725] drm/amdgpu: Remove wrong fw loading type warning
+
+Remove the warning message:
+"-1 is not supported on VI"
+the -1 is the default fw load type, mean auto.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+index b41bba4..29b8b82 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+@@ -297,8 +297,6 @@ amdgpu_ucode_get_load_type(struct amdgpu_device *adev, int load_type)
+ 	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS12:
+ 	case CHIP_VEGAM:
+-		if (load_type != AMDGPU_FW_LOAD_SMU)
+-			pr_warning("%d is not supported on VI\n", load_type);
+ 		return AMDGPU_FW_LOAD_SMU;
+ 	case CHIP_VEGA10:
+ 	case CHIP_RAVEN:
+-- 
+2.7.4
+

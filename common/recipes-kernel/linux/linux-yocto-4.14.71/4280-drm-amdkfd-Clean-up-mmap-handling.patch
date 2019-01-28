@@ -1,0 +1,142 @@
+From a7219a8bb0766dd741bad58e70862b5fdce6eac1 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 23 Apr 2018 22:36:47 -0400
+Subject: [PATCH 4280/5725] drm/amdkfd: Clean up mmap handling
+
+Remove reserved bits in mmap addresses. The mmap offset is no longer
+used for TTM/DRM mappings. So it makes no sense to encode TTM/DRM
+address space limitations.
+
+Centralize encoding and parsing of the GPU ID in the mmap offset.
+
+Cosmetic changes to match upstream.
+
+Change-Id: I5edb10d257006ee915534756d9b0e28381c889ef
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 27 +++++++++++++--------------
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h    |  9 ++++-----
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 10 ++++------
+ 3 files changed, 21 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 66c294a..491652c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -2711,34 +2711,33 @@ static long kfd_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
+ static int kfd_mmap(struct file *filp, struct vm_area_struct *vma)
+ {
+ 	struct kfd_process *process;
+-	struct kfd_dev *kfd;
++	struct kfd_dev *dev = NULL;
+ 	unsigned long vm_pgoff;
+-	unsigned long long mmap_type;
++	unsigned int gpu_id;
+ 
+ 	process = kfd_get_process(current);
+ 	if (IS_ERR(process))
+ 		return PTR_ERR(process);
+ 
+ 	vm_pgoff = vma->vm_pgoff;
+-	vma->vm_pgoff = KFD_MMAP_OFFSET_VALUE_GET(vma->vm_pgoff);
+-	mmap_type = vm_pgoff & KFD_MMAP_TYPE_MASK;
++	vma->vm_pgoff = KFD_MMAP_OFFSET_VALUE_GET(vm_pgoff);
++	gpu_id = KFD_MMAP_GPU_ID_GET(vm_pgoff);
++	if (gpu_id)
++		dev = kfd_device_by_id(gpu_id);
+ 
+-	switch (mmap_type) {
++	switch (vm_pgoff & KFD_MMAP_TYPE_MASK) {
+ 	case KFD_MMAP_TYPE_DOORBELL:
+-		kfd = kfd_device_by_id(KFD_MMAP_GPU_ID_GET(vm_pgoff));
+-		if (!kfd)
+-			return -EFAULT;
+-		return kfd_doorbell_mmap(kfd, process, vma);
++		if (!dev)
++			return -ENODEV;
++		return kfd_doorbell_mmap(dev, process, vma);
+ 
+ 	case KFD_MMAP_TYPE_EVENTS:
+ 		return kfd_event_mmap(process, vma);
+ 
+ 	case KFD_MMAP_TYPE_RESERVED_MEM:
+-		return kfd_reserved_mem_mmap(process, vma);
+-
+-	default:
+-		pr_err("Unsupported kfd mmap type %llx\n", mmap_type);
+-		break;
++		if (!dev)
++			return -ENODEV;
++		return kfd_reserved_mem_mmap(dev, process, vma);
+ 	}
+ 
+ 	return -EFAULT;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 25bfc4f..25e8e5a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -49,8 +49,7 @@
+ /* Use upper bits of mmap offset to store KFD driver specific information.
+  * BITS[63:62] - Encode MMAP type
+  * BITS[61:46] - Encode gpu_id. To identify to which GPU the offset belongs to
+- * BITS[45:40] - Reserved. Not Used.
+- * BITS[39:0]  - MMAP offset value. Used by TTM.
++ * BITS[45:0]  - MMAP offset value
+  *
+  * NOTE: struct vm_area_struct.vm_pgoff uses offset in pages. Hence, these
+  *  defines are w.r.t to PAGE_SIZE
+@@ -69,7 +68,7 @@
+ #define KFD_MMAP_GPU_ID_GET(offset)    ((offset & KFD_MMAP_GPU_ID_MASK) \
+ 				>> KFD_MMAP_GPU_ID_SHIFT)
+ 
+-#define KFD_MMAP_OFFSET_VALUE_MASK	(0xFFFFFFFFFFULL >> PAGE_SHIFT)
++#define KFD_MMAP_OFFSET_VALUE_MASK	(0x3FFFFFFFFFFFULL >> PAGE_SHIFT)
+ #define KFD_MMAP_OFFSET_VALUE_GET(offset) (offset & KFD_MMAP_OFFSET_VALUE_MASK)
+ 
+ /*
+@@ -817,8 +816,8 @@ struct kfd_process_device *kfd_get_process_device_data(struct kfd_dev *dev,
+ struct kfd_process_device *kfd_create_process_device_data(struct kfd_dev *dev,
+ 							struct kfd_process *p);
+ 
+-int kfd_reserved_mem_mmap(struct kfd_process *process,
+-		struct vm_area_struct *vma);
++int kfd_reserved_mem_mmap(struct kfd_dev *dev, struct kfd_process *process,
++			  struct vm_area_struct *vma);
+ 
+ /* KFD process API for creating and translating handles */
+ int kfd_process_device_create_obj_handle(struct kfd_process_device *pdd,
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index 3650183..0b04c63 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -482,7 +482,8 @@ static int kfd_process_init_cwsr_apu(struct kfd_process *p, struct file *filep)
+ 		if (!dev->cwsr_enabled || qpd->cwsr_kaddr || qpd->cwsr_base)
+ 			continue;
+ 
+-		offset = (dev->id | KFD_MMAP_TYPE_RESERVED_MEM) << PAGE_SHIFT;
++		offset = (KFD_MMAP_TYPE_RESERVED_MEM | KFD_MMAP_GPU_ID(dev->id))
++			<< PAGE_SHIFT;
+ 		qpd->tba_addr = (uint64_t)vm_mmap(filep, 0,
+ 				KFD_CWSR_TBA_TMA_SIZE, PROT_READ | PROT_EXEC,
+ 				MAP_SHARED, offset);
+@@ -1151,15 +1152,12 @@ static void restore_process_worker(struct work_struct *work)
+ 	pr_info("Finished restoring process of pasid %d\n", p->pasid);
+ }
+ 
+-int kfd_reserved_mem_mmap(struct kfd_process *process,
+-		struct vm_area_struct *vma)
++int kfd_reserved_mem_mmap(struct kfd_dev *dev, struct kfd_process *process,
++			  struct vm_area_struct *vma)
+ {
+-	struct kfd_dev *dev = kfd_device_by_id(vma->vm_pgoff);
+ 	struct kfd_process_device *pdd;
+ 	struct qcm_process_device *qpd;
+ 
+-	if (!dev)
+-		return -EINVAL;
+ 	if ((vma->vm_end - vma->vm_start) != KFD_CWSR_TBA_TMA_SIZE) {
+ 		pr_err("Incorrect CWSR mapping size.\n");
+ 		return -EINVAL;
+-- 
+2.7.4
+

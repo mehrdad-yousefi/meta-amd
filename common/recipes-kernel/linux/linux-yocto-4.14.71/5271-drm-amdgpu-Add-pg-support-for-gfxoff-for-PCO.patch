@@ -1,0 +1,33 @@
+From 32fa7d8a7ea0b540df7f1a6af8610684138a5455 Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Tue, 7 Aug 2018 17:05:22 +0800
+Subject: [PATCH 5271/5725] drm/amdgpu: Add pg support for gfxoff for PCO
+
+Add pg support for gfxoff.
+
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index d3b73af..2539fa7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -740,7 +740,10 @@ static int soc15_common_early_init(void *handle)
+ 			AMD_CG_SUPPORT_SDMA_MGCG |
+ 			AMD_CG_SUPPORT_SDMA_LS;
+ 
+-		adev->pg_flags = 0;
++		if (adev->powerplay.pp_feature & PP_GFXOFF_MASK)
++			adev->pg_flags |= AMD_PG_SUPPORT_GFX_PG |
++				AMD_PG_SUPPORT_CP |
++				AMD_PG_SUPPORT_RLC_SMU_HS;
+ 
+ 		adev->external_rev_id = adev->rev_id + 0x41;
+ 		break;
+-- 
+2.7.4
+

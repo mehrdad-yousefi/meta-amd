@@ -1,0 +1,32 @@
+From 67a4dbcd79f233ac45206f8ce24a5f19891470d9 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Mon, 6 Aug 2018 19:45:04 +0800
+Subject: [PATCH 5086/5725] drm/amdgpu: Delay 100ms to enable gfx off feature
+
+Original 500ms delay seems a bit large.
+Change to 100 ms suggested by Christian.
+
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c
+index 3577484..a750242 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c
+@@ -26,8 +26,8 @@
+ #include "amdgpu.h"
+ #include "amdgpu_gfx.h"
+ 
+-/* 0.5 second timeout */
+-#define GFX_OFF_DELAY_ENABLE         msecs_to_jiffies(500)
++/* delay 0.1 second to enable gfx off feature */
++#define GFX_OFF_DELAY_ENABLE         msecs_to_jiffies(100)
+ 
+ /*
+  * GPU GFX IP block helpers function.
+-- 
+2.7.4
+

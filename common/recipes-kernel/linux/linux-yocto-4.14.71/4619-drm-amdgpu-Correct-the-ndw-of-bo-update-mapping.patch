@@ -1,0 +1,35 @@
+From 78b824fb71d647d763897f9a66fd65e411c786cb Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Fri, 8 Jun 2018 16:36:22 +0800
+Subject: [PATCH 4619/5725] drm/amdgpu: Correct the ndw of bo update mapping.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+For buffer object that has shadow buffer, need twice commands.
+
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>.
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 4889137..7dfb239 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1325,7 +1325,10 @@ static int amdgpu_vm_bo_update_mapping(struct amdgpu_device *adev,
+ 		ndw += ncmds * 10;
+ 
+ 		/* extra commands for begin/end fragments */
+-		ndw += 2 * 10 * adev->vm_manager.fragment_size;
++		if (vm->root.base.bo->shadow)
++		        ndw += 2 * 10 * adev->vm_manager.fragment_size * 2;
++		else
++		        ndw += 2 * 10 * adev->vm_manager.fragment_size;
+ 
+ 		params.func = amdgpu_vm_do_set_ptes;
+ 	}
+-- 
+2.7.4
+

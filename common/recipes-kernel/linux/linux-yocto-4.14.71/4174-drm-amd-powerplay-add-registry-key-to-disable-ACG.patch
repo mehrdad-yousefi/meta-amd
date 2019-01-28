@@ -1,0 +1,34 @@
+From 52286b9d1c7e8042645cea9840297986cfb12e5a Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Fri, 20 Apr 2018 13:55:39 +0800
+Subject: [PATCH 4174/5725] drm/amd/powerplay: add registry key to disable ACG
+
+For the dummy ACG fuses,need to disable ACG, otherwise
+corruption will be caused.
+
+Change-Id: Ic32b138720cada2de510cbda607c681ad409e748
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
+index 7fa1ba8..888ddca 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
+@@ -224,6 +224,11 @@ static int append_vbios_pptable(struct pp_hwmgr *hwmgr, PPTable_t *ppsmc_pptable
+ 	ppsmc_pptable->AcgGfxclkSpreadPercent = smc_dpm_table.acggfxclkspreadpercent;
+ 	ppsmc_pptable->AcgGfxclkSpreadFreq = smc_dpm_table.acggfxclkspreadfreq;
+ 
++	/* 0xFFFF will disable the ACG feature */
++	if (!(hwmgr->feature_mask & PP_ACG_MASK)) {
++		ppsmc_pptable->AcgThresholdFreqHigh = 0xFFFF;
++		ppsmc_pptable->AcgThresholdFreqLow = 0xFFFF;
++	}
+ 
+ 	return 0;
+ }
+-- 
+2.7.4
+

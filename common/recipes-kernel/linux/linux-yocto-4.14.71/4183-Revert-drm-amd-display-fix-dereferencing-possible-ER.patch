@@ -1,0 +1,37 @@
+From c703aec41498fd839b250e07cb5df747b027fe7d Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Thu, 12 Apr 2018 10:30:09 -0400
+Subject: [PATCH 4183/5725] Revert "drm/amd/display: fix dereferencing possible
+ ERR_PTR()"
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This reverts commit cd2d6c92a8e39d7e50a5af9fcc67d07e6a89e91d.
+
+Cc: Shirish S <shirish.s@amd.com>
+Cc: Alex Deucher <alexander.deucher@amd.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 20a1890..4bcd7f4 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -5114,9 +5114,6 @@ static int dm_atomic_check_plane_state_fb(struct drm_atomic_state *state,
+ 			return -EDEADLK;
+ 
+ 		crtc_state = drm_atomic_get_crtc_state(plane_state->state, crtc);
+-		if (IS_ERR(crtc_state))
+-			return PTR_ERR(crtc_state);
+-
+ 		if (crtc->primary == plane && crtc_state->active) {
+ 			if (!plane_state->fb)
+ 				return -EINVAL;
+-- 
+2.7.4
+

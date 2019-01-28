@@ -1,0 +1,43 @@
+From a295d107e3c3f20796832bca017558b4b9fecbde Mon Sep 17 00:00:00 2001
+From: Pratik Vishwakarma <Pratik.Vishwakarma@amd.com>
+Date: Wed, 3 Oct 2018 20:45:11 +0530
+Subject: [PATCH 5519/5725] drm/amdgpu: skip IB tests for KIQ in general
+
+[Why]
+1. We never submit IBs to KIQ.
+2. Ring test pass without KIQ's ring also.
+3. By skipping we see an improvement of around 500ms
+   in the amdgpu's resume time.
+
+[How]
+skip IB tests for KIQ ring type.
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Signed-off-by: Pratik Vishwakarma <Pratik.Vishwakarma@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+index 1d86c3b..47c8257 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+@@ -361,6 +361,14 @@ int amdgpu_ib_ring_tests(struct amdgpu_device *adev)
+ 		if (!ring || !ring->ready)
+ 			continue;
+ 
++		/* skip IB tests for KIQ in general for the below reasons:
++		 * 1. We never submit IBs to the KIQ
++		 * 2. KIQ doesn't use the EOP interrupts,
++		 *    we use some other CP interrupt.
++		 */
++		if (ring->funcs->type == AMDGPU_RING_TYPE_KIQ)
++			continue;
++
+ 		/* MM engine need more time */
+ 		if (ring->funcs->type == AMDGPU_RING_TYPE_UVD ||
+ 			ring->funcs->type == AMDGPU_RING_TYPE_VCE ||
+-- 
+2.7.4
+

@@ -1,0 +1,45 @@
+From 29812d6cf0deecb4b9256debd6a256bf71acd1b9 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Tue, 1 May 2018 19:49:03 -0400
+Subject: [PATCH 4525/5725] drm/amd/display: add register offset != 0 check.
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c     | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c b/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
+index 0a6d483..c063175 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
+@@ -72,7 +72,8 @@ static void dce110_update_generic_info_packet(
+ 	uint32_t max_retries = 50;
+ 
+ 	/*we need turn on clock before programming AFMT block*/
+-	REG_UPDATE(AFMT_CNTL, AFMT_AUDIO_CLOCK_EN, 1);
++	if (REG(AFMT_CNTL))
++		REG_UPDATE(AFMT_CNTL, AFMT_AUDIO_CLOCK_EN, 1);
+ 
+ 	if (REG(AFMT_VBI_PACKET_CONTROL1)) {
+ 		if (packet_index >= 8)
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 5fcb67a..6b22a53 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -1004,9 +1004,9 @@ void dce110_disable_stream(struct pipe_ctx *pipe_ctx, int option)
+ 		/*don't free audio if it is from retrain or internal disable stream*/
+ 		if (option == FREE_ACQUIRED_RESOURCE && dc->caps.dynamic_audio == true) {
+ 			/*we have to dynamic arbitrate the audio endpoints*/
+-			pipe_ctx->stream_res.audio = NULL;
+ 			/*we free the resource, need reset is_audio_acquired*/
+ 			update_audio_usage(&dc->current_state->res_ctx, dc->res_pool, pipe_ctx->stream_res.audio, false);
++			pipe_ctx->stream_res.audio = NULL;
+ 		}
+ 
+ 		/* TODO: notify audio driver for if audio modes list changed
+-- 
+2.7.4
+

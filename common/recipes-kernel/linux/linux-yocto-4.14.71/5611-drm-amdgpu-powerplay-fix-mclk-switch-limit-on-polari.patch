@@ -1,0 +1,34 @@
+From 11258361667f6b968b2ba4708bc0d54bf8063bf7 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 29 Nov 2018 19:20:28 -0500
+Subject: [PATCH 5611/5725] drm/amdgpu/powerplay: fix mclk switch limit on
+ polaris
+
+Update switch limit on newer polaris variants.  This may fix
+flickering with high refresh rates with mclk switching enabled.
+
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index ff84a03..0364018 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -2859,7 +2859,10 @@ static int smu7_vblank_too_short(struct pp_hwmgr *hwmgr,
+ 	case CHIP_POLARIS10:
+ 	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS12:
+-		switch_limit_us = data->is_memory_gddr5 ? 190 : 150;
++		if (hwmgr->is_kicker)
++			switch_limit_us = data->is_memory_gddr5 ? 450 : 150;
++		else
++			switch_limit_us = data->is_memory_gddr5 ? 190 : 150;
+ 		break;
+ 	case CHIP_VEGAM:
+ 		switch_limit_us = 30;
+-- 
+2.7.4
+

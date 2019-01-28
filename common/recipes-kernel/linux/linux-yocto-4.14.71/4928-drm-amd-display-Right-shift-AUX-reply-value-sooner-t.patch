@@ -1,0 +1,48 @@
+From 9dc856e00a17501f73d503b29d7fb35c1f73429b Mon Sep 17 00:00:00 2001
+From: "Leo (Sunpeng) Li" <sunpeng.li@amd.com>
+Date: Tue, 26 Jun 2018 10:44:05 -0400
+Subject: [PATCH 4928/5725] drm/amd/display: Right shift AUX reply value sooner
+ than later
+
+[Why]
+There is no point in keeping the AUX reply value in the raw format as
+returned from reading the AUX_SW_DATA register.
+
+[How]
+Shift it within read_channel_reply(), where the register is read, before
+returning it.
+
+Signed-off-by: Leo (Sunpeng) Li <sunpeng.li@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c b/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
+index 1f39406..ae5caa9 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
+@@ -300,9 +300,10 @@ static int read_channel_reply(struct aux_engine *engine, uint32_t size,
+ 			  AUX_SW_DATA_RW, 1);
+ 
+ 	REG_GET(AUX_SW_DATA, AUX_SW_DATA, &reply_result_32);
++	reply_result_32 = reply_result_32 >> 4;
+ 	*reply_result = (uint8_t)reply_result_32;
+ 
+-	if (reply_result_32 >> 4 == 0) { /* ACK */
++	if (reply_result_32 == 0) { /* ACK */
+ 		uint32_t i = 0;
+ 
+ 		/* First byte was already used to get the command status */
+@@ -356,7 +357,6 @@ static void process_channel_reply(
+ 			return;
+ 		}
+ 	} else {
+-		reply_result = reply_result >> 4;
+ 
+ 		switch (reply_result) {
+ 		case 0: /* ACK */
+-- 
+2.7.4
+

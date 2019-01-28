@@ -1,0 +1,40 @@
+From 2878fdbb87fda3bc0734772aaf7e4769046cd0b8 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Wed, 3 Oct 2018 17:36:58 -0400
+Subject: [PATCH 5555/5725] drm/amdgpu/vcn:Add ring W/R PTR check for VCN DPG
+ mode stop
+
+Add ring write/read pointer check for VCN dynamic power gate mode
+stop,to make sure that no job is left in ring before turn off DPG mode.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu <leo.liu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 015b97f..7a226d0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -1171,6 +1171,16 @@ static int vcn_v1_0_stop_dpg_mode(struct amdgpu_device *adev)
+ 			UVD_POWER_STATUS__UVD_POWER_STATUS_TILES_OFF,
+ 			UVD_POWER_STATUS__UVD_POWER_STATUS_MASK, ret_code);
+ 
++	if (ret_code) {
++		int tmp = RREG32_SOC15(UVD, 0, mmUVD_RBC_RB_WPTR) & 0x7FFFFFFF;
++		/* wait for read ptr to be equal to write ptr */
++		SOC15_WAIT_ON_RREG(UVD, 0, mmUVD_RBC_RB_RPTR, tmp, 0xFFFFFFFF, ret_code);
++
++		SOC15_WAIT_ON_RREG(UVD, 0, mmUVD_POWER_STATUS,
++			UVD_POWER_STATUS__UVD_POWER_STATUS_TILES_OFF,
++			UVD_POWER_STATUS__UVD_POWER_STATUS_MASK, ret_code);
++	}
++
+ 	/* disable dynamic power gating mode */
+ 	WREG32_P(SOC15_REG_OFFSET(UVD, 0, mmUVD_POWER_STATUS), 0,
+ 			~UVD_POWER_STATUS__UVD_PG_MODE_MASK);
+-- 
+2.7.4
+

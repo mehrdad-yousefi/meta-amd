@@ -1,0 +1,52 @@
+From 5586b4999095fe79c1a20b3002302373c0770578 Mon Sep 17 00:00:00 2001
+From: Kevin Wang <Kevin1.Wang@amd.com>
+Date: Mon, 23 Apr 2018 10:17:34 +0800
+Subject: [PATCH 4224/5725] drm/amdgpu: fix amdgpu_bo_create param changed for
+ ttm module
+
+Change-Id: Ie26589cdd997583e5e5ff7ac4a0b9e7b6cc7d127
+Signed-off-by: Kevin Wang <Kevin1.Wang@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 80c4771..0ddb4c3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1340,6 +1340,7 @@ static struct ttm_bo_driver amdgpu_bo_driver = {
+ static int amdgpu_direct_gma_init(struct amdgpu_device *adev)
+ {
+ 	struct amdgpu_bo *abo;
++	struct amdgpu_bo_param bp;
+ 	unsigned long size;
+ 	int r;
+ 
+@@ -1347,11 +1348,18 @@ static int amdgpu_direct_gma_init(struct amdgpu_device *adev)
+ 		return 0;
+ 
+ 	size = (unsigned long)amdgpu_direct_gma_size << 20;
++
++	memset(&bp, 0, sizeof(bp));
++	bp.size = size;
++	bp.byte_align = PAGE_SIZE;
++	bp.domain = AMDGPU_GEM_DOMAIN_VRAM;
++	bp.flags = AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS |
++						AMDGPU_GEM_CREATE_TOP_DOWN;
++	bp.type = ttm_bo_type_kernel;
++	bp.resv = NULL;
++
+ 	/* reserve in visible vram */
+-	r = amdgpu_bo_create(adev, size, PAGE_SIZE, AMDGPU_GEM_DOMAIN_VRAM,
+-			     AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED | AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS |
+-			     AMDGPU_GEM_CREATE_TOP_DOWN,
+-                             ttm_bo_type_kernel, NULL, &abo);
++	r = amdgpu_bo_create(adev, &bp, &abo);
+ 	if (unlikely(r))
+ 		goto error_out;
+ 
+-- 
+2.7.4
+

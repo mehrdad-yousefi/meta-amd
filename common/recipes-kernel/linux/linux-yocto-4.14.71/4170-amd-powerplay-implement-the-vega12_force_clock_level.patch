@@ -1,0 +1,80 @@
+From 0db89649363ff328da386101330377dc63d427ba Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Mon, 9 Apr 2018 14:53:51 +0800
+Subject: [PATCH 4170/5725] amd/powerplay: implement the
+ vega12_force_clock_level interface
+
+pp_dpm_sclk/pp_dpm_mclk in sysfs implemented to force
+gfxclk/uclk dpm level for Vega12
+
+Change-Id: I69816de5da21de4264d3e6b6ead2c8ed3e00d742
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 42 +++++++++++++++++++++-
+ 1 file changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index 835d810..782e209 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -1001,15 +1001,55 @@ static uint32_t vega12_find_highest_dpm_level(
+ 
+ static int vega12_upload_dpm_min_level(struct pp_hwmgr *hwmgr)
+ {
++	struct vega12_hwmgr *data = hwmgr->backend;
++	if (data->smc_state_table.gfx_boot_level !=
++			data->dpm_table.gfx_table.dpm_state.soft_min_level) {
++		smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_SetSoftMinByFreq,
++			PPCLK_GFXCLK<<16 | data->dpm_table.gfx_table.dpm_levels[data->smc_state_table.gfx_boot_level].value);
++		data->dpm_table.gfx_table.dpm_state.soft_min_level =
++				data->smc_state_table.gfx_boot_level;
++	}
++
++	if (data->smc_state_table.mem_boot_level !=
++			data->dpm_table.mem_table.dpm_state.soft_min_level) {
++		smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_SetSoftMinByFreq,
++			PPCLK_UCLK<<16 | data->dpm_table.mem_table.dpm_levels[data->smc_state_table.mem_boot_level].value);
++		data->dpm_table.mem_table.dpm_state.soft_min_level =
++				data->smc_state_table.mem_boot_level;
++	}
++
+ 	return 0;
++
+ }
+ 
+ static int vega12_upload_dpm_max_level(struct pp_hwmgr *hwmgr)
+ {
++	struct vega12_hwmgr *data = hwmgr->backend;
++	if (data->smc_state_table.gfx_max_level !=
++		data->dpm_table.gfx_table.dpm_state.soft_max_level) {
++		smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_SetSoftMaxByFreq,
++			/* plus the vale by 1 to align the resolution */
++			PPCLK_GFXCLK<<16 | (data->dpm_table.gfx_table.dpm_levels[data->smc_state_table.gfx_max_level].value + 1));
++		data->dpm_table.gfx_table.dpm_state.soft_max_level =
++				data->smc_state_table.gfx_max_level;
++	}
++
++	if (data->smc_state_table.mem_max_level !=
++		data->dpm_table.mem_table.dpm_state.soft_max_level) {
++		smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_SetSoftMaxByFreq,
++			/* plus the vale by 1 to align the resolution */
++			PPCLK_UCLK<<16 | (data->dpm_table.mem_table.dpm_levels[data->smc_state_table.mem_max_level].value + 1));
++		data->dpm_table.mem_table.dpm_state.soft_max_level =
++				data->smc_state_table.mem_max_level;
++	}
++
+ 	return 0;
+ }
+ 
+-
+ int vega12_enable_disable_vce_dpm(struct pp_hwmgr *hwmgr, bool enable)
+ {
+ 	struct vega12_hwmgr *data =
+-- 
+2.7.4
+

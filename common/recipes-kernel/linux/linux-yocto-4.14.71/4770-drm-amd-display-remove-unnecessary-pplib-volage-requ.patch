@@ -1,0 +1,52 @@
+From 5046ee596526213198a03fa80e1807bd50c72f95 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Thu, 31 May 2018 13:28:00 -0400
+Subject: [PATCH 4770/5725] drm/amd/display: remove unnecessary pplib volage
+ requests that are asserting
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+index 242e8ae..df6a37b 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+@@ -588,21 +588,15 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ #endif
+ 
+ 	if (should_set_clock(safe_to_lower, new_clocks->dispclk_khz, dccg->clks.dispclk_khz)) {
+-		clock_voltage_req.clk_type = DM_PP_CLOCK_TYPE_DISPLAY_CLK;
+-		clock_voltage_req.clocks_in_khz = new_clocks->dispclk_khz;
+ 		dcn1_ramp_up_dispclk_with_dpp(dccg, new_clocks);
+ 		dccg->clks.dispclk_khz = new_clocks->dispclk_khz;
+ 
+-		dm_pp_apply_clock_for_voltage_request(dccg->ctx, &clock_voltage_req);
+ 		send_request_to_lower = true;
+ 	}
+ 
+ 	if (should_set_clock(safe_to_lower, new_clocks->phyclk_khz, dccg->clks.phyclk_khz)) {
+-		dccg->clks.phyclk_khz = new_clocks->phyclk_khz;
+-		clock_voltage_req.clk_type = DM_PP_CLOCK_TYPE_DISPLAYPHYCLK;
+ 		clock_voltage_req.clocks_in_khz = new_clocks->phyclk_khz;
+ 
+-		dm_pp_apply_clock_for_voltage_request(dccg->ctx, &clock_voltage_req);
+ 		send_request_to_lower = true;
+ 	}
+ 
+@@ -618,8 +612,6 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 
+ 	if (should_set_clock(safe_to_lower, new_clocks->dcfclk_khz, dccg->clks.dcfclk_khz)) {
+ 		dccg->clks.phyclk_khz = new_clocks->dcfclk_khz;
+-		clock_voltage_req.clk_type = DM_PP_CLOCK_TYPE_DCFCLK;
+-		clock_voltage_req.clocks_in_khz = new_clocks->dcfclk_khz;
+ 		smu_req.hard_min_dcefclk_khz = new_clocks->dcfclk_khz;
+ 
+ 		send_request_to_lower = true;
+-- 
+2.7.4
+

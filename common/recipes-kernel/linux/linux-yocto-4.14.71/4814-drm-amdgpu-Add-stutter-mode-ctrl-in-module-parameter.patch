@@ -1,0 +1,53 @@
+From ed7b9cb95c7bdabdefae263ca25084a48a3e6bc2 Mon Sep 17 00:00:00 2001
+From: rex zhu <rex.zhu@amd.com>
+Date: Wed, 27 Jun 2018 18:08:43 +0800
+Subject: [PATCH 4814/5725] drm/amdgpu: Add stutter mode ctrl in module
+ parameter
+
+Enable stutter mode can save power in low DRAM use cases
+including but not limited to productivity application use,
+web browsing, and video playback.
+
+Currently this feature is disabled by default.
+
+Make bit 17 in module parameter amdgpu_pp_feature_mask
+as stutter mode mask, so user can enable/disable this feature easily.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c  | 3 ++-
+ drivers/gpu/drm/amd/include/amd_shared.h | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index b9b9850..19f1a74 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -125,7 +125,8 @@ uint amdgpu_pg_mask = 0xffffffff;
+ uint amdgpu_sdma_phase_quantum = 32;
+ char *amdgpu_disable_cu = NULL;
+ char *amdgpu_virtual_display = NULL;
+-uint amdgpu_pp_feature_mask = 0xffff3fff; /* gfxoff (bit 15) disabled by default */
++/* OverDrive(bit 14),gfxoff(bit 15),stutter mode(bit 17) disabled by default*/
++uint amdgpu_pp_feature_mask = 0xfffd3fff;
+ int amdgpu_ngg = 0;
+ int amdgpu_prim_buf_per_se = 0;
+ int amdgpu_pos_buf_per_se = 0;
+diff --git a/drivers/gpu/drm/amd/include/amd_shared.h b/drivers/gpu/drm/amd/include/amd_shared.h
+index 0c30256..91459a6 100644
+--- a/drivers/gpu/drm/amd/include/amd_shared.h
++++ b/drivers/gpu/drm/amd/include/amd_shared.h
+@@ -128,6 +128,7 @@ enum PP_FEATURE_MASK {
+ 	PP_OVERDRIVE_MASK = 0x4000,
+ 	PP_GFXOFF_MASK = 0x8000,
+ 	PP_ACG_MASK = 0x10000,
++	PP_STUTTER_MODE = 0x20000,
+ };
+ 
+ struct amd_ip_funcs {
+-- 
+2.7.4
+

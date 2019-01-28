@@ -1,0 +1,266 @@
+From ac2dc7d9d3af2271679c0b41537eca2b1f8a512d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 11 Sep 2018 11:50:57 +0200
+Subject: [PATCH 5318/5725] drm/amdgpu: fix shadow BO restoring
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Don't grab the reservation lock any more and simplify the handling quite
+a bit.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 109 ++++++++---------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c |  46 ++++--------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.h |   8 +--
+ 3 files changed, 43 insertions(+), 120 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index c6ac3f5..13efee8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -3003,54 +3003,6 @@ static int amdgpu_device_ip_post_soft_reset(struct amdgpu_device *adev)
+ }
+ 
+ /**
+- * amdgpu_device_recover_vram_from_shadow - restore shadowed VRAM buffers
+- *
+- * @adev: amdgpu_device pointer
+- * @ring: amdgpu_ring for the engine handling the buffer operations
+- * @bo: amdgpu_bo buffer whose shadow is being restored
+- * @fence: dma_fence associated with the operation
+- *
+- * Restores the VRAM buffer contents from the shadow in GTT.  Used to
+- * restore things like GPUVM page tables after a GPU reset where
+- * the contents of VRAM might be lost.
+- * Returns 0 on success, negative error code on failure.
+- */
+-static int amdgpu_device_recover_vram_from_shadow(struct amdgpu_device *adev,
+-						  struct amdgpu_ring *ring,
+-						  struct amdgpu_bo *bo,
+-						  struct dma_fence **fence)
+-{
+-	uint32_t domain;
+-	int r;
+-
+-	if (!bo->shadow)
+-		return 0;
+-
+-	r = amdgpu_bo_reserve(bo, true);
+-	if (r)
+-		return r;
+-	domain = amdgpu_mem_type_to_domain(bo->tbo.mem.mem_type);
+-	/* if bo has been evicted, then no need to recover */
+-	if (domain == AMDGPU_GEM_DOMAIN_VRAM) {
+-		r = amdgpu_bo_validate(bo->shadow);
+-		if (r) {
+-			DRM_ERROR("bo validate failed!\n");
+-			goto err;
+-		}
+-
+-		r = amdgpu_bo_restore_from_shadow(adev, ring, bo,
+-						 NULL, fence, true);
+-		if (r) {
+-			DRM_ERROR("recover page table failed!\n");
+-			goto err;
+-		}
+-	}
+-err:
+-	amdgpu_bo_unreserve(bo);
+-	return r;
+-}
+-
+-/**
+  * amdgpu_device_recover_vram - Recover some VRAM contents
+  *
+  * @adev: amdgpu_device pointer
+@@ -3058,16 +3010,15 @@ static int amdgpu_device_recover_vram_from_shadow(struct amdgpu_device *adev,
+  * Restores the contents of VRAM buffers from the shadows in GTT.  Used to
+  * restore things like GPUVM page tables after a GPU reset where
+  * the contents of VRAM might be lost.
+- * Returns 0 on success, 1 on failure.
++ *
++ * Returns:
++ * 0 on success, negative error code on failure.
+  */
+ static int amdgpu_device_recover_vram(struct amdgpu_device *adev)
+ {
+-	struct amdgpu_ring *ring = adev->mman.buffer_funcs_ring;
+-	struct amdgpu_bo *bo, *tmp;
+ 	struct dma_fence *fence = NULL, *next = NULL;
+-	long r = 1;
+-	int i = 0;
+-	long tmo;
++	struct amdgpu_bo *shadow;
++	long r = 1, tmo;
+ 
+ 	if (amdgpu_sriov_runtime(adev))
+ 		tmo = msecs_to_jiffies(8000);
+@@ -3076,44 +3027,40 @@ static int amdgpu_device_recover_vram(struct amdgpu_device *adev)
+ 
+ 	DRM_INFO("recover vram bo from shadow start\n");
+ 	mutex_lock(&adev->shadow_list_lock);
+-	list_for_each_entry_safe(bo, tmp, &adev->shadow_list, shadow_list) {
+-		next = NULL;
+-		amdgpu_device_recover_vram_from_shadow(adev, ring, bo, &next);
++	list_for_each_entry(shadow, &adev->shadow_list, shadow_list) {
++
++		/* No need to recover an evicted BO */
++		if (shadow->tbo.mem.mem_type != TTM_PL_TT ||
++		    shadow->parent->tbo.mem.mem_type != TTM_PL_VRAM)
++			continue;
++
++		r = amdgpu_bo_restore_shadow(shadow, &next);
++		if (r)
++			break;
++
+ 		if (fence) {
+ 			r = dma_fence_wait_timeout(fence, false, tmo);
+-			if (r == 0)
+-				pr_err("wait fence %p[%d] timeout\n", fence, i);
+-			else if (r < 0)
+-				pr_err("wait fence %p[%d] interrupted\n", fence, i);
+-			if (r < 1) {
+-				dma_fence_put(fence);
+-				fence = next;
++			dma_fence_put(fence);
++			fence = next;
++			if (r <= 0)
+ 				break;
+-			}
+-			i++;
++		} else {
++			fence = next;
+ 		}
+-
+-		dma_fence_put(fence);
+-		fence = next;
+ 	}
+ 	mutex_unlock(&adev->shadow_list_lock);
+ 
+-	if (fence) {
+-		r = dma_fence_wait_timeout(fence, false, tmo);
+-		if (r == 0)
+-			pr_err("wait fence %p[%d] timeout\n", fence, i);
+-		else if (r < 0)
+-			pr_err("wait fence %p[%d] interrupted\n", fence, i);
+-
+-	}
++	if (fence)
++		tmo = dma_fence_wait_timeout(fence, false, tmo);
+ 	dma_fence_put(fence);
+ 
+-	if (r > 0)
+-		DRM_INFO("recover vram bo from shadow done\n");
+-	else
++	if (r <= 0 || tmo <= 0) {
+ 		DRM_ERROR("recover vram bo from shadow failed\n");
++		return -EIO;
++	}
+ 
+-	return (r > 0) ? 0 : 1;
++	DRM_INFO("recover vram bo from shadow done\n");
++	return 0;
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index ae4f267..e05f8c9 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -597,7 +597,7 @@ static int amdgpu_bo_create_shadow(struct amdgpu_device *adev,
+ 	if (!r) {
+ 		bo->shadow->parent = amdgpu_bo_ref(bo);
+ 		mutex_lock(&adev->shadow_list_lock);
+-		list_add_tail(&bo->shadow_list, &adev->shadow_list);
++		list_add_tail(&bo->shadow->shadow_list, &adev->shadow_list);
+ 		mutex_unlock(&adev->shadow_list_lock);
+ 	}
+ 
+@@ -729,13 +729,10 @@ int amdgpu_bo_validate(struct amdgpu_bo *bo)
+ }
+ 
+ /**
+- * amdgpu_bo_restore_from_shadow - restore an &amdgpu_bo buffer object
+- * @adev: amdgpu device object
+- * @ring: amdgpu_ring for the engine handling the buffer operations
+- * @bo: &amdgpu_bo buffer to be restored
+- * @resv: reservation object with embedded fence
++ * amdgpu_bo_restore_shadow - restore an &amdgpu_bo shadow
++ *
++ * @shadow: &amdgpu_bo shadow to be restored
+  * @fence: dma_fence associated with the operation
+- * @direct: whether to submit the job directly
+  *
+  * Copies a buffer object's shadow content back to the object.
+  * This is used for recovering a buffer from its shadow in case of a gpu
+@@ -744,36 +741,19 @@ int amdgpu_bo_validate(struct amdgpu_bo *bo)
+  * Returns:
+  * 0 for success or a negative error code on failure.
+  */
+-int amdgpu_bo_restore_from_shadow(struct amdgpu_device *adev,
+-				  struct amdgpu_ring *ring,
+-				  struct amdgpu_bo *bo,
+-				  struct reservation_object *resv,
+-				  struct dma_fence **fence,
+-				  bool direct)
++int amdgpu_bo_restore_shadow(struct amdgpu_bo *shadow, struct dma_fence **fence)
+ 
+ {
+-	struct amdgpu_bo *shadow = bo->shadow;
+-	uint64_t bo_addr, shadow_addr;
+-	int r;
+-
+-	if (!shadow)
+-		return -EINVAL;
+-
+-	bo_addr = amdgpu_bo_gpu_offset(bo);
+-	shadow_addr = amdgpu_bo_gpu_offset(bo->shadow);
+-
+-	r = reservation_object_reserve_shared(bo->tbo.resv);
+-	if (r)
+-		goto err;
++	struct amdgpu_device *adev = amdgpu_ttm_adev(shadow->tbo.bdev);
++	struct amdgpu_ring *ring = adev->mman.buffer_funcs_ring;
++	uint64_t shadow_addr, parent_addr;
+ 
+-	r = amdgpu_copy_buffer(ring, shadow_addr, bo_addr,
+-			       amdgpu_bo_size(bo), resv, fence,
+-			       direct, false);
+-	if (!r)
+-		amdgpu_bo_fence(bo, *fence, true);
++	shadow_addr = amdgpu_bo_gpu_offset(shadow);
++	parent_addr = amdgpu_bo_gpu_offset(shadow->parent);
+ 
+-err:
+-	return r;
++	return amdgpu_copy_buffer(ring, shadow_addr, parent_addr,
++				  amdgpu_bo_size(shadow), NULL, fence,
++				  true, false);
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+index bd953bf..3674265 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+@@ -276,12 +276,8 @@ int amdgpu_bo_backup_to_shadow(struct amdgpu_device *adev,
+ 			       struct reservation_object *resv,
+ 			       struct dma_fence **fence, bool direct);
+ int amdgpu_bo_validate(struct amdgpu_bo *bo);
+-int amdgpu_bo_restore_from_shadow(struct amdgpu_device *adev,
+-				  struct amdgpu_ring *ring,
+-				  struct amdgpu_bo *bo,
+-				  struct reservation_object *resv,
+-				  struct dma_fence **fence,
+-				  bool direct);
++int amdgpu_bo_restore_shadow(struct amdgpu_bo *shadow,
++			     struct dma_fence **fence);
+ uint32_t amdgpu_bo_get_preferred_pin_domain(struct amdgpu_device *adev,
+ 					    uint32_t domain);
+ 
+-- 
+2.7.4
+

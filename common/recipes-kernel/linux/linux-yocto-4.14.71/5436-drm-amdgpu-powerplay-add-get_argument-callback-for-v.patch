@@ -1,0 +1,185 @@
+From 8b5e5d452bfab04a3af15ad9fe6db62e108528d8 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 20 Sep 2018 20:33:08 -0500
+Subject: [PATCH 5436/5725] drm/amdgpu/powerplay: add get_argument callback for
+ vega20
+
+For consistency with other vega parts.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 18 ++++++++---------
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c   |  5 +----
+ .../gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c   | 23 +++++-----------------
+ .../gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h   |  1 -
+ 4 files changed, 15 insertions(+), 32 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index d45cbfe..7825c6a 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -461,7 +461,7 @@ static int vega20_get_number_of_dpm_level(struct pp_hwmgr *hwmgr,
+ 			"[GetNumOfDpmLevel] failed to get dpm levels!",
+ 			return ret);
+ 
+-	vega20_read_arg_from_smc(hwmgr, num_of_levels);
++	*num_of_levels = smum_get_argument(hwmgr);
+ 	PP_ASSERT_WITH_CODE(*num_of_levels > 0,
+ 			"[GetNumOfDpmLevel] number of clk levels is invalid!",
+ 			return -EINVAL);
+@@ -481,7 +481,7 @@ static int vega20_get_dpm_frequency_by_index(struct pp_hwmgr *hwmgr,
+ 			"[GetDpmFreqByIndex] failed to get dpm freq by index!",
+ 			return ret);
+ 
+-	vega20_read_arg_from_smc(hwmgr, clk);
++	*clk = smum_get_argument(hwmgr);
+ 	PP_ASSERT_WITH_CODE(*clk,
+ 			"[GetDpmFreqByIndex] clk value is invalid!",
+ 			return -EINVAL);
+@@ -1044,7 +1044,7 @@ static int vega20_od8_get_gfx_clock_base_voltage(
+ 			"[GetBaseVoltage] failed to get GFXCLK AVFS voltage from SMU!",
+ 			return ret);
+ 
+-	vega20_read_arg_from_smc(hwmgr, voltage);
++	*voltage = smum_get_argument(hwmgr);
+ 	*voltage = *voltage / VOLTAGE_SCALE;
+ 
+ 	return 0;
+@@ -1401,7 +1401,7 @@ static int vega20_get_max_sustainable_clock(struct pp_hwmgr *hwmgr,
+ 			(clock_select << 16))) == 0,
+ 			"[GetMaxSustainableClock] Failed to get max DC clock from SMC!",
+ 			return ret);
+-	vega20_read_arg_from_smc(hwmgr, clock);
++	*clock = smum_get_argument(hwmgr);
+ 
+ 	/* if DC limit is zero, return AC limit */
+ 	if (*clock == 0) {
+@@ -1410,7 +1410,7 @@ static int vega20_get_max_sustainable_clock(struct pp_hwmgr *hwmgr,
+ 			(clock_select << 16))) == 0,
+ 			"[GetMaxSustainableClock] failed to get max AC clock from SMC!",
+ 			return ret);
+-		vega20_read_arg_from_smc(hwmgr, clock);
++		*clock = smum_get_argument(hwmgr);
+ 	}
+ 
+ 	return 0;
+@@ -1770,14 +1770,14 @@ static int vega20_get_clock_ranges(struct pp_hwmgr *hwmgr,
+ 				PPSMC_MSG_GetMaxDpmFreq, (clock_select << 16))) == 0,
+ 				"[GetClockRanges] Failed to get max clock from SMC!",
+ 				return ret);
+-		vega20_read_arg_from_smc(hwmgr, clock);
++		*clock = smum_get_argument(hwmgr);
+ 	} else {
+ 		PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(hwmgr,
+ 				PPSMC_MSG_GetMinDpmFreq,
+ 				(clock_select << 16))) == 0,
+ 				"[GetClockRanges] Failed to get min clock from SMC!",
+ 				return ret);
+-		vega20_read_arg_from_smc(hwmgr, clock);
++		*clock = smum_get_argument(hwmgr);
+ 	}
+ 
+ 	return 0;
+@@ -1862,7 +1862,7 @@ static int vega20_get_current_gfx_clk_freq(struct pp_hwmgr *hwmgr, uint32_t *gfx
+ 			PPSMC_MSG_GetDpmClockFreq, (PPCLK_GFXCLK << 16))) == 0,
+ 			"[GetCurrentGfxClkFreq] Attempt to get Current GFXCLK Frequency Failed!",
+ 			return ret);
+-	vega20_read_arg_from_smc(hwmgr, &gfx_clk);
++	gfx_clk = smum_get_argument(hwmgr);
+ 
+ 	*gfx_freq = gfx_clk * 100;
+ 
+@@ -1880,7 +1880,7 @@ static int vega20_get_current_mclk_freq(struct pp_hwmgr *hwmgr, uint32_t *mclk_f
+ 			PPSMC_MSG_GetDpmClockFreq, (PPCLK_UCLK << 16))) == 0,
+ 			"[GetCurrentMClkFreq] Attempt to get Current MCLK Frequency Failed!",
+ 			return ret);
+-	vega20_read_arg_from_smc(hwmgr, &mem_clk);
++	mem_clk = smum_get_argument(hwmgr);
+ 
+ 	*mclk_freq = mem_clk * 100;
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
+index 2984ddd5..1c951a5 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
+@@ -37,10 +37,7 @@ static int vega20_get_current_rpm(struct pp_hwmgr *hwmgr, uint32_t *current_rpm)
+ 				PPSMC_MSG_GetCurrentRpm)) == 0,
+ 			"Attempt to get current RPM from SMC Failed!",
+ 			return ret);
+-	PP_ASSERT_WITH_CODE((ret = vega20_read_arg_from_smc(hwmgr,
+-			current_rpm)) == 0,
+-			"Attempt to read current RPM from SMC Failed!",
+-			return ret);
++	*current_rpm = smum_get_argument(hwmgr);
+ 
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c
+index fe7f710..52438f5 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c
+@@ -148,19 +148,11 @@ static int vega20_send_msg_to_smc_with_parameter(struct pp_hwmgr *hwmgr,
+ 	return (ret == PPSMC_Result_OK) ? 0 : -EIO;
+ }
+ 
+-/*
+- * Retrieve an argument from SMC.
+- * @param    hwmgr  the address of the powerplay hardware manager.
+- * @param    arg     pointer to store the argument from SMC.
+- * @return   Always return 0.
+- */
+-int vega20_read_arg_from_smc(struct pp_hwmgr *hwmgr, uint32_t *arg)
++static uint32_t vega20_get_argument(struct pp_hwmgr *hwmgr)
+ {
+ 	struct amdgpu_device *adev = hwmgr->adev;
+ 
+-	*arg = RREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_82);
+-
+-	return 0;
++	return RREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_82);
+ }
+ 
+ /*
+@@ -345,18 +337,12 @@ int vega20_get_enabled_smc_features(struct pp_hwmgr *hwmgr,
+ 			PPSMC_MSG_GetEnabledSmuFeaturesLow)) == 0,
+ 			"[GetEnabledSMCFeatures] Attemp to get SMU features Low failed!",
+ 			return ret);
+-	PP_ASSERT_WITH_CODE((ret = vega20_read_arg_from_smc(hwmgr,
+-			&smc_features_low)) == 0,
+-			"[GetEnabledSMCFeatures] Attemp to read SMU features Low argument failed!",
+-			return ret);
++	smc_features_low = vega20_get_argument(hwmgr);
+ 	PP_ASSERT_WITH_CODE((ret = vega20_send_msg_to_smc(hwmgr,
+ 			PPSMC_MSG_GetEnabledSmuFeaturesHigh)) == 0,
+ 			"[GetEnabledSMCFeatures] Attemp to get SMU features High failed!",
+ 			return ret);
+-	PP_ASSERT_WITH_CODE((ret = vega20_read_arg_from_smc(hwmgr,
+-			&smc_features_high)) == 0,
+-			"[GetEnabledSMCFeatures] Attemp to read SMU features High argument failed!",
+-			return ret);
++	smc_features_high = vega20_get_argument(hwmgr);
+ 
+ 	*features_enabled = ((((uint64_t)smc_features_low << SMU_FEATURES_LOW_SHIFT) & SMU_FEATURES_LOW_MASK) |
+ 			(((uint64_t)smc_features_high << SMU_FEATURES_HIGH_SHIFT) & SMU_FEATURES_HIGH_MASK));
+@@ -584,4 +570,5 @@ const struct pp_smumgr_func vega20_smu_funcs = {
+ 	.download_pptable_settings = NULL,
+ 	.upload_pptable_settings = NULL,
+ 	.is_dpm_running = vega20_is_dpm_running,
++	.get_argument = vega20_get_argument,
+ };
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h
+index 505eb0d..fd17601 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h
+@@ -47,7 +47,6 @@ struct vega20_smumgr {
+ #define SMU_FEATURES_HIGH_MASK       0xFFFFFFFF00000000
+ #define SMU_FEATURES_HIGH_SHIFT      32
+ 
+-int vega20_read_arg_from_smc(struct pp_hwmgr *hwmgr, uint32_t *arg);
+ int vega20_copy_table_from_smc(struct pp_hwmgr *hwmgr,
+ 		uint8_t *table, int16_t table_id);
+ int vega20_copy_table_to_smc(struct pp_hwmgr *hwmgr,
+-- 
+2.7.4
+

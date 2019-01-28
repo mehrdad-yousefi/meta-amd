@@ -1,0 +1,363 @@
+From c676b307a635348ba6d9f459f576ce8aa682df63 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Fri, 3 Aug 2018 14:25:19 -0400
+Subject: [PATCH 5254/5725] drm/amd/display: Remove redundant i2c structs
+
+[Why]
+The i2c code contains two structs that contain the same
+information as i2c_payload
+
+[How]
+Replace references to those structs with references to
+i2c_payload
+
+dce_i2c_transaction_request->status was written to but never read,
+so all references to it are removed
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Jordan Lazare <Jordan.Lazare@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h    | 33 ----------
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c | 84 +++++--------------------
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h |  5 --
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c | 83 ++++--------------------
+ 4 files changed, 28 insertions(+), 177 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h
+index d655f89..a171c5c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h
+@@ -30,39 +30,6 @@
+ #include "dce_i2c_hw.h"
+ #include "dce_i2c_sw.h"
+ 
+-enum dce_i2c_transaction_status {
+-	DCE_I2C_TRANSACTION_STATUS_UNKNOWN = (-1L),
+-	DCE_I2C_TRANSACTION_STATUS_SUCCEEDED,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_CHANNEL_BUSY,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_TIMEOUT,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_PROTOCOL_ERROR,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_NACK,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_INCOMPLETE,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_OPERATION,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_INVALID_OPERATION,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_BUFFER_OVERFLOW,
+-	DCE_I2C_TRANSACTION_STATUS_FAILED_HPD_DISCON
+-};
+-
+-enum dce_i2c_transaction_operation {
+-	DCE_I2C_TRANSACTION_READ,
+-	DCE_I2C_TRANSACTION_WRITE
+-};
+-
+-struct dce_i2c_transaction_payload {
+-	enum dce_i2c_transaction_address_space address_space;
+-	uint32_t address;
+-	uint32_t length;
+-	uint8_t *data;
+-};
+-
+-struct dce_i2c_transaction_request {
+-	enum dce_i2c_transaction_operation operation;
+-	struct dce_i2c_transaction_payload payload;
+-	enum dce_i2c_transaction_status status;
+-};
+-
+-
+ bool dce_i2c_submit_command(
+ 	struct resource_pool *pool,
+ 	struct ddc *ddc,
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c
+index cd7da59..2800d3f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c
+@@ -129,7 +129,7 @@ static uint32_t get_speed(
+ 
+ static void process_channel_reply(
+ 	struct dce_i2c_hw *dce_i2c_hw,
+-	struct i2c_reply_transaction_data *reply)
++	struct i2c_payload *reply)
+ {
+ 	uint32_t length = reply->length;
+ 	uint8_t *buffer = reply->data;
+@@ -522,9 +522,9 @@ static uint32_t get_transaction_timeout_hw(
+ 	return period_timeout * num_of_clock_stretches;
+ }
+ 
+-bool dce_i2c_hw_engine_submit_request(
++bool dce_i2c_hw_engine_submit_payload(
+ 	struct dce_i2c_hw *dce_i2c_hw,
+-	struct dce_i2c_transaction_request *dce_i2c_request,
++	struct i2c_payload *payload,
+ 	bool middle_of_transaction)
+ {
+ 
+@@ -541,46 +541,36 @@ bool dce_i2c_hw_engine_submit_request(
+ 	 * the number of free bytes in HW buffer (minus one for address)
+ 	 */
+ 
+-	if (dce_i2c_request->payload.length >=
++	if (payload->length >=
+ 			get_hw_buffer_available_size(dce_i2c_hw)) {
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_BUFFER_OVERFLOW;
+ 		return false;
+ 	}
+ 
+-	if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_READ)
++	if (!payload->write)
+ 		request.action = middle_of_transaction ?
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_READ_MOT :
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_READ;
+-	else if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_WRITE)
++	else
+ 		request.action = middle_of_transaction ?
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE_MOT :
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE;
+-	else {
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_INVALID_OPERATION;
+-		/* [anaumov] in DAL2, there was no "return false" */
+-		return false;
+-	}
+ 
+-	request.address = (uint8_t) dce_i2c_request->payload.address;
+-	request.length = dce_i2c_request->payload.length;
+-	request.data = dce_i2c_request->payload.data;
++
++	request.address = (uint8_t) ((payload->address << 1) | !payload->write);
++	request.length = payload->length;
++	request.data = payload->data;
+ 
+ 	/* obtain timeout value before submitting request */
+ 
+ 	transaction_timeout = get_transaction_timeout_hw(
+-		dce_i2c_hw, dce_i2c_request->payload.length + 1);
++		dce_i2c_hw, payload->length + 1);
+ 
+ 	submit_channel_request_hw(
+ 		dce_i2c_hw, &request);
+ 
+ 	if ((request.status == I2C_CHANNEL_OPERATION_FAILED) ||
+-		(request.status == I2C_CHANNEL_OPERATION_ENGINE_BUSY)) {
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_CHANNEL_BUSY;
++		(request.status == I2C_CHANNEL_OPERATION_ENGINE_BUSY))
+ 		return false;
+-	}
+ 
+ 	/* wait until transaction proceed */
+ 
+@@ -591,37 +581,11 @@ bool dce_i2c_hw_engine_submit_request(
+ 
+ 	/* update transaction status */
+ 
+-	switch (operation_result) {
+-	case I2C_CHANNEL_OPERATION_SUCCEEDED:
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_SUCCEEDED;
++	if (operation_result == I2C_CHANNEL_OPERATION_SUCCEEDED)
+ 		result = true;
+-	break;
+-	case I2C_CHANNEL_OPERATION_NO_RESPONSE:
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_NACK;
+-	break;
+-	case I2C_CHANNEL_OPERATION_TIMEOUT:
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_TIMEOUT;
+-	break;
+-	case I2C_CHANNEL_OPERATION_FAILED:
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_INCOMPLETE;
+-	break;
+-	default:
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_OPERATION;
+-	}
+ 
+-	if (result && (dce_i2c_request->operation == DCE_I2C_TRANSACTION_READ)) {
+-		struct i2c_reply_transaction_data reply;
+-
+-		reply.data = dce_i2c_request->payload.data;
+-		reply.length = dce_i2c_request->payload.length;
+-
+-		process_channel_reply(dce_i2c_hw, &reply);
+-	}
++	if (result && (!payload->write))
++		process_channel_reply(dce_i2c_hw, payload);
+ 
+ 	return result;
+ }
+@@ -644,22 +608,8 @@ bool dce_i2c_submit_command_hw(
+ 
+ 		struct i2c_payload *payload = cmd->payloads + index_of_payload;
+ 
+-		struct dce_i2c_transaction_request request = { 0 };
+-
+-		request.operation = payload->write ?
+-			DCE_I2C_TRANSACTION_WRITE :
+-			DCE_I2C_TRANSACTION_READ;
+-
+-		request.payload.address_space =
+-			DCE_I2C_TRANSACTION_ADDRESS_SPACE_I2C;
+-		request.payload.address = (payload->address << 1) |
+-			!payload->write;
+-		request.payload.length = payload->length;
+-		request.payload.data = payload->data;
+-
+-
+-		if (!dce_i2c_hw_engine_submit_request(
+-				dce_i2c_hw, &request, mot)) {
++		if (!dce_i2c_hw_engine_submit_payload(
++				dce_i2c_hw, payload, mot)) {
+ 			result = false;
+ 			break;
+ 		}
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h
+index 742c1da..7f19bb4 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h
+@@ -236,11 +236,6 @@ struct i2c_request_transaction_data {
+ 	uint8_t *data;
+ };
+ 
+-struct i2c_reply_transaction_data {
+-	uint32_t length;
+-	uint8_t *data;
+-};
+-
+ struct dce_i2c_hw {
+ 	struct ddc *ddc;
+ 	uint32_t original_speed;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c
+index ab11129..f026669 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c
+@@ -70,13 +70,6 @@ static void release_engine_dce_sw(
+ 	dce_i2c_sw->ddc = NULL;
+ }
+ 
+-enum i2c_channel_operation_result dce_i2c_sw_engine_get_channel_status(
+-	struct dce_i2c_sw *engine,
+-	uint8_t *returned_bytes)
+-{
+-	/* No arbitration with VBIOS is performed since DCE 6.0 */
+-	return I2C_CHANNEL_OPERATION_SUCCEEDED;
+-}
+ static bool get_hw_supported_ddc_line(
+ 	struct ddc *ddc,
+ 	enum gpio_ddc_line *line)
+@@ -469,73 +462,33 @@ void dce_i2c_sw_engine_submit_channel_request(
+ 		I2C_CHANNEL_OPERATION_SUCCEEDED :
+ 		I2C_CHANNEL_OPERATION_FAILED;
+ }
+-bool dce_i2c_sw_engine_submit_request(
++bool dce_i2c_sw_engine_submit_payload(
+ 	struct dce_i2c_sw *engine,
+-	struct dce_i2c_transaction_request *dce_i2c_request,
++	struct i2c_payload *payload,
+ 	bool middle_of_transaction)
+ {
+ 	struct i2c_request_transaction_data request;
+-	bool operation_succeeded = false;
+ 
+-	if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_READ)
++	if (!payload->write)
+ 		request.action = middle_of_transaction ?
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_READ_MOT :
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_READ;
+-	else if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_WRITE)
++	else
+ 		request.action = middle_of_transaction ?
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE_MOT :
+ 			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE;
+-	else {
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_INVALID_OPERATION;
+-		/* in DAL2, there was no "return false" */
+-		return false;
+-	}
+ 
+-	request.address = (uint8_t)dce_i2c_request->payload.address;
+-	request.length = dce_i2c_request->payload.length;
+-	request.data = dce_i2c_request->payload.data;
++	request.address = (uint8_t) ((payload->address << 1) | !payload->write);
++	request.length = payload->length;
++	request.data = payload->data;
+ 
+ 	dce_i2c_sw_engine_submit_channel_request(engine, &request);
+ 
+ 	if ((request.status == I2C_CHANNEL_OPERATION_ENGINE_BUSY) ||
+ 		(request.status == I2C_CHANNEL_OPERATION_FAILED))
+-		dce_i2c_request->status =
+-			DCE_I2C_TRANSACTION_STATUS_FAILED_CHANNEL_BUSY;
+-	else {
+-		enum i2c_channel_operation_result operation_result;
+-
+-		do {
+-			operation_result =
+-				dce_i2c_sw_engine_get_channel_status(engine, NULL);
+-
+-			switch (operation_result) {
+-			case I2C_CHANNEL_OPERATION_SUCCEEDED:
+-				dce_i2c_request->status =
+-					DCE_I2C_TRANSACTION_STATUS_SUCCEEDED;
+-				operation_succeeded = true;
+-			break;
+-			case I2C_CHANNEL_OPERATION_NO_RESPONSE:
+-				dce_i2c_request->status =
+-					DCE_I2C_TRANSACTION_STATUS_FAILED_NACK;
+-			break;
+-			case I2C_CHANNEL_OPERATION_TIMEOUT:
+-				dce_i2c_request->status =
+-				DCE_I2C_TRANSACTION_STATUS_FAILED_TIMEOUT;
+-			break;
+-			case I2C_CHANNEL_OPERATION_FAILED:
+-				dce_i2c_request->status =
+-				DCE_I2C_TRANSACTION_STATUS_FAILED_INCOMPLETE;
+-			break;
+-			default:
+-				dce_i2c_request->status =
+-				DCE_I2C_TRANSACTION_STATUS_FAILED_OPERATION;
+-			break;
+-			}
+-		} while (operation_result == I2C_CHANNEL_OPERATION_ENGINE_BUSY);
+-	}
++		return false;
+ 
+-	return operation_succeeded;
++	return true;
+ }
+ bool dce_i2c_submit_command_sw(
+ 	struct resource_pool *pool,
+@@ -555,22 +508,8 @@ bool dce_i2c_submit_command_sw(
+ 
+ 		struct i2c_payload *payload = cmd->payloads + index_of_payload;
+ 
+-		struct dce_i2c_transaction_request request = { 0 };
+-
+-		request.operation = payload->write ?
+-			DCE_I2C_TRANSACTION_WRITE :
+-			DCE_I2C_TRANSACTION_READ;
+-
+-		request.payload.address_space =
+-			DCE_I2C_TRANSACTION_ADDRESS_SPACE_I2C;
+-		request.payload.address = (payload->address << 1) |
+-			!payload->write;
+-		request.payload.length = payload->length;
+-		request.payload.data = payload->data;
+-
+-
+-		if (!dce_i2c_sw_engine_submit_request(
+-			dce_i2c_sw, &request, mot)) {
++		if (!dce_i2c_sw_engine_submit_payload(
++			dce_i2c_sw, payload, mot)) {
+ 			result = false;
+ 			break;
+ 		}
+-- 
+2.7.4
+

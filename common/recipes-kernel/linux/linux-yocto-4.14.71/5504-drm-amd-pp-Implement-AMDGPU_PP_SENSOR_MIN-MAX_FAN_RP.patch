@@ -1,0 +1,48 @@
+From 05fadfcd17af1ab6bffe816163409aeef84098cd Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sun, 30 Sep 2018 13:19:00 +0800
+Subject: [PATCH 5504/5725] drm/amd/pp: Implement
+ AMDGPU_PP_SENSOR_MIN/MAX_FAN_RPM
+
+so user can query the RPM range
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c                | 6 ++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c | 2 ++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index d38ba0f..a92d765 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -823,6 +823,12 @@ static int pp_dpm_read_sensor(void *handle, int idx,
+ 	case AMDGPU_PP_SENSOR_STABLE_PSTATE_MCLK:
+ 		*((uint32_t *)value) = hwmgr->pstate_mclk;
+ 		return 0;
++	case AMDGPU_PP_SENSOR_MIN_FAN_RPM:
++		*((uint32_t *)value) = hwmgr->thermal_controller.fanInfo.ulMinRPM;
++		return 0;
++	case AMDGPU_PP_SENSOR_MAX_FAN_RPM:
++		*((uint32_t *)value) = hwmgr->thermal_controller.fanInfo.ulMaxRPM;
++		return 0;
+ 	default:
+ 		mutex_lock(&hwmgr->smu_lock);
+ 		ret = hwmgr->hwmgr_func->read_sensor(hwmgr, idx, value, size);
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+index 5f1f7a3..c9b93e6 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+@@ -834,6 +834,8 @@ static int init_powerplay_table_information(
+ 
+ 	hwmgr->thermal_controller.ucType = powerplay_table->ucThermalControllerType;
+ 	pptable_information->uc_thermal_controller_type = powerplay_table->ucThermalControllerType;
++	hwmgr->thermal_controller.fanInfo.ulMinRPM = 0;
++	hwmgr->thermal_controller.fanInfo.ulMaxRPM = powerplay_table->smcPPTable.FanMaximumRpm;
+ 
+ 	set_hw_cap(hwmgr,
+ 		ATOM_VEGA20_PP_THERMALCONTROLLER_NONE != hwmgr->thermal_controller.ucType,
+-- 
+2.7.4
+

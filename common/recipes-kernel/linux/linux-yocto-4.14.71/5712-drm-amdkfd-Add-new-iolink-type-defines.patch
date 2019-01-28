@@ -1,0 +1,39 @@
+From 49c90679dba9eef4b64ab3e801d6c57df9d13401 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Mon, 13 Aug 2018 14:02:17 -0400
+Subject: [PATCH 5712/5725] drm/amdkfd: Add new iolink type defines
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Update the iolink type defines according to the new thunk spec
+
+Change-Id: Ie155641b6bfbe005ae0e12c5c31c68157247ea26
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_crat.h | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_crat.h b/drivers/gpu/drm/amd/amdkfd/kfd_crat.h
+index cd7ee6d..1ef8823 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_crat.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_crat.h
+@@ -248,7 +248,12 @@ struct crat_subtype_ccompute {
+ #define CRAT_IOLINK_TYPE_RAPID_IO	8
+ #define CRAT_IOLINK_TYPE_INFINIBAND	9
+ #define CRAT_IOLINK_TYPE_RESERVED3	10
+-#define CRAT_IOLINK_TYPE_OTHER		11
++#define CRAT_IOLINK_TYPE_XGMI		11
++#define CRAT_IOLINK_TYPE_XGOP		12
++#define CRAT_IOLINK_TYPE_GZ		13
++#define CRAT_IOLINK_TYPE_ETHERNET_RDMA	14
++#define CRAT_IOLINK_TYPE_RDMA_OTHER	15
++#define CRAT_IOLINK_TYPE_OTHER		16
+ #define CRAT_IOLINK_TYPE_MAX		255
+ 
+ #define CRAT_IOLINK_RESERVED_LENGTH	24
+-- 
+2.7.4
+

@@ -1,0 +1,29 @@
+From f21e3679f809c34f710ef382979ccb4a25f668d3 Mon Sep 17 00:00:00 2001
+From: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+Date: Wed, 26 Sep 2018 14:13:11 +0530
+Subject: [PATCH 4684/5725] drm/amd/display: multisync should be enabled only
+ for bottom pipes
+
+multisync should be enabled only for bottom pipes
+
+Signed-off-by: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index efddbf3..1f8f6446 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -666,7 +666,7 @@ static void enable_timing_multisync(
+ 	struct pipe_ctx *multisync_pipes[MAX_PIPES] = { NULL };
+ 
+ 	for (i = 0; i < pipe_count; i++) {
+-		if (!ctx->res_ctx.pipe_ctx[i].stream ||
++		if (!ctx->res_ctx.pipe_ctx[i].stream || ctx->res_ctx.pipe_ctx[i].top_pipe ||
+ 				!ctx->res_ctx.pipe_ctx[i].stream->triggered_crtc_reset.enabled)
+ 			continue;
+ 		if (ctx->res_ctx.pipe_ctx[i].stream == ctx->res_ctx.pipe_ctx[i].stream->triggered_crtc_reset.event_source)
+-- 
+2.7.4
+

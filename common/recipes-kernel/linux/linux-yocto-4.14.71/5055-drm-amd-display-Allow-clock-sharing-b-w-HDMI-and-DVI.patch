@@ -1,0 +1,45 @@
+From 62a45ccc38345dbb9f05f3dd04c44e030f50628f Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Mon, 16 Jul 2018 09:17:55 -0400
+Subject: [PATCH 5055/5725] drm/amd/display: Allow clock sharing b/w HDMI and
+ DVI
+
+[why]
+HDMI and DVI share the same PHY clock and single link
+DVI and HDMI both use 4 lanes, so they should be allowed
+to be sharing the same clock source if all other parameters
+are satisfied.
+
+[how]
+Change a check for general DVI to Dual DVI.
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 2a4a642..1f3aa4a 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -371,11 +371,11 @@ static bool is_sharable_clk_src(
+ 		return false;
+ 
+ 	if (dc_is_hdmi_signal(pipe_with_clk_src->stream->signal)
+-			&& dc_is_dvi_signal(pipe->stream->signal))
++			&& dc_is_dual_link_signal(pipe->stream->signal))
+ 		return false;
+ 
+ 	if (dc_is_hdmi_signal(pipe->stream->signal)
+-			&& dc_is_dvi_signal(pipe_with_clk_src->stream->signal))
++			&& dc_is_dual_link_signal(pipe_with_clk_src->stream->signal))
+ 		return false;
+ 
+ 	if (!resource_are_streams_timing_synchronizable(
+-- 
+2.7.4
+

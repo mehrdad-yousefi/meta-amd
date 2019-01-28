@@ -1,0 +1,35 @@
+From 1515250caa2ab33a4d73d33bba4a99af16705413 Mon Sep 17 00:00:00 2001
+From: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Date: Tue, 10 Jul 2018 16:04:05 -0400
+Subject: [PATCH 4960/5725] drm/amd/display: Null ptr check for
+ set_sdr_white_level
+
+[Why&How]
+Cursor boosting can only be done on DCN+
+Check for nullptr since DCE doesn't implement it.
+
+Signed-off-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Reviewed-by: Sivapiriyan Kumarasamy <Sivapiriyan.Kumarasamy@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_stream.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
+index 4717330..fdcc8ab 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
+@@ -214,7 +214,8 @@ bool dc_stream_set_cursor_attributes(
+ 		}
+ 
+ 		core_dc->hwss.set_cursor_attribute(pipe_ctx);
+-		core_dc->hwss.set_cursor_sdr_white_level(pipe_ctx);
++		if (core_dc->hwss.set_cursor_sdr_white_level)
++			core_dc->hwss.set_cursor_sdr_white_level(pipe_ctx);
+ 	}
+ 
+ 	if (pipe_to_program)
+-- 
+2.7.4
+

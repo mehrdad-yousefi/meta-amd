@@ -1,0 +1,43 @@
+From 820cd8589182530c353f63c8b212c83b6a4fdc82 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Fri, 20 Jul 2018 11:42:24 -0400
+Subject: [PATCH 4987/5725] drm/amdgpu: Fix warning in dma_fence_is_later on
+ resume from S3.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Problem:
+amdgpu_ttm_set_buffer_funcs_status destroys adev->mman.entity on suspend
+without releasing adev->mman.bdev.man[TTM_PL_VRAM].move fence
+so on resume the new drm_sched_entity.fence_context causes
+the warning against the old fence context which is different.
+
+Fix:
+When destroying sched_entity in amdgpu_ttm_set_buffer_funcs_status
+release  man->move and set the pointer to NULL.
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index addc397..5adaefc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -2125,6 +2125,8 @@ void amdgpu_ttm_set_buffer_funcs_status(struct amdgpu_device *adev, bool enable)
+ 	} else {
+ 		drm_sched_entity_fini(adev->mman.entity.sched,
+ 				      &adev->mman.entity);
++		dma_fence_put(man->move);
++		man->move = NULL;
+ 	}
+ 
+ 	/* this just adjusts TTM size idea, which sets lpfn to the correct value */
+-- 
+2.7.4
+

@@ -1,0 +1,34 @@
+From 15dca8b36276e246c15455cebbcdeef4c9ebcfb4 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Thu, 3 May 2018 17:37:56 -0400
+Subject: [PATCH 4300/5725] drm/amdgpu: Fix KFD doorbell SG BO mapping
+
+This type of BO was mistaken for an invalid userptr BO. Improve that
+check to test that it's actually a userptr BO so that SG BOs that
+are still in the CPU domain can be validated and mapped correctly.
+
+Bug: SWDEV-152552
+
+Change-Id: I563f86ffc9d0beabe065768a9195caef06577048
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index dfa909f..d43473e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1468,7 +1468,8 @@ int amdgpu_amdkfd_gpuvm_map_memory_to_gpu(
+ 	 * the queues are still stopped and we can leave mapping for
+ 	 * the next restore worker
+ 	 */
+-	if (bo->tbo.mem.mem_type == TTM_PL_SYSTEM)
++	if (amdgpu_ttm_tt_get_usermm(bo->tbo.ttm) &&
++	    bo->tbo.mem.mem_type == TTM_PL_SYSTEM)
+ 		is_invalid_userptr = true;
+ 
+ 	if (check_if_add_bo_to_vm(avm, mem)) {
+-- 
+2.7.4
+

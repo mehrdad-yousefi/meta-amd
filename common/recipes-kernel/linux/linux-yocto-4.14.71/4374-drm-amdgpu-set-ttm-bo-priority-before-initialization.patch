@@ -1,0 +1,46 @@
+From ebcff1f34fc75e1e4d7f01f11880a0c2d55ca654 Mon Sep 17 00:00:00 2001
+From: Junwei Zhang <Jerry.Zhang@amd.com>
+Date: Fri, 11 May 2018 11:02:23 +0800
+Subject: [PATCH 4374/5725] drm/amdgpu: set ttm bo priority before
+ initialization
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Change-Id: I98aff2c81c0211f7f9bc7c049e1fabba92bb5c53
+Signed-off-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: David Zhou <david1.zhou@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 9d6c659..719423e 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -441,6 +441,8 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev,
+ 
+ 	bo->tbo.bdev = &adev->mman.bdev;
+ 	amdgpu_ttm_placement_from_domain(bo, bp->domain);
++	if (bp->type == ttm_bo_type_kernel)
++		bo->tbo.priority = 1;
+ 
+ 	r = ttm_bo_init_reserved(&adev->mman.bdev, &bo->tbo, size, bp->type,
+ 				 &bo->placement, page_align, &ctx, acc_size,
+@@ -460,9 +462,6 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev,
+ 	if (bp->domain & AMDGPU_GEM_DOMAIN_DGMA && adev->ssg.enabled)
+ 		bo->tbo.ssg_can_map = true;
+ 
+-	if (bp->type == ttm_bo_type_kernel)
+-		bo->tbo.priority = 1;
+-
+ 	if (bp->flags & AMDGPU_GEM_CREATE_VRAM_CLEARED &&
+ 	    bo->tbo.mem.placement & TTM_PL_FLAG_VRAM) {
+ 		struct dma_fence *fence;
+-- 
+2.7.4
+

@@ -1,0 +1,45 @@
+From 47e49c4e3d1e7472abe8e7459c0855ec0e5d68f9 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 13:36:54 +0800
+Subject: [PATCH 4392/5725] drm/amdgpu/psp: Add initial psp support for vega20
+
+The same as vega10 for now.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c | 1 +
+ drivers/gpu/drm/amd/amdgpu/psp_v3_1.c   | 3 +++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+index 4ce246c..a13cd21 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+@@ -52,6 +52,7 @@ static int psp_sw_init(void *handle)
+ 	switch (adev->asic_type) {
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+ 		psp_v3_1_set_psp_funcs(psp);
+ 		break;
+ 	case CHIP_RAVEN:
+diff --git a/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c b/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c
+index 196e75d..0c768e3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c
++++ b/drivers/gpu/drm/amd/amdgpu/psp_v3_1.c
+@@ -41,6 +41,9 @@ MODULE_FIRMWARE("amdgpu/vega10_sos.bin");
+ MODULE_FIRMWARE("amdgpu/vega10_asd.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_sos.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_asd.bin");
++MODULE_FIRMWARE("amdgpu/vega20_sos.bin");
++MODULE_FIRMWARE("amdgpu/vega20_asd.bin");
++
+ 
+ #define smnMP1_FIRMWARE_FLAGS 0x3010028
+ 
+-- 
+2.7.4
+

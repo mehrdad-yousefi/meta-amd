@@ -1,0 +1,39 @@
+From 15acfcb5620e9b1aba76e8a33fc57cfb0205d7df Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Tue, 17 Jul 2018 17:15:48 -0400
+Subject: [PATCH 5106/5725] drm/amd/display: fix dml handling of mono8/16 pixel
+ formats
+
+mono formats are treated exactly the same as equivallent bpp
+444 formats. Dml validation however lacks 444 8 bit format
+while dml perf param calculation lacks mono format support
+
+This change makes them equivallent as far as the enum is concerned
+to avoid having to update dml
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dml/display_mode_enums.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dml/display_mode_enums.h b/drivers/gpu/drm/amd/display/dc/dml/display_mode_enums.h
+index 47c19f8..bea4e61 100644
+--- a/drivers/gpu/drm/amd/display/dc/dml/display_mode_enums.h
++++ b/drivers/gpu/drm/amd/display/dc/dml/display_mode_enums.h
+@@ -40,8 +40,8 @@ enum source_format_class {
+ 	dm_422_8 = 5,
+ 	dm_422_10 = 6,
+ 	dm_444_8 = 7,
+-	dm_mono_8,
+-	dm_mono_16
++	dm_mono_8 = dm_444_8,
++	dm_mono_16 = dm_444_16
+ };
+ enum output_bpc_class {
+ 	dm_out_6 = 0, dm_out_8 = 1, dm_out_10 = 2, dm_out_12 = 3, dm_out_16 = 4
+-- 
+2.7.4
+

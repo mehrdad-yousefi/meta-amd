@@ -1,0 +1,93 @@
+From 2e853a193b1d09eee6aed7f48e1e37b31345a307 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 14 Jun 2018 13:07:19 +0800
+Subject: [PATCH 4809/5725] drm/amd/pp: Add gfx pg support in smu through
+ set_powergating_by_smu
+
+gfx ip block can call set_powergating_by_smu to set gfx pg state if
+necessary.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c         | 10 ++++------
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 25 +++++++++++++++++--------
+ 2 files changed, 21 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 294fa59..f9c7247d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -5605,14 +5605,12 @@ static int gfx_v8_0_late_init(void *handle)
+ static void gfx_v8_0_enable_gfx_static_mg_power_gating(struct amdgpu_device *adev,
+ 						       bool enable)
+ {
+-	if ((adev->asic_type == CHIP_POLARIS11) ||
++	if (((adev->asic_type == CHIP_POLARIS11) ||
+ 	    (adev->asic_type == CHIP_POLARIS12) ||
+-	    (adev->asic_type == CHIP_VEGAM))
++	    (adev->asic_type == CHIP_VEGAM)) &&
++	    adev->powerplay.pp_funcs->set_powergating_by_smu)
+ 		/* Send msg to SMU via Powerplay */
+-		amdgpu_device_ip_set_powergating_state(adev,
+-						       AMD_IP_BLOCK_TYPE_SMC,
+-						       enable ?
+-						       AMD_PG_STATE_GATE : AMD_PG_STATE_UNGATE);
++		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, enable);
+ 
+ 	WREG32_FIELD(RLC_PG_CNTL, STATIC_PER_CU_PG_ENABLE, enable ? 1 : 0);
+ }
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 02ba7c9..ae190f9 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -246,14 +246,7 @@ static int pp_set_powergating_state(void *handle,
+ 			pr_err("gfx off control failed!\n");
+ 	}
+ 
+-	if (hwmgr->hwmgr_func->powergate_gfx == NULL) {
+-		pr_info("%s was not implemented.\n", __func__);
+-		return 0;
+-	}
+-
+-	/* Enable/disable GFX per cu powergating through SMU */
+-	return hwmgr->hwmgr_func->powergate_gfx(hwmgr,
+-			state == AMD_PG_STATE_GATE);
++	return 0;
+ 
+ }
+ 
+@@ -1195,6 +1188,21 @@ static int pp_dpm_powergate_mmhub(void *handle)
+ 	return hwmgr->hwmgr_func->powergate_mmhub(hwmgr);
+ }
+ 
++static int pp_dpm_powergate_gfx(void *handle, bool gate)
++{
++	struct pp_hwmgr *hwmgr = handle;
++
++	if (!hwmgr || !hwmgr->pm_en)
++		return 0;
++
++	if (hwmgr->hwmgr_func->powergate_gfx == NULL) {
++		pr_info("%s was not implemented.\n", __func__);
++		return 0;
++	}
++
++	return hwmgr->hwmgr_func->powergate_gfx(hwmgr, gate);
++}
++
+ static int pp_set_powergating_by_smu(void *handle,
+ 				uint32_t block_type, bool gate)
+ {
+@@ -1212,6 +1220,7 @@ static int pp_set_powergating_by_smu(void *handle,
+ 		pp_dpm_powergate_mmhub(handle);
+ 		break;
+ 	case AMD_IP_BLOCK_TYPE_GFX:
++		ret = pp_dpm_powergate_gfx(handle, gate);
+ 		break;
+ 	default:
+ 		break;
+-- 
+2.7.4
+

@@ -1,0 +1,43 @@
+From 417e4366c6fc2c44816e38fd43742b055dc65db2 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Thu, 13 Sep 2018 15:36:27 -0400
+Subject: [PATCH 5326/5725] drm/amd/display: Add DMCU firmware version
+
+Read the version number from the common firmware header and store
+it in the dm struct
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 2 ++
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 3954196..ae505ed 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -591,6 +591,8 @@ static int load_dmcu_fw(struct amdgpu_device *adev)
+ 	adev->firmware.fw_size +=
+ 		ALIGN(le32_to_cpu(hdr->intv_size_bytes), PAGE_SIZE);
+ 
++	adev->dm.dmcu_fw_version = le32_to_cpu(hdr->header.ucode_version);
++
+ 	DRM_DEBUG_KMS("PSP loading DMCU firmware\n");
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+index 49b9572..2f94317 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+@@ -144,6 +144,7 @@ struct amdgpu_display_manager {
+ 	struct dm_comressor_info compressor;
+ 
+ 	const struct firmware *fw_dmcu;
++	uint32_t dmcu_fw_version;
+ };
+ 
+ struct amdgpu_dm_connector {
+-- 
+2.7.4
+

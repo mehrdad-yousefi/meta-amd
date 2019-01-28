@@ -1,0 +1,29 @@
+From 769917aef42335fcffb66188e8fceff00c18d930 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Fri, 10 Aug 2018 13:09:43 -0500
+Subject: [PATCH 5110/5725] drm/amdgpu: add AVFS control to PP_FEATURE_MASK
+
+Add a ppfeaturemask flag to disable AVFS control.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/amd_shared.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/include/amd_shared.h b/drivers/gpu/drm/amd/include/amd_shared.h
+index dc3d856..f7b9453 100644
+--- a/drivers/gpu/drm/amd/include/amd_shared.h
++++ b/drivers/gpu/drm/amd/include/amd_shared.h
+@@ -129,6 +129,7 @@ enum PP_FEATURE_MASK {
+ 	PP_GFXOFF_MASK = 0x8000,
+ 	PP_ACG_MASK = 0x10000,
+ 	PP_STUTTER_MODE = 0x20000,
++	PP_AVFS_MASK = 0x40000,
+ };
+ 
+ /**
+-- 
+2.7.4
+

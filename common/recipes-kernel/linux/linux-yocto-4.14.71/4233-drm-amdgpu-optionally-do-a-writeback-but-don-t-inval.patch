@@ -1,0 +1,176 @@
+From e0c57dec07e7d2f1733561c0bb8a692bd65ade48 Mon Sep 17 00:00:00 2001
+From: Marek Olsak <marek.olsak@amd.com>
+Date: Tue, 3 Apr 2018 13:05:03 -0400
+Subject: [PATCH 4233/5725] drm/amdgpu: optionally do a writeback but don't
+ invalidate TC for IB fences
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There is a new IB flag that enables this new behavior.
+Full invalidation is unnecessary for RELEASE_MEM and doesn't make sense
+when draw calls from two adjacent gfx IBs run in parallel. This will be
+the new default for Mesa.
+
+v2: bump the version
+
+Signed-off-by: Marek Olšák <marek.olsak@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c   |  3 ++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c |  5 +++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c    |  8 ++++++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h  |  4 +++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c    |  2 +-
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c     | 11 +++++++----
+ drivers/gpu/drm/amd/amdgpu/soc15d.h       |  1 +
+ 7 files changed, 23 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 3f68ca9..51e2928 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -75,9 +75,10 @@
+  * - 3.23.0 - Add query for VRAM lost counter
+  * - 3.24.0 - Add high priority compute support for gfx9
+  * - 3.25.0 - Add support for sensor query info (stable pstate sclk/mclk).
++ * - 3.26.0 - GFX9: Process AMDGPU_IB_FLAG_TC_WB_NOT_INVALIDATE.
+  */
+ #define KMS_DRIVER_MAJOR	3
+-#define KMS_DRIVER_MINOR	25
++#define KMS_DRIVER_MINOR	26
+ #define KMS_DRIVER_PATCHLEVEL	0
+ 
+ #define AMDGPU_VERSION		"18.20.2.15"
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+index 97449e0..4a3cef9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+@@ -131,7 +131,8 @@ static u32 amdgpu_fence_read(struct amdgpu_ring *ring)
+  * Emits a fence command on the requested ring (all asics).
+  * Returns 0 on success, -ENOMEM on failure.
+  */
+-int amdgpu_fence_emit(struct amdgpu_ring *ring, struct dma_fence **f)
++int amdgpu_fence_emit(struct amdgpu_ring *ring, struct dma_fence **f,
++		      unsigned flags)
+ {
+ 	struct amdgpu_device *adev = ring->adev;
+ 	struct amdgpu_fence *fence;
+@@ -149,7 +150,7 @@ int amdgpu_fence_emit(struct amdgpu_ring *ring, struct dma_fence **f)
+ 		       adev->fence_context + ring->idx,
+ 		       seq);
+ 	amdgpu_ring_emit_fence(ring, ring->fence_drv.gpu_addr,
+-			       seq, AMDGPU_FENCE_FLAG_INT);
++				seq, flags | AMDGPU_FENCE_FLAG_INT);
+ 
+ 	ptr = &ring->fence_drv.fences[seq & ring->fence_drv.num_fences_mask];
+ 	/* This function can't be called concurrently anyway, otherwise
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+index 29c8015..3f7afcf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+@@ -127,6 +127,7 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
+ 	struct amdgpu_vm *vm;
+ 	uint64_t fence_ctx;
+ 	uint32_t status = 0, alloc_size;
++	unsigned fence_flags = 0;
+ 
+ 	unsigned i;
+ 	int r = 0;
+@@ -234,7 +235,10 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
+ 	   )
+ 		amdgpu_ring_emit_hdp_invalidate(ring);
+ 
+-	r = amdgpu_fence_emit(ring, f);
++	if (ib->flags & AMDGPU_IB_FLAG_TC_WB_NOT_INVALIDATE)
++		fence_flags |= AMDGPU_FENCE_FLAG_TC_WB_ONLY;
++
++	r = amdgpu_fence_emit(ring, f, fence_flags);
+ 	if (r) {
+ 		dev_err(adev->dev, "failed to emit fence (%d)\n", r);
+ 		if (job && job->vmid)
+@@ -249,7 +253,7 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
+ 	/* wrap the last IB with fence */
+ 	if (job && job->uf_addr) {
+ 		amdgpu_ring_emit_fence(ring, job->uf_addr, job->uf_sequence,
+-				       AMDGPU_FENCE_FLAG_64BIT);
++				       fence_flags | AMDGPU_FENCE_FLAG_64BIT);
+ 	}
+ 
+ 	if (patch_offset != ~0 && ring->funcs->patch_cond_exec)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index 6ed21bd..79ca5b7 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -41,6 +41,7 @@
+ 
+ #define AMDGPU_FENCE_FLAG_64BIT         (1 << 0)
+ #define AMDGPU_FENCE_FLAG_INT           (1 << 1)
++#define AMDGPU_FENCE_FLAG_TC_WB_ONLY    (1 << 2)
+ 
+ enum amdgpu_ring_type {
+ 	AMDGPU_RING_TYPE_GFX,
+@@ -89,7 +90,8 @@ int amdgpu_fence_driver_start_ring(struct amdgpu_ring *ring,
+ 				   unsigned irq_type);
+ void amdgpu_fence_driver_suspend(struct amdgpu_device *adev);
+ void amdgpu_fence_driver_resume(struct amdgpu_device *adev);
+-int amdgpu_fence_emit(struct amdgpu_ring *ring, struct dma_fence **fence);
++int amdgpu_fence_emit(struct amdgpu_ring *ring, struct dma_fence **fence,
++		      unsigned flags);
+ int amdgpu_fence_emit_polling(struct amdgpu_ring *ring, uint32_t *s);
+ void amdgpu_fence_process(struct amdgpu_ring *ring);
+ int amdgpu_fence_wait_empty(struct amdgpu_ring *ring);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index d693066..56a8614 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -633,7 +633,7 @@ int amdgpu_vm_flush(struct amdgpu_ring *ring, struct amdgpu_job *job, bool need_
+ 		amdgpu_gmc_emit_pasid_mapping(ring, job->vmid, job->pasid);
+ 
+ 	if (vm_flush_needed || pasid_mapping_needed) {
+-		r = amdgpu_fence_emit(ring, &fence);
++		r = amdgpu_fence_emit(ring, &fence, 0);
+ 		if (r)
+ 			return r;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index d04a78b..cf1d206 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -3857,13 +3857,16 @@ static void gfx_v9_0_ring_emit_fence(struct amdgpu_ring *ring, u64 addr,
+ {
+ 	bool write64bit = flags & AMDGPU_FENCE_FLAG_64BIT;
+ 	bool int_sel = flags & AMDGPU_FENCE_FLAG_INT;
++	bool writeback = flags & AMDGPU_FENCE_FLAG_TC_WB_ONLY;
+ 
+ 	/* RELEASE_MEM - flush caches, send int */
+ 	amdgpu_ring_write(ring, PACKET3(PACKET3_RELEASE_MEM, 6));
+-	amdgpu_ring_write(ring, (EOP_TCL1_ACTION_EN |
+-				 EOP_TC_ACTION_EN |
+-				 EOP_TC_WB_ACTION_EN |
+-				 EOP_TC_MD_ACTION_EN |
++	amdgpu_ring_write(ring, ((writeback ? (EOP_TC_WB_ACTION_EN |
++					       EOP_TC_NC_ACTION_EN) :
++					      (EOP_TCL1_ACTION_EN |
++					       EOP_TC_ACTION_EN |
++					       EOP_TC_WB_ACTION_EN |
++					       EOP_TC_MD_ACTION_EN)) |
+ 				 EVENT_TYPE(CACHE_FLUSH_AND_INV_TS_EVENT) |
+ 				 EVENT_INDEX(5)));
+ 	amdgpu_ring_write(ring, DATA_SEL(write64bit ? 2 : 1) | INT_SEL(int_sel ? 2 : 0));
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15d.h b/drivers/gpu/drm/amd/amdgpu/soc15d.h
+index f22f7a8..8dc2910 100755
+--- a/drivers/gpu/drm/amd/amdgpu/soc15d.h
++++ b/drivers/gpu/drm/amd/amdgpu/soc15d.h
+@@ -159,6 +159,7 @@
+ #define		EOP_TC_WB_ACTION_EN                     (1 << 15) /* L2 */
+ #define		EOP_TCL1_ACTION_EN                      (1 << 16)
+ #define		EOP_TC_ACTION_EN                        (1 << 17) /* L2 */
++#define		EOP_TC_NC_ACTION_EN			(1 << 19)
+ #define		EOP_TC_MD_ACTION_EN			(1 << 21) /* L2 metadata */
+ 
+ #define		DATA_SEL(x)                             ((x) << 29)
+-- 
+2.7.4
+

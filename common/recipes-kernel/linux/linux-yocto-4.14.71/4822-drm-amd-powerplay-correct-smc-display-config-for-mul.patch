@@ -1,0 +1,32 @@
+From a093037e6a5386cf03833e861e4a51b988bfa92b Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Wed, 20 Jun 2018 12:24:29 +0800
+Subject: [PATCH 4822/5725] drm/amd/powerplay: correct smc display config for
+ multi monitor
+
+Need to take into account multi-head with synced displays.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index 39235f0..177fe78 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -1402,7 +1402,8 @@ static int vega12_notify_smc_display_config_after_ps_adjustment(
+ 	struct pp_display_clock_request clock_req;
+ 	uint32_t clk_request;
+ 
+-	if (hwmgr->display_config->num_display > 1)
++	if ((hwmgr->display_config->num_display > 1) &&
++		!hwmgr->display_config->multi_monitor_in_sync)
+ 		vega12_notify_smc_display_change(hwmgr, false);
+ 	else
+ 		vega12_notify_smc_display_change(hwmgr, true);
+-- 
+2.7.4
+

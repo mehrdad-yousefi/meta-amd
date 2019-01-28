@@ -1,0 +1,28 @@
+From 8b1690d4d9861b22a4029f106465736e463b0fb1 Mon Sep 17 00:00:00 2001
+From: kbuild test robot <fengguang.wu@intel.com>
+Date: Wed, 28 Mar 2018 00:55:26 +0800
+Subject: [PATCH 5688/5725] drm/amdkfd: kfd_dev_is_large_bar() can be static
+
+Fixes: 5ec7e02854b3 ("drm/amdkfd: Add ioctls for GPUVM memory management")
+Signed-off-by: Fengguang Wu <fengguang.wu@intel.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index ba5fe07..3b38253 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1211,7 +1211,7 @@ static int kfd_ioctl_acquire_vm(struct file *filep, struct kfd_process *p,
+ 	return ret;
+ }
+ 
+-bool kfd_dev_is_large_bar(struct kfd_dev *dev)
++static bool kfd_dev_is_large_bar(struct kfd_dev *dev)
+ {
+ 	struct kfd_local_mem_info mem_info;
+ 
+-- 
+2.7.4
+

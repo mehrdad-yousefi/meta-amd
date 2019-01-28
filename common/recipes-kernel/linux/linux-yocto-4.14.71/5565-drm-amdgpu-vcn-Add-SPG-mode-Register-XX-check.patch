@@ -1,0 +1,32 @@
+From 0979c49841895490016e54d4f58ab9116fe171a6 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Tue, 9 Oct 2018 16:48:29 -0400
+Subject: [PATCH 5565/5725] drm/amdgpu/vcn:Add SPG mode Register XX check
+
+Add Static Power Gate mode Register XX check
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu <leo.liu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index b8b2974..78860f4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -840,6 +840,10 @@ static int vcn_v1_0_start_spg_mode(struct amdgpu_device *adev)
+ 
+ 	vcn_v1_0_mc_resume_spg_mode(adev);
+ 
++	WREG32_SOC15(UVD, 0, mmUVD_REG_XX_MASK, 0x10);
++	WREG32_SOC15(UVD, 0, mmUVD_RBC_XX_IB_REG_CHECK,
++		RREG32_SOC15(UVD, 0, mmUVD_RBC_XX_IB_REG_CHECK) | 0x3);
++
+ 	/* take all subblocks out of reset, except VCPU */
+ 	WREG32_SOC15(UVD, 0, mmUVD_SOFT_RESET,
+ 			UVD_SOFT_RESET__VCPU_SOFT_RESET_MASK);
+-- 
+2.7.4
+

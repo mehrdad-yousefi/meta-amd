@@ -1,0 +1,32 @@
+From 848cfd686aeabb33589b9f05dce8d28f8e87b431 Mon Sep 17 00:00:00 2001
+From: rex zhu <rex.zhu@amd.com>
+Date: Wed, 27 Jun 2018 17:34:37 +0800
+Subject: [PATCH 4805/5725] drm/amd/display: Fix dm-pp clks type convert error
+
+fix a typo when convert displayphyclk type.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+index 2acbcc7..cf92d7a 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+@@ -167,6 +167,9 @@ static enum amd_pp_clock_type dc_to_pp_clock_type(
+ 		amd_pp_clk_type = amd_pp_f_clock;
+ 		break;
+ 	case DM_PP_CLOCK_TYPE_DISPLAYPHYCLK:
++		amd_pp_clk_type = amd_pp_phy_clock;
++		break;
++	case DM_PP_CLOCK_TYPE_DPPCLK:
+ 		amd_pp_clk_type = amd_pp_dpp_clock;
+ 		break;
+ 	default:
+-- 
+2.7.4
+

@@ -1,0 +1,291 @@
+From b9e93608c6e89441477a797c2c8196d3d7984755 Mon Sep 17 00:00:00 2001
+From: Amber Lin <Amber.Lin@amd.com>
+Date: Wed, 22 Aug 2018 16:48:50 -0400
+Subject: [PATCH 5701/5725] drm/amdgpu: Merge amdkfd into amdgpu
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Since KFD is only supported by single GPU driver, it makes sense to merge
+amdgpu and amdkfd into one module. This patch is the initial step: merge
+Kconfig and Makefile.
+
+v2: also remove kfd from drm Kconfig
+
+Signed-off-by: Amber Lin <Amber.Lin@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/Kconfig                 |  2 --
+ drivers/gpu/drm/amd/amdgpu/Kconfig      |  1 +
+ drivers/gpu/drm/amd/amdgpu/Makefile     |  9 +++--
+ drivers/gpu/drm/amd/amdkfd/Kconfig      |  2 +-
+ drivers/gpu/drm/amd/amdkfd/Makefile     | 57 ++++++++++++++++++-----------
+ drivers/gpu/drm/amd/amdkfd/kfd_module.c | 64 +++++++++++----------------------
+ 6 files changed, 66 insertions(+), 69 deletions(-)
+
+diff --git a/drivers/gpu/drm/Kconfig b/drivers/gpu/drm/Kconfig
+index 1a4bda3..1745b8a 100644
+--- a/drivers/gpu/drm/Kconfig
++++ b/drivers/gpu/drm/Kconfig
+@@ -262,8 +262,6 @@ source "drivers/gpu/drm/bridge/Kconfig"
+ 
+ source "drivers/gpu/drm/sti/Kconfig"
+ 
+-source "drivers/gpu/drm/amd/amdkfd/Kconfig"
+-
+ source "drivers/gpu/drm/imx/Kconfig"
+ 
+ source "drivers/gpu/drm/vc4/Kconfig"
+diff --git a/drivers/gpu/drm/amd/amdgpu/Kconfig b/drivers/gpu/drm/amd/amdgpu/Kconfig
+index 468a19b..d2ea710 100644
+--- a/drivers/gpu/drm/amd/amdgpu/Kconfig
++++ b/drivers/gpu/drm/amd/amdgpu/Kconfig
+@@ -42,3 +42,4 @@ config DRM_AMDGPU_GART_DEBUGFS
+ 
+ source "drivers/gpu/drm/amd/acp/Kconfig"
+ source "drivers/gpu/drm/amd/display/Kconfig"
++source "drivers/gpu/drm/amd/amdkfd/Kconfig"
+diff --git a/drivers/gpu/drm/amd/amdgpu/Makefile b/drivers/gpu/drm/amd/amdgpu/Makefile
+index 5edff50..e351f2d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/Makefile
++++ b/drivers/gpu/drm/amd/amdgpu/Makefile
+@@ -35,7 +35,8 @@ ccflags-y := -Iinclude/drm -I$(FULL_AMD_PATH)/include/asic_reg \
+ 	-I$(FULL_AMD_DISPLAY_PATH) \
+ 	-I$(FULL_AMD_DISPLAY_PATH)/include \
+ 	-I$(FULL_AMD_DISPLAY_PATH)/dc \
+-	-I$(FULL_AMD_DISPLAY_PATH)/amdgpu_dm
++	-I$(FULL_AMD_DISPLAY_PATH)/amdgpu_dm \
++	-I$(FULL_AMD_PATH)/amdkfd
+ 
+ amdgpu-y := amdgpu_drv.o
+ 
+@@ -134,13 +135,17 @@ amdgpu-y += \
+ 	vcn_v1_0.o
+ 
+ # add amdkfd interfaces
++ifneq ($(CONFIG_HSA_AMD),)
++AMDKFD_PATH := ../amdkfd
++include $(FULL_AMD_PATH)/amdkfd/Makefile
++amdgpu-y += $(AMDKFD_FILES)
+ amdgpu-y += \
+ 	 amdgpu_amdkfd.o \
+ 	 amdgpu_amdkfd_gfx_v7.o \
+ 	 amdgpu_amdkfd_gfx_v8.o \
+ 	 amdgpu_amdkfd_gfx_v9.o \
+ 	 amdgpu_amdkfd_gpuvm.o
+-
++endif
+ # add cgs
+ amdgpu-y += amdgpu_cgs.o
+ 
+diff --git a/drivers/gpu/drm/amd/amdkfd/Kconfig b/drivers/gpu/drm/amd/amdkfd/Kconfig
+index bc8d8f7..94cbfbc 100644
+--- a/drivers/gpu/drm/amd/amdkfd/Kconfig
++++ b/drivers/gpu/drm/amd/amdkfd/Kconfig
+@@ -3,7 +3,7 @@
+ #
+ 
+ config HSA_AMD
+-	tristate "HSA kernel driver for AMD GPU devices"
++	bool "HSA kernel driver for AMD GPU devices"
+ 	depends on (DRM_RADEON || DRM_AMDGPU) && (X86_64 || PPC64 || ARM64)
+ 	select DRM_AMDGPU_USERPTR
+ 	imply AMD_IOMMU_V2
+diff --git a/drivers/gpu/drm/amd/amdkfd/Makefile b/drivers/gpu/drm/amd/amdkfd/Makefile
+index 4804f9c..911e67d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/Makefile
++++ b/drivers/gpu/drm/amd/amdkfd/Makefile
+@@ -23,28 +23,43 @@
+ # Makefile for Heterogenous System Architecture support for AMD GPU devices
+ #
+ 
+-FULL_AMD_PATH=$(src)/..
+-ccflags-y := -I$(FULL_AMD_PATH)/include  \
+-		-I$(FULL_AMD_PATH)/include/asic_reg
+-
+-amdkfd-y	:= kfd_module.o kfd_device.o kfd_chardev.o kfd_topology.o \
+-		kfd_pasid.o kfd_doorbell.o kfd_flat_memory.o \
+-		kfd_process.o kfd_queue.o kfd_mqd_manager.o \
+-		kfd_mqd_manager_cik.o kfd_mqd_manager_vi.o \
+-		kfd_mqd_manager_v9.o \
+-		kfd_kernel_queue.o kfd_kernel_queue_cik.o \
+-		kfd_kernel_queue_vi.o kfd_kernel_queue_v9.o \
+-		kfd_packet_manager.o kfd_process_queue_manager.o \
+-		kfd_device_queue_manager.o kfd_device_queue_manager_cik.o \
+-		kfd_device_queue_manager_vi.o kfd_device_queue_manager_v9.o \
+-		kfd_interrupt.o kfd_events.o cik_event_interrupt.o kfd_int_process_v9.o \
+-		kfd_dbgdev.o kfd_dbgmgr.o kfd_flat_memory.o kfd_crat.o kfd_rdma.o \
+-		kfd_peerdirect.o kfd_ipc.o
++AMDKFD_FILES   := $(AMDKFD_PATH)/kfd_module.o \
++		$(AMDKFD_PATH)/kfd_device.o \
++		$(AMDKFD_PATH)/kfd_chardev.o \
++		$(AMDKFD_PATH)/kfd_topology.o \
++		$(AMDKFD_PATH)/kfd_pasid.o \
++		$(AMDKFD_PATH)/kfd_doorbell.o \
++		$(AMDKFD_PATH)/kfd_flat_memory.o \
++		$(AMDKFD_PATH)/kfd_process.o \
++		$(AMDKFD_PATH)/kfd_queue.o \
++		$(AMDKFD_PATH)/kfd_mqd_manager.o \
++		$(AMDKFD_PATH)/kfd_mqd_manager_cik.o \
++		$(AMDKFD_PATH)/kfd_mqd_manager_vi.o \
++		$(AMDKFD_PATH)/kfd_mqd_manager_v9.o \
++		$(AMDKFD_PATH)/kfd_kernel_queue.o \
++		$(AMDKFD_PATH)/kfd_kernel_queue_cik.o \
++		$(AMDKFD_PATH)/kfd_kernel_queue_vi.o \
++		$(AMDKFD_PATH)/kfd_kernel_queue_v9.o \
++		$(AMDKFD_PATH)/kfd_packet_manager.o \
++		$(AMDKFD_PATH)/kfd_process_queue_manager.o \
++		$(AMDKFD_PATH)/kfd_device_queue_manager.o \
++		$(AMDKFD_PATH)/kfd_device_queue_manager_cik.o \
++		$(AMDKFD_PATH)/kfd_device_queue_manager_vi.o \
++		$(AMDKFD_PATH)/kfd_device_queue_manager_v9.o \
++		$(AMDKFD_PATH)/kfd_interrupt.o \
++		$(AMDKFD_PATH)/kfd_events.o \
++		$(AMDKFD_PATH)/cik_event_interrupt.o \
++		$(AMDKFD_PATH)/kfd_int_process_v9.o \
++		$(AMDKFD_PATH)/kfd_dbgdev.o \
++                $(AMDKFD_PATH)/kfd_dbgmgr.o \
++                $(AMDKFD_PATH)/kfd_flat_memory.o \
++		$(AMDKFD_PATH)/kfd_rdma.o \
++		$(AMDKFD_PATH)/kfd_crat.o
+ 
+ ifneq ($(CONFIG_AMD_IOMMU_V2),)
+-amdkfd-y += kfd_iommu.o
++AMDKFD_FILES += $(AMDKFD_PATH)/kfd_iommu.o
+ endif
+ 
+-amdkfd-$(CONFIG_DEBUG_FS) += kfd_debugfs.o
+-
+-obj-$(CONFIG_HSA_AMD)	+= amdkfd.o
++ifneq ($(CONFIG_DEBUG_FS),)
++AMDKFD_FILES += $(AMDKFD_PATH)/kfd_debugfs.o
++endif
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_module.c b/drivers/gpu/drm/amd/amdkfd/kfd_module.c
+index 261657f..8675222 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_module.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_module.c
+@@ -20,15 +20,11 @@
+  * OTHER DEALINGS IN THE SOFTWARE.
+  */
+ 
+-#include <linux/module.h>
+ #include <linux/sched.h>
+ #include <linux/moduleparam.h>
+ #include <linux/device.h>
+-#include <linux/printk.h>
+ #include "kfd_priv.h"
+ 
+-#define KFD_DRIVER_AUTHOR	"AMD Inc. and others"
+-
+ #define KFD_DRIVER_DESC		"Standalone HSA driver for AMD's GPUs"
+ #define KFD_DRIVER_DATE		"20160408"
+ #define KFD_DRIVER_MAJOR	2
+@@ -99,33 +95,7 @@ int halt_if_hws_hang;
+ module_param(halt_if_hws_hang, int, 0644);
+ MODULE_PARM_DESC(halt_if_hws_hang, "Halt if HWS hang is detected (0 = off (default), 1 = on)");
+ 
+-
+-static int amdkfd_init_completed;
+-
+-int kgd2kfd_init(unsigned int interface_version,
+-		const struct kgd2kfd_calls **g2f)
+-{
+-	if (!amdkfd_init_completed)
+-		return -EPROBE_DEFER;
+-
+-	/*
+-	 * Only one interface version is supported,
+-	 * no kfd/kgd version skew allowed.
+-	 */
+-	if (interface_version != KFD_INTERFACE_VERSION)
+-		return -EINVAL;
+-
+-	*g2f = &kgd2kfd;
+-
+-	return 0;
+-}
+-EXPORT_SYMBOL(kgd2kfd_init);
+-
+-void kgd2kfd_exit(void)
+-{
+-}
+-
+-static int __init kfd_module_init(void)
++static int kfd_init(void)
+ {
+ 	int err;
+ 
+@@ -133,7 +103,7 @@ static int __init kfd_module_init(void)
+ 	if ((sched_policy < KFD_SCHED_POLICY_HWS) ||
+ 		(sched_policy > KFD_SCHED_POLICY_NO_HWS)) {
+ 		pr_err("sched_policy has invalid value\n");
+-		return -1;
++		return -EINVAL;
+ 	}
+ 
+ 	/* Verify module parameters */
+@@ -141,7 +111,7 @@ static int __init kfd_module_init(void)
+ 		(max_num_of_queues_per_device >
+ 			KFD_MAX_NUM_OF_QUEUES_PER_DEVICE)) {
+ 		pr_err("max_num_of_queues_per_device must be between 1 to KFD_MAX_NUM_OF_QUEUES_PER_DEVICE\n");
+-		return -1;
++		return -EINVAL;
+ 	}
+ 
+ 	err = kfd_chardev_init();
+@@ -164,10 +134,6 @@ static int __init kfd_module_init(void)
+ 
+ 	kfd_debugfs_init();
+ 
+-	amdkfd_init_completed = 1;
+-
+-	dev_info(kfd_device, "Initialized module\n");
+-
+ 	return 0;
+ 
+ err_create_wq:
+@@ -179,21 +145,33 @@ static int __init kfd_module_init(void)
+ 	return err;
+ }
+ 
+-static void __exit kfd_module_exit(void)
++static void kfd_exit(void)
+ {
+-	amdkfd_init_completed = 0;
+-
+ 	kfd_debugfs_fini();
+ 	kfd_close_peer_direct();
+ 	kfd_process_destroy_wq();
+ 	kfd_topology_shutdown();
+ 	kfd_chardev_exit();
+-	pr_info("amdkfd: Removed module\n");
+ }
+ 
+-module_init(kfd_module_init);
+-module_exit(kfd_module_exit);
++int kgd2kfd_init(unsigned int interface_version,
++		 const struct kgd2kfd_calls **g2f)
++{
++	int err;
+ 
++	err = kfd_init();
++	if (err)
++		return err;
++	*g2f = &kgd2kfd;
++
++	return 0;
++}
++EXPORT_SYMBOL(kgd2kfd_init);
++
++void kgd2kfd_exit(void)
++{
++	kfd_exit();
++}
+ MODULE_AUTHOR(KFD_DRIVER_AUTHOR);
+ MODULE_DESCRIPTION(KFD_DRIVER_DESC);
+ MODULE_LICENSE("GPL and additional rights");
+-- 
+2.7.4
+

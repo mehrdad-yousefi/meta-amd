@@ -1,0 +1,51 @@
+From 0e43ca7630a631e18fddc5c1b9a9a1be079b48f7 Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Fri, 12 Oct 2018 18:14:32 +0800
+Subject: [PATCH 5551/5725] drm/amdgpu: Set the default value about gds vmid0
+ size
+
+For sriov, when first run windows guest, then run linux guest, the gds
+vmid0 size will be reset to 0 by windows guest. So if the value has been
+reset to 0, then set the value to the default value in linux guest.
+
+v2:
+Fixed value instead of reading mmGDS_VMID0_SIZE.
+
+v3:
+Set the default value of the switch.
+
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 178b375..60b1e11 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -4919,7 +4919,20 @@ static void gfx_v9_0_set_rlc_funcs(struct amdgpu_device *adev)
+ static void gfx_v9_0_set_gds_init(struct amdgpu_device *adev)
+ {
+ 	/* init asci gds info */
+-	adev->gds.mem.total_size = RREG32_SOC15(GC, 0, mmGDS_VMID0_SIZE);
++	switch (adev->asic_type) {
++	case CHIP_VEGA10:
++	case CHIP_VEGA12:
++	case CHIP_VEGA20:
++		adev->gds.mem.total_size = 0x10000;
++		break;
++	case CHIP_RAVEN:
++		adev->gds.mem.total_size = 0x1000;
++		break;
++	default:
++		adev->gds.mem.total_size = 0x10000;
++		break;
++	}
++
+ 	adev->gds.gws.total_size = 64;
+ 	adev->gds.oa.total_size = 16;
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,40 @@
+From 20cdcc8b5ad6d1e7567a2daac46771012f76da3a Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Thu, 17 May 2018 15:56:05 +0300
+Subject: [PATCH 4452/5725] drm/amd/pp: missing curly braces in
+ smu7_enable_sclk_mclk_dpm()
+
+We added some more lines of code to this if statement but forgot to add
+curly braces.
+
+Fixes: 0c24e7ef233b ("drm/amd/powerplay: add specific changes for VEGAM in smu7_hwmgr.c")
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index 3f0162d..f697a56 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -1019,7 +1019,7 @@ static int smu7_enable_sclk_mclk_dpm(struct pp_hwmgr *hwmgr)
+ 	struct smu7_hwmgr *data = (struct smu7_hwmgr *)(hwmgr->backend);
+ 
+ 	/* enable SCLK dpm */
+-	if (!data->sclk_dpm_key_disabled)
++	if (!data->sclk_dpm_key_disabled) {
+ 		if (hwmgr->chip_id == CHIP_VEGAM)
+ 			smu7_disable_sclk_vce_handshake(hwmgr);
+ 
+@@ -1027,6 +1027,7 @@ static int smu7_enable_sclk_mclk_dpm(struct pp_hwmgr *hwmgr)
+ 		(0 == smum_send_msg_to_smc(hwmgr, PPSMC_MSG_DPM_Enable)),
+ 		"Failed to enable SCLK DPM during DPM Start Function!",
+ 		return -EINVAL);
++	}
+ 
+ 	/* enable MCLK dpm */
+ 	if (0 == data->mclk_dpm_key_disabled) {
+-- 
+2.7.4
+

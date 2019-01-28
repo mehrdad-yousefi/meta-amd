@@ -1,0 +1,51 @@
+From d5c62b8ea051ce9124881dd894e0cc0185a8562d Mon Sep 17 00:00:00 2001
+From: Nayan Deshmukh <nayan26deshmukh@gmail.com>
+Date: Wed, 16 May 2018 18:54:18 +0530
+Subject: [PATCH 4453/5725] drm/scheduler: fix function name prefix in comments
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+That got missed while moving the files outside of amdgpu.
+
+Signed-off-by: Nayan Deshmukh <nayan26deshmukh@gmail.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/scheduler/sched_fence.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/scheduler/sched_fence.c b/drivers/gpu/drm/scheduler/sched_fence.c
+index d799e63..b3d7b82 100644
+--- a/drivers/gpu/drm/scheduler/sched_fence.c
++++ b/drivers/gpu/drm/scheduler/sched_fence.c
+@@ -87,7 +87,7 @@ static bool drm_sched_fence_enable_signaling(struct dma_fence *f)
+ }
+ 
+ /**
+- * amd_sched_fence_free - free up the fence memory
++ * drm_sched_fence_free - free up the fence memory
+  *
+  * @rcu: RCU callback head
+  *
+@@ -103,7 +103,7 @@ static void drm_sched_fence_free(struct rcu_head *rcu)
+ }
+ 
+ /**
+- * amd_sched_fence_release_scheduled - callback that fence can be freed
++ * drm_sched_fence_release_scheduled - callback that fence can be freed
+  *
+  * @fence: fence
+  *
+@@ -118,7 +118,7 @@ static void drm_sched_fence_release_scheduled(struct dma_fence *f)
+ }
+ 
+ /**
+- * amd_sched_fence_release_finished - drop extra reference
++ * drm_sched_fence_release_finished - drop extra reference
+  *
+  * @f: fence
+  *
+-- 
+2.7.4
+

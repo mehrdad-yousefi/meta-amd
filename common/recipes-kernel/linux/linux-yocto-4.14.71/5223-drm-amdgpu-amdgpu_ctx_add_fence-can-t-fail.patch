@@ -1,0 +1,80 @@
+From cd86c4401e49c5e703ef271f95e37bfa70a5abaa Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 24 Aug 2018 14:23:33 +0200
+Subject: [PATCH 5223/5725] drm/amdgpu: amdgpu_ctx_add_fence can't fail
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+No more waiting for a fence done here.
+
+Change-Id: I69ded731b7a85b0123d6cc05983c56ab5ff8cdcf
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h     | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c  | 9 +--------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c | 4 +---
+ 3 files changed, 3 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 91be1d4..9c59470 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -550,7 +550,7 @@ struct amdgpu_ctx_mgr {
+ struct amdgpu_ctx *amdgpu_ctx_get(struct amdgpu_fpriv *fpriv, uint32_t id);
+ int amdgpu_ctx_put(struct amdgpu_ctx *ctx);
+ 
+-int amdgpu_ctx_add_fence(struct amdgpu_ctx *ctx, struct amdgpu_ring *ring,
++void amdgpu_ctx_add_fence(struct amdgpu_ctx *ctx, struct amdgpu_ring *ring,
+ 			      struct dma_fence *fence, uint64_t *seq);
+ struct dma_fence *amdgpu_ctx_get_fence(struct amdgpu_ctx *ctx,
+ 				   struct amdgpu_ring *ring, uint64_t seq);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index fd9fe69..c2a5caa 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1233,14 +1233,7 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ 	job->owner = p->filp;
+ 	p->fence = dma_fence_get(&job->base.s_fence->finished);
+ 
+-	r = amdgpu_ctx_add_fence(p->ctx, ring, p->fence, &seq);
+-	if (r) {
+-		dma_fence_put(p->fence);
+-		dma_fence_put(&job->base.s_fence->finished);
+-		amdgpu_job_free(job);
+-		amdgpu_mn_unlock(p->mn);
+-		return r;
+-	}
++	amdgpu_ctx_add_fence(p->ctx, ring, p->fence, &seq);
+ 
+ 	amdgpu_cs_post_dependencies(p);
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+index 38903ea..f04f525 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+@@ -352,7 +352,7 @@ int amdgpu_ctx_put(struct amdgpu_ctx *ctx)
+ 	return 0;
+ }
+ 
+-int amdgpu_ctx_add_fence(struct amdgpu_ctx *ctx, struct amdgpu_ring *ring,
++void amdgpu_ctx_add_fence(struct amdgpu_ctx *ctx, struct amdgpu_ring *ring,
+ 			      struct dma_fence *fence, uint64_t* handler)
+ {
+ 	struct amdgpu_ctx_ring *cring = & ctx->rings[ring->idx];
+@@ -375,8 +375,6 @@ int amdgpu_ctx_add_fence(struct amdgpu_ctx *ctx, struct amdgpu_ring *ring,
+ 	dma_fence_put(other);
+ 	if (handler)
+ 		*handler = seq;
+-
+-	return 0;
+ }
+ 
+ struct dma_fence *amdgpu_ctx_get_fence(struct amdgpu_ctx *ctx,
+-- 
+2.7.4
+

@@ -1,0 +1,62 @@
+From 874f00cca5d3af57181b4cb6cd41dc107a3d1531 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Fri, 1 Jun 2018 12:30:17 -0400
+Subject: [PATCH 4607/5725] drm/amdgpu: define and add extra dword for jpeg
+ ring
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Define extra dword for jpeg ring. Jpeg ring will allocate extra dword to store
+the patch commands for fixing the known issue.
+
+v2: dropping extra_dw for rings other than jpeg.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h | 1 +
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c    | 1 +
+ 3 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
+index c6850b6..19e45a3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
+@@ -304,7 +304,7 @@ int amdgpu_ring_init(struct amdgpu_device *adev, struct amdgpu_ring *ring,
+ 		0xffffffffffffffff : ring->buf_mask;
+ 	/* Allocate ring buffer */
+ 	if (ring->ring_obj == NULL) {
+-		r = amdgpu_bo_create_kernel(adev, ring->ring_size, PAGE_SIZE,
++		r = amdgpu_bo_create_kernel(adev, ring->ring_size + ring->funcs->extra_dw, PAGE_SIZE,
+ 					    AMDGPU_GEM_DOMAIN_GTT,
+ 					    &ring->ring_obj,
+ 					    &ring->gpu_addr,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index df20b61..1c7ffc1 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -112,6 +112,7 @@ struct amdgpu_ring_funcs {
+ 	u32			nop;
+ 	bool			support_64bit_ptrs;
+ 	unsigned		vmhub;
++	unsigned		extra_dw;
+ 
+ 	/* ring read/write ptr handling */
+ 	u64 (*get_rptr)(struct amdgpu_ring *ring);
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 5adb2d9..24a869f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -1728,6 +1728,7 @@ static const struct amdgpu_ring_funcs vcn_v1_0_jpeg_ring_vm_funcs = {
+ 	.nop = PACKET0(0x81ff, 0),
+ 	.support_64bit_ptrs = false,
+ 	.vmhub = AMDGPU_MMHUB,
++	.extra_dw = 64,
+ 	.get_rptr = vcn_v1_0_jpeg_ring_get_rptr,
+ 	.get_wptr = vcn_v1_0_jpeg_ring_get_wptr,
+ 	.set_wptr = vcn_v1_0_jpeg_ring_set_wptr,
+-- 
+2.7.4
+

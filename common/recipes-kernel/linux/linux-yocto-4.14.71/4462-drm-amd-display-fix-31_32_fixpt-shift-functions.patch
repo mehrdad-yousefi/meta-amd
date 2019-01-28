@@ -1,0 +1,76 @@
+From faddf1ee373fe6439c4cc2df86ca81fafefbd483 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Mon, 23 Apr 2018 12:41:34 -0400
+Subject: [PATCH 4462/5725] drm/amd/display: fix 31_32_fixpt shift functions
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Eric Yang <eric.yang2@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/include/fixed31_32.h | 26 ++++++++++++++++--------
+ 1 file changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/include/fixed31_32.h b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+index 61f11e2..bd8a304 100644
+--- a/drivers/gpu/drm/amd/display/include/fixed31_32.h
++++ b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+@@ -27,6 +27,12 @@
+ #define __DAL_FIXED31_32_H__
+ 
+ #define FIXED31_32_BITS_PER_FRACTIONAL_PART 32
++#ifndef LLONG_MIN
++#define LLONG_MIN (1LL<<63)
++#endif
++#ifndef LLONG_MAX
++#define LLONG_MAX (-1LL>>1)
++#endif
+ 
+ /*
+  * @brief
+@@ -45,6 +51,7 @@ struct fixed31_32 {
+ 	long long value;
+ };
+ 
++
+ /*
+  * @brief
+  * Useful constants
+@@ -201,14 +208,12 @@ static inline struct fixed31_32 dc_fixpt_clamp(
+  */
+ static inline struct fixed31_32 dc_fixpt_shl(struct fixed31_32 arg, unsigned char shift)
+ {
+-	struct fixed31_32 res;
+-
+ 	ASSERT(((arg.value >= 0) && (arg.value <= LLONG_MAX >> shift)) ||
+-		((arg.value < 0) && (arg.value >= LLONG_MIN >> shift)));
++		((arg.value < 0) && (arg.value >= (LLONG_MIN / (1 << shift)))));
+ 
+-	res.value = arg.value << shift;
++	arg.value = arg.value << shift;
+ 
+-	return res;
++	return arg;
+ }
+ 
+ /*
+@@ -217,9 +222,14 @@ static inline struct fixed31_32 dc_fixpt_shl(struct fixed31_32 arg, unsigned cha
+  */
+ static inline struct fixed31_32 dc_fixpt_shr(struct fixed31_32 arg, unsigned char shift)
+ {
+-	struct fixed31_32 res;
+-	res.value = arg.value >> shift;
+-	return res;
++	bool negative = arg.value < 0;
++
++	if (negative)
++		arg.value = -arg.value;
++	arg.value = arg.value >> shift;
++	if (negative)
++		arg.value = -arg.value;
++	return arg;
+ }
+ 
+ /*
+-- 
+2.7.4
+

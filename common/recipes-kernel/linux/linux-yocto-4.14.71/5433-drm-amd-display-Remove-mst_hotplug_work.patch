@@ -1,0 +1,65 @@
+From d3d77c923b97c6060dcb709721d92a5df5fcf58f Mon Sep 17 00:00:00 2001
+From: Leo Li <sunpeng.li@amd.com>
+Date: Wed, 12 Sep 2018 10:58:09 -0400
+Subject: [PATCH 5433/5725] drm/amd/display: Remove mst_hotplug_work
+
+[Why]
+The work struct's schedule call was removed a while ago, making this
+useless.
+
+[How]
+Remove it.
+
+Change-Id: I22139bcba4275ff679b2e054847e6241f660c8fc
+Signed-off-by: Leo Li <sunpeng.li@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 10 ----------
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h |  2 --
+ 2 files changed, 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 9c1654d..9fed53f 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -339,14 +339,6 @@ static int dm_set_powergating_state(void *handle,
+ /* Prototypes of private functions */
+ static int dm_early_init(void* handle);
+ 
+-static void hotplug_notify_work_func(struct work_struct *work)
+-{
+-	struct amdgpu_display_manager *dm = container_of(work, struct amdgpu_display_manager, mst_hotplug_work);
+-	struct drm_device *dev = dm->ddev;
+-
+-	drm_kms_helper_hotplug_event(dev);
+-}
+-
+ /* Allocate memory for FBC compressed data  */
+ static void amdgpu_dm_fbc_init(struct drm_connector *connector)
+ {
+@@ -448,8 +440,6 @@ static int amdgpu_dm_init(struct amdgpu_device *adev)
+ 		goto error;
+ 	}
+ 
+-	INIT_WORK(&adev->dm.mst_hotplug_work, hotplug_notify_work_func);
+-
+ 	adev->dm.freesync_module = mod_freesync_create(adev->dm.dc);
+ 	if (!adev->dm.freesync_module) {
+ 		DRM_ERROR(
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+index 2f94317..ba0182b 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+@@ -132,8 +132,6 @@ struct amdgpu_display_manager {
+ 
+ 	const struct dc_link *backlight_link;
+ 
+-	struct work_struct mst_hotplug_work;
+-
+ 	struct mod_freesync *freesync_module;
+ 
+ 	/**
+-- 
+2.7.4
+

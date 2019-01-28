@@ -1,0 +1,434 @@
+From a9413fb0d2ce71dd013c2634a03789f30c74b31c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 17 Sep 2018 15:41:45 +0200
+Subject: [PATCH 5454/5725] drm/amdgpu: make function pointers mandatory
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We always want those to be setup correctly.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/cik_ih.c      |  3 +--
+ drivers/gpu/drm/amd/amdgpu/cik_sdma.c    | 18 +++++++-----------
+ drivers/gpu/drm/amd/amdgpu/cz_ih.c       |  3 +--
+ drivers/gpu/drm/amd/amdgpu/dce_v10_0.c   |  3 +--
+ drivers/gpu/drm/amd/amdgpu/dce_v11_0.c   |  3 +--
+ drivers/gpu/drm/amd/amdgpu/dce_v6_0.c    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/dce_v8_0.c    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/dce_virtual.c |  3 +--
+ drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/iceland_ih.c  |  3 +--
+ drivers/gpu/drm/amd/amdgpu/sdma_v2_4.c   | 18 +++++++-----------
+ drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c   | 18 +++++++-----------
+ drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c   | 18 +++++++-----------
+ drivers/gpu/drm/amd/amdgpu/si_dma.c      | 18 +++++++-----------
+ drivers/gpu/drm/amd/amdgpu/si_ih.c       |  3 +--
+ drivers/gpu/drm/amd/amdgpu/tonga_ih.c    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/vega10_ih.c   |  3 +--
+ 20 files changed, 50 insertions(+), 85 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/cik_ih.c b/drivers/gpu/drm/amd/amdgpu/cik_ih.c
+index 44d10c2..e75183e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/cik_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/cik_ih.c
+@@ -468,8 +468,7 @@ static const struct amdgpu_ih_funcs cik_ih_funcs = {
+ 
+ static void cik_ih_set_interrupt_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->irq.ih_funcs == NULL)
+-		adev->irq.ih_funcs = &cik_ih_funcs;
++	adev->irq.ih_funcs = &cik_ih_funcs;
+ }
+ 
+ const struct amdgpu_ip_block_version cik_ih_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/cik_sdma.c b/drivers/gpu/drm/amd/amdgpu/cik_sdma.c
+index e1b56e7..2a0dbac 100644
+--- a/drivers/gpu/drm/amd/amdgpu/cik_sdma.c
++++ b/drivers/gpu/drm/amd/amdgpu/cik_sdma.c
+@@ -1378,10 +1378,8 @@ static const struct amdgpu_buffer_funcs cik_sdma_buffer_funcs = {
+ 
+ static void cik_sdma_set_buffer_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mman.buffer_funcs == NULL) {
+-		adev->mman.buffer_funcs = &cik_sdma_buffer_funcs;
+-		adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+-	}
++	adev->mman.buffer_funcs = &cik_sdma_buffer_funcs;
++	adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+ }
+ 
+ static const struct amdgpu_vm_pte_funcs cik_sdma_vm_pte_funcs = {
+@@ -1396,14 +1394,12 @@ static void cik_sdma_set_vm_pte_funcs(struct amdgpu_device *adev)
+ {
+ 	unsigned i;
+ 
+-	if (adev->vm_manager.vm_pte_funcs == NULL) {
+-		adev->vm_manager.vm_pte_funcs = &cik_sdma_vm_pte_funcs;
+-		for (i = 0; i < adev->sdma.num_instances; i++)
+-			adev->vm_manager.vm_pte_rings[i] =
+-				&adev->sdma.instance[i].ring;
++	adev->vm_manager.vm_pte_funcs = &cik_sdma_vm_pte_funcs;
++	for (i = 0; i < adev->sdma.num_instances; i++)
++		adev->vm_manager.vm_pte_rings[i] =
++			&adev->sdma.instance[i].ring;
+ 
+-		adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+-	}
++	adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+ }
+ 
+ const struct amdgpu_ip_block_version cik_sdma_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/cz_ih.c b/drivers/gpu/drm/amd/amdgpu/cz_ih.c
+index 960c29e..9385da1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/cz_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/cz_ih.c
+@@ -449,8 +449,7 @@ static const struct amdgpu_ih_funcs cz_ih_funcs = {
+ 
+ static void cz_ih_set_interrupt_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->irq.ih_funcs == NULL)
+-		adev->irq.ih_funcs = &cz_ih_funcs;
++	adev->irq.ih_funcs = &cz_ih_funcs;
+ }
+ 
+ const struct amdgpu_ip_block_version cz_ih_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c
+index de88444..f4cbe2e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v10_0.c
+@@ -3577,8 +3577,7 @@ static const struct amdgpu_display_funcs dce_v10_0_display_funcs = {
+ 
+ static void dce_v10_0_set_display_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mode_info.funcs == NULL)
+-		adev->mode_info.funcs = &dce_v10_0_display_funcs;
++	adev->mode_info.funcs = &dce_v10_0_display_funcs;
+ }
+ 
+ static const struct amdgpu_irq_src_funcs dce_v10_0_crtc_irq_funcs = {
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c
+index d45c2d8..0a5a3de 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v11_0.c
+@@ -3710,8 +3710,7 @@ static const struct amdgpu_display_funcs dce_v11_0_display_funcs = {
+ 
+ static void dce_v11_0_set_display_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mode_info.funcs == NULL)
+-		adev->mode_info.funcs = &dce_v11_0_display_funcs;
++	adev->mode_info.funcs = &dce_v11_0_display_funcs;
+ }
+ 
+ static const struct amdgpu_irq_src_funcs dce_v11_0_crtc_irq_funcs = {
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c
+index 3d214bd..2204aad 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v6_0.c
+@@ -3383,8 +3383,7 @@ static const struct amdgpu_display_funcs dce_v6_0_display_funcs = {
+ 
+ static void dce_v6_0_set_display_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mode_info.funcs == NULL)
+-		adev->mode_info.funcs = &dce_v6_0_display_funcs;
++	adev->mode_info.funcs = &dce_v6_0_display_funcs;
+ }
+ 
+ static const struct amdgpu_irq_src_funcs dce_v6_0_crtc_irq_funcs = {
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c b/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c
+index 4798f45..0f8a372 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_v8_0.c
+@@ -3465,8 +3465,7 @@ static const struct amdgpu_display_funcs dce_v8_0_display_funcs = {
+ 
+ static void dce_v8_0_set_display_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mode_info.funcs == NULL)
+-		adev->mode_info.funcs = &dce_v8_0_display_funcs;
++	adev->mode_info.funcs = &dce_v8_0_display_funcs;
+ }
+ 
+ static const struct amdgpu_irq_src_funcs dce_v8_0_crtc_irq_funcs = {
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_virtual.c b/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
+index 7145e7a..d089b25 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
+@@ -659,8 +659,7 @@ static const struct amdgpu_display_funcs dce_virtual_display_funcs = {
+ 
+ static void dce_virtual_set_display_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mode_info.funcs == NULL)
+-		adev->mode_info.funcs = &dce_virtual_display_funcs;
++	adev->mode_info.funcs = &dce_virtual_display_funcs;
+ }
+ 
+ static int dce_virtual_pageflip(struct amdgpu_device *adev,
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+index b8335d8..890308e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+@@ -1178,8 +1178,7 @@ static const struct amdgpu_irq_src_funcs gmc_v6_0_irq_funcs = {
+ 
+ static void gmc_v6_0_set_gmc_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->gmc.gmc_funcs == NULL)
+-		adev->gmc.gmc_funcs = &gmc_v6_0_gmc_funcs;
++	adev->gmc.gmc_funcs = &gmc_v6_0_gmc_funcs;
+ }
+ 
+ static void gmc_v6_0_set_irq_funcs(struct amdgpu_device *adev)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+index 61ffd5c..d7d5075 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+@@ -1388,8 +1388,7 @@ static const struct amdgpu_irq_src_funcs gmc_v7_0_irq_funcs = {
+ 
+ static void gmc_v7_0_set_gmc_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->gmc.gmc_funcs == NULL)
+-		adev->gmc.gmc_funcs = &gmc_v7_0_gmc_funcs;
++	adev->gmc.gmc_funcs = &gmc_v7_0_gmc_funcs;
+ }
+ 
+ static void gmc_v7_0_set_irq_funcs(struct amdgpu_device *adev)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+index 199f1a5..1b3da69 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+@@ -1737,8 +1737,7 @@ static const struct amdgpu_irq_src_funcs gmc_v8_0_irq_funcs = {
+ 
+ static void gmc_v8_0_set_gmc_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->gmc.gmc_funcs == NULL)
+-		adev->gmc.gmc_funcs = &gmc_v8_0_gmc_funcs;
++	adev->gmc.gmc_funcs = &gmc_v8_0_gmc_funcs;
+ }
+ 
+ static void gmc_v8_0_set_irq_funcs(struct amdgpu_device *adev)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index a0fd3a7..c804846 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -592,8 +592,7 @@ static const struct amdgpu_gmc_funcs gmc_v9_0_gmc_funcs = {
+ 
+ static void gmc_v9_0_set_gmc_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->gmc.gmc_funcs == NULL)
+-		adev->gmc.gmc_funcs = &gmc_v9_0_gmc_funcs;
++	adev->gmc.gmc_funcs = &gmc_v9_0_gmc_funcs;
+ }
+ 
+ static int gmc_v9_0_early_init(void *handle)
+diff --git a/drivers/gpu/drm/amd/amdgpu/iceland_ih.c b/drivers/gpu/drm/amd/amdgpu/iceland_ih.c
+index 842c4b6..45ef0a8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/iceland_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/iceland_ih.c
+@@ -447,8 +447,7 @@ static const struct amdgpu_ih_funcs iceland_ih_funcs = {
+ 
+ static void iceland_ih_set_interrupt_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->irq.ih_funcs == NULL)
+-		adev->irq.ih_funcs = &iceland_ih_funcs;
++	adev->irq.ih_funcs = &iceland_ih_funcs;
+ }
+ 
+ const struct amdgpu_ip_block_version iceland_ih_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v2_4.c b/drivers/gpu/drm/amd/amdgpu/sdma_v2_4.c
+index cc22269..6db0d7a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v2_4.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v2_4.c
+@@ -1304,10 +1304,8 @@ static const struct amdgpu_buffer_funcs sdma_v2_4_buffer_funcs = {
+ 
+ static void sdma_v2_4_set_buffer_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mman.buffer_funcs == NULL) {
+-		adev->mman.buffer_funcs = &sdma_v2_4_buffer_funcs;
+-		adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+-	}
++	adev->mman.buffer_funcs = &sdma_v2_4_buffer_funcs;
++	adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+ }
+ 
+ static const struct amdgpu_vm_pte_funcs sdma_v2_4_vm_pte_funcs = {
+@@ -1322,14 +1320,12 @@ static void sdma_v2_4_set_vm_pte_funcs(struct amdgpu_device *adev)
+ {
+ 	unsigned i;
+ 
+-	if (adev->vm_manager.vm_pte_funcs == NULL) {
+-		adev->vm_manager.vm_pte_funcs = &sdma_v2_4_vm_pte_funcs;
+-		for (i = 0; i < adev->sdma.num_instances; i++)
+-			adev->vm_manager.vm_pte_rings[i] =
+-				&adev->sdma.instance[i].ring;
++	adev->vm_manager.vm_pte_funcs = &sdma_v2_4_vm_pte_funcs;
++	for (i = 0; i < adev->sdma.num_instances; i++)
++		adev->vm_manager.vm_pte_rings[i] =
++			&adev->sdma.instance[i].ring;
+ 
+-		adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+-	}
++	adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+ }
+ 
+ const struct amdgpu_ip_block_version sdma_v2_4_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
+index 4b7df45..deb16c5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v3_0.c
+@@ -1745,10 +1745,8 @@ static const struct amdgpu_buffer_funcs sdma_v3_0_buffer_funcs = {
+ 
+ static void sdma_v3_0_set_buffer_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mman.buffer_funcs == NULL) {
+-		adev->mman.buffer_funcs = &sdma_v3_0_buffer_funcs;
+-		adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+-	}
++	adev->mman.buffer_funcs = &sdma_v3_0_buffer_funcs;
++	adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+ }
+ 
+ static const struct amdgpu_vm_pte_funcs sdma_v3_0_vm_pte_funcs = {
+@@ -1763,14 +1761,12 @@ static void sdma_v3_0_set_vm_pte_funcs(struct amdgpu_device *adev)
+ {
+ 	unsigned i;
+ 
+-	if (adev->vm_manager.vm_pte_funcs == NULL) {
+-		adev->vm_manager.vm_pte_funcs = &sdma_v3_0_vm_pte_funcs;
+-		for (i = 0; i < adev->sdma.num_instances; i++)
+-			adev->vm_manager.vm_pte_rings[i] =
+-				&adev->sdma.instance[i].ring;
++	adev->vm_manager.vm_pte_funcs = &sdma_v3_0_vm_pte_funcs;
++	for (i = 0; i < adev->sdma.num_instances; i++)
++		adev->vm_manager.vm_pte_rings[i] =
++			&adev->sdma.instance[i].ring;
+ 
+-		adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+-	}
++	adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+ }
+ 
+ const struct amdgpu_ip_block_version sdma_v3_0_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+index 0304797..f797eaf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+@@ -1818,10 +1818,8 @@ static const struct amdgpu_buffer_funcs sdma_v4_0_buffer_funcs = {
+ 
+ static void sdma_v4_0_set_buffer_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mman.buffer_funcs == NULL) {
+-		adev->mman.buffer_funcs = &sdma_v4_0_buffer_funcs;
+-		adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+-	}
++	adev->mman.buffer_funcs = &sdma_v4_0_buffer_funcs;
++	adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+ }
+ 
+ static const struct amdgpu_vm_pte_funcs sdma_v4_0_vm_pte_funcs = {
+@@ -1836,14 +1834,12 @@ static void sdma_v4_0_set_vm_pte_funcs(struct amdgpu_device *adev)
+ {
+ 	unsigned i;
+ 
+-	if (adev->vm_manager.vm_pte_funcs == NULL) {
+-		adev->vm_manager.vm_pte_funcs = &sdma_v4_0_vm_pte_funcs;
+-		for (i = 0; i < adev->sdma.num_instances; i++)
+-			adev->vm_manager.vm_pte_rings[i] =
+-				&adev->sdma.instance[i].ring;
++	adev->vm_manager.vm_pte_funcs = &sdma_v4_0_vm_pte_funcs;
++	for (i = 0; i < adev->sdma.num_instances; i++)
++		adev->vm_manager.vm_pte_rings[i] =
++			&adev->sdma.instance[i].ring;
+ 
+-		adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+-	}
++	adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+ }
+ 
+ const struct amdgpu_ip_block_version sdma_v4_0_ip_block = {
+diff --git a/drivers/gpu/drm/amd/amdgpu/si_dma.c b/drivers/gpu/drm/amd/amdgpu/si_dma.c
+index 93a7773..f3693dc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/si_dma.c
++++ b/drivers/gpu/drm/amd/amdgpu/si_dma.c
+@@ -880,10 +880,8 @@ static const struct amdgpu_buffer_funcs si_dma_buffer_funcs = {
+ 
+ static void si_dma_set_buffer_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->mman.buffer_funcs == NULL) {
+-		adev->mman.buffer_funcs = &si_dma_buffer_funcs;
+-		adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+-	}
++	adev->mman.buffer_funcs = &si_dma_buffer_funcs;
++	adev->mman.buffer_funcs_ring = &adev->sdma.instance[0].ring;
+ }
+ 
+ static const struct amdgpu_vm_pte_funcs si_dma_vm_pte_funcs = {
+@@ -898,14 +896,12 @@ static void si_dma_set_vm_pte_funcs(struct amdgpu_device *adev)
+ {
+ 	unsigned i;
+ 
+-	if (adev->vm_manager.vm_pte_funcs == NULL) {
+-		adev->vm_manager.vm_pte_funcs = &si_dma_vm_pte_funcs;
+-		for (i = 0; i < adev->sdma.num_instances; i++)
+-			adev->vm_manager.vm_pte_rings[i] =
+-				&adev->sdma.instance[i].ring;
++	adev->vm_manager.vm_pte_funcs = &si_dma_vm_pte_funcs;
++	for (i = 0; i < adev->sdma.num_instances; i++)
++		adev->vm_manager.vm_pte_rings[i] =
++			&adev->sdma.instance[i].ring;
+ 
+-		adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+-	}
++	adev->vm_manager.vm_pte_num_rings = adev->sdma.num_instances;
+ }
+ 
+ const struct amdgpu_ip_block_version si_dma_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/si_ih.c b/drivers/gpu/drm/amd/amdgpu/si_ih.c
+index 60dad63..97711d3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/si_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/si_ih.c
+@@ -308,8 +308,7 @@ static const struct amdgpu_ih_funcs si_ih_funcs = {
+ 
+ static void si_ih_set_interrupt_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->irq.ih_funcs == NULL)
+-		adev->irq.ih_funcs = &si_ih_funcs;
++	adev->irq.ih_funcs = &si_ih_funcs;
+ }
+ 
+ const struct amdgpu_ip_block_version si_ih_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/tonga_ih.c b/drivers/gpu/drm/amd/amdgpu/tonga_ih.c
+index 52853d8..a79a377 100644
+--- a/drivers/gpu/drm/amd/amdgpu/tonga_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/tonga_ih.c
+@@ -513,8 +513,7 @@ static const struct amdgpu_ih_funcs tonga_ih_funcs = {
+ 
+ static void tonga_ih_set_interrupt_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->irq.ih_funcs == NULL)
+-		adev->irq.ih_funcs = &tonga_ih_funcs;
++	adev->irq.ih_funcs = &tonga_ih_funcs;
+ }
+ 
+ const struct amdgpu_ip_block_version tonga_ih_ip_block =
+diff --git a/drivers/gpu/drm/amd/amdgpu/vega10_ih.c b/drivers/gpu/drm/amd/amdgpu/vega10_ih.c
+index 2559498..d0d23a6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vega10_ih.c
++++ b/drivers/gpu/drm/amd/amdgpu/vega10_ih.c
+@@ -494,8 +494,7 @@ static const struct amdgpu_ih_funcs vega10_ih_funcs = {
+ 
+ static void vega10_ih_set_interrupt_funcs(struct amdgpu_device *adev)
+ {
+-	if (adev->irq.ih_funcs == NULL)
+-		adev->irq.ih_funcs = &vega10_ih_funcs;
++	adev->irq.ih_funcs = &vega10_ih_funcs;
+ }
+ 
+ const struct amdgpu_ip_block_version vega10_ih_ip_block =
+-- 
+2.7.4
+

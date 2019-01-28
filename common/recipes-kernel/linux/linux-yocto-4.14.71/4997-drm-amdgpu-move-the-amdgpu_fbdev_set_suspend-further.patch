@@ -1,0 +1,49 @@
+From 929154f95f4c19079b4f5d9b768546c0efc5e703 Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Mon, 23 Jul 2018 15:11:51 +0530
+Subject: [PATCH 4997/5725] drm/amdgpu: move the amdgpu_fbdev_set_suspend()
+ further up
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch moves amdgpu_fbdev_set_suspend() to the beginning
+of suspend sequence.
+
+This is to ensure fbcon does not to write to the VRAM
+after GPU is powerd down.
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 5c128c5..6dcbe98 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -2754,6 +2754,9 @@ int amdgpu_device_suspend(struct drm_device *dev, bool suspend, bool fbcon)
+ 
+ 	drm_kms_helper_poll_disable(dev);
+ 
++	if (fbcon)
++		amdgpu_fbdev_set_suspend(adev, 1);
++
+ 	if (!amdgpu_device_has_dc_support(adev)) {
+ 		/* turn off display hw */
+ 		drm_modeset_lock_all(dev);
+@@ -2819,9 +2822,6 @@ int amdgpu_device_suspend(struct drm_device *dev, bool suspend, bool fbcon)
+ 			DRM_ERROR("amdgpu asic reset failed\n");
+ 	}
+ 
+-	if (fbcon)
+-		amdgpu_fbdev_set_suspend(adev, 1);
+-
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

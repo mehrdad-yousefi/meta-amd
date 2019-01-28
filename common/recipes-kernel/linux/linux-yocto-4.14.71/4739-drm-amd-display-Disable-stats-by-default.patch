@@ -1,0 +1,29 @@
+From d4b730648e101d71b6e9c61432df17a6bd6f0e84 Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Thu, 24 May 2018 11:25:00 -0400
+Subject: [PATCH 4739/5725] drm/amd/display: Disable stats by default
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/modules/stats/stats.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/stats/stats.c b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+index fa0665d..480eb2c 100644
+--- a/drivers/gpu/drm/amd/display/modules/stats/stats.c
++++ b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+@@ -29,7 +29,7 @@
+ #include "core_types.h"
+ 
+ #define DAL_STATS_ENABLE_REGKEY			"DalStatsEnable"
+-#define DAL_STATS_ENABLE_REGKEY_DEFAULT		0x00000001
++#define DAL_STATS_ENABLE_REGKEY_DEFAULT		0x00000000
+ #define DAL_STATS_ENABLE_REGKEY_ENABLED		0x00000001
+ 
+ #define DAL_STATS_ENTRIES_REGKEY		"DalStatsEntries"
+-- 
+2.7.4
+

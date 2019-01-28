@@ -1,0 +1,55 @@
+From c88d20986e05f06ba111e34ee30ea7492a23c0e2 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Wed, 11 Jul 2018 13:24:53 -0500
+Subject: [PATCH 4945/5725] drm/amdgpu/pp/smu7: drop unused values in smu data
+ structure
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+use kaddr directly rather than secondary variable.
+
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c | 3 +--
+ drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.h | 2 --
+ 2 files changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+index e131add..e35ea99 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+@@ -424,7 +424,7 @@ int smu7_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 			   + UCODE_ID_CP_MEC_JT2_MASK;
+ 	}
+ 
+-	toc = (struct SMU_DRAMData_TOC *)smu_data->header;
++	toc = (struct SMU_DRAMData_TOC *)smu_data->header_buffer.kaddr;
+ 	toc->structure_version = 1;
+ 
+ 	PP_ASSERT_WITH_CODE(0 == smu7_populate_single_firmware_entry(hwmgr,
+@@ -593,7 +593,6 @@ int smu7_init(struct pp_hwmgr *hwmgr)
+ 	if (r)
+ 		return -EINVAL;
+ 
+-	smu_data->header = smu_data->header_buffer.kaddr;
+ 	smu_data->header_buffer.mc_addr = mc_addr;
+ 
+ 	if (!hwmgr->not_vf)
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.h b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.h
+index 39c9bfd..e6def28 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.h
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.h
+@@ -37,8 +37,6 @@ struct smu7_buffer_entry {
+ };
+ 
+ struct smu7_smumgr {
+-	uint8_t *header;
+-	uint8_t *mec_image;
+ 	struct smu7_buffer_entry smu_buffer;
+ 	struct smu7_buffer_entry header_buffer;
+ 
+-- 
+2.7.4
+

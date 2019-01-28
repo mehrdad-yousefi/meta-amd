@@ -1,0 +1,145 @@
+From 083acdc7a3158786d53e46a0e43ff7cf55135f88 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Wed, 30 May 2018 15:28:52 -0400
+Subject: [PATCH 4593/5725] drm/amdgpu: move amdgpu_ctx_mgr_entity_fini to
+ f_ops flush hook (V4)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+With this we can now terminate jobs enqueue into SW queue the moment
+the task is being killed instead of waiting for last user of
+drm file to release it.
+
+Also stop checking for kref_read(&ctx->refcount) == 1 when
+calling drm_sched_entity_do_release since other task
+might still hold a reference to this entity but we don't
+care since KILL means terminate job submission regardless
+of what other tasks are doing.
+
+v2:
+Use returned remaining timeout as parameter for the next call.
+Rebase.
+
+v3:
+Switch to working with jiffies.
+Streamline remainder TO usage.
+Rebase.
+
+v4:
+Rebase.
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c | 14 ++++++++------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c | 12 ++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c |  1 -
+ include/drm/gpu_scheduler.h             |  6 ++++--
+ 4 files changed, 24 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+index 58795d4..6f6fdab 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+@@ -465,26 +465,28 @@ void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr)
+ 	struct amdgpu_ctx *ctx;
+ 	struct idr *idp;
+ 	uint32_t id, i;
++	long max_wait = MAX_WAIT_SCHED_ENTITY_Q_EMPTY;
+ 
+ 	idp = &mgr->ctx_handles;
+ 
++	mutex_lock(&mgr->lock);
+ 	idr_for_each_entry(idp, ctx, id) {
+ 
+-		if (!ctx->adev)
++		if (!ctx->adev) {
++			mutex_unlock(&mgr->lock);
+ 			return;
++		}
+ 
+ 		for (i = 0; i < ctx->adev->num_rings; i++) {
+ 
+ 			if (ctx->adev->rings[i] == &ctx->adev->gfx.kiq.ring)
+ 				continue;
+ 
+-			if (kref_read(&ctx->refcount) == 1)
+-				drm_sched_entity_do_release(&ctx->adev->rings[i]->sched,
+-						  &ctx->rings[i].entity);
+-			else
+-				DRM_ERROR("ctx %p is still alive\n", ctx);
++			max_wait = drm_sched_entity_do_release(&ctx->adev->rings[i]->sched,
++					  &ctx->rings[i].entity, max_wait);
+ 		}
+ 	}
++	mutex_unlock(&mgr->lock);
+ }
+ 
+ void amdgpu_ctx_mgr_entity_cleanup(struct amdgpu_ctx_mgr *mgr)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 1c0cf9a..96694c8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -861,9 +861,21 @@ static const struct dev_pm_ops amdgpu_pm_ops = {
+ 	.runtime_idle = amdgpu_pmops_runtime_idle,
+ };
+ 
++static int amdgpu_flush(struct file *f, fl_owner_t id)
++{
++	struct drm_file *file_priv = f->private_data;
++	struct amdgpu_fpriv *fpriv = file_priv->driver_priv;
++
++	amdgpu_ctx_mgr_entity_fini(&fpriv->ctx_mgr);
++
++	return 0;
++}
++
++
+ static const struct file_operations amdgpu_driver_kms_fops = {
+ 	.owner = THIS_MODULE,
+ 	.open = drm_open,
++	.flush = amdgpu_flush,
+ 	.release = drm_release,
+ 	.unlocked_ioctl = amdgpu_drm_ioctl,
+ 	.mmap = amdgpu_mmap,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 86087c1..a39919c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -964,7 +964,6 @@ void amdgpu_driver_postclose_kms(struct drm_device *dev,
+ 		return;
+ 
+ 	pm_runtime_get_sync(dev->dev);
+-	amdgpu_ctx_mgr_entity_fini(&fpriv->ctx_mgr);
+ 
+ 	if (adev->asic_type != CHIP_RAVEN) {
+ 		amdgpu_uvd_free_handles(adev, file_priv);
+diff --git a/include/drm/gpu_scheduler.h b/include/drm/gpu_scheduler.h
+index 86c7344..7ae23fb 100644
+--- a/include/drm/gpu_scheduler.h
++++ b/include/drm/gpu_scheduler.h
+@@ -27,6 +27,8 @@
+ #include <drm/spsc_queue.h>
+ #include <linux/dma-fence.h>
+ 
++#define MAX_WAIT_SCHED_ENTITY_Q_EMPTY msecs_to_jiffies(1000)
++
+ struct drm_gpu_scheduler;
+ struct drm_sched_rq;
+ 
+@@ -151,8 +153,8 @@ int drm_sched_entity_init(struct drm_gpu_scheduler *sched,
+ 			  struct drm_sched_entity *entity,
+ 			  struct drm_sched_rq *rq,
+ 			  atomic_t *guilty);
+-void drm_sched_entity_do_release(struct drm_gpu_scheduler *sched,
+-			   struct drm_sched_entity *entity);
++long drm_sched_entity_do_release(struct drm_gpu_scheduler *sched,
++			   struct drm_sched_entity *entity, long timeout);
+ void drm_sched_entity_cleanup(struct drm_gpu_scheduler *sched,
+ 			   struct drm_sched_entity *entity);
+ void drm_sched_entity_fini(struct drm_gpu_scheduler *sched,
+-- 
+2.7.4
+

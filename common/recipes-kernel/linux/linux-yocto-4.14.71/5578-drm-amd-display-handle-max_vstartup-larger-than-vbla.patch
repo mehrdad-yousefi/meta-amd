@@ -1,0 +1,49 @@
+From d93cd7318470428c5d4d1f0d306c4347dc2ac2ad Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Fri, 14 Sep 2018 15:32:33 -0400
+Subject: [PATCH 5578/5725] drm/amd/display: handle max_vstartup larger than
+ vblank_end
+
+When vstartup is larger than vblank end we need to set v_fp2
+to allow for this early start
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.c
+index 5462668..47f80e0 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.c
+@@ -274,10 +274,12 @@ void optc1_program_timing(
+ 	 * program the reg for interrupt postition.
+ 	 */
+ 	vertical_line_start = asic_blank_end - optc->dlg_otg_param.vstartup_start + 1;
+-	if (vertical_line_start < 0) {
+-		ASSERT(0);
++	v_fp2 = 0;
++	if (vertical_line_start < 0)
++		v_fp2 = -vertical_line_start;
++	if (vertical_line_start < 0)
+ 		vertical_line_start = 0;
+-	}
++
+ 	REG_SET(OTG_VERTICAL_INTERRUPT2_POSITION, 0,
+ 			OTG_VERTICAL_INTERRUPT2_LINE_START, vertical_line_start);
+ 
+@@ -296,9 +298,6 @@ void optc1_program_timing(
+ 		if (patched_crtc_timing.flags.INTERLACE == 1)
+ 			field_num = 1;
+ 	}
+-	v_fp2 = 0;
+-	if (optc->dlg_otg_param.vstartup_start > asic_blank_end)
+-		v_fp2 = optc->dlg_otg_param.vstartup_start > asic_blank_end;
+ 
+ 	/* Interlace */
+ 	if (patched_crtc_timing.flags.INTERLACE == 1) {
+-- 
+2.7.4
+

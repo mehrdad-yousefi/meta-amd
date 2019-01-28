@@ -1,0 +1,54 @@
+From 0af9e3444ceaa0a56685be421eac1f71b8b4cb0c Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Thu, 4 Oct 2018 15:42:51 -0400
+Subject: [PATCH 5558/5725] drm/amdgpu/vcn:Update DPG mode VCN global tiling
+ registers
+
+Update Dynamic Power Gate mode VCN global tiling registers
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu <leo.liu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index e147b3e..10e0b19 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -371,16 +371,27 @@ static void vcn_v1_0_mc_resume_dpg_mode(struct amdgpu_device *adev)
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_SIZE2, AMDGPU_VCN_CONTEXT_SIZE,
+ 			     0xFFFFFFFF, 0);
+ 
++	/* VCN global tiling registers */
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_UDEC_ADDR_CONFIG,
+ 			adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_UDEC_DB_ADDR_CONFIG,
+ 			adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_UDEC_DBW_ADDR_CONFIG,
+ 			adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
+-	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_JPEG_ADDR_CONFIG,
+-			adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
+-	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_JPEG_UV_ADDR_CONFIG,
+-			adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_UDEC_DBW_UV_ADDR_CONFIG,
++		adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_MIF_CURR_ADDR_CONFIG,
++		adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_MIF_CURR_UV_ADDR_CONFIG,
++		adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_MIF_RECON1_ADDR_CONFIG,
++		adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_MIF_RECON1_UV_ADDR_CONFIG,
++		adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_MIF_REF_ADDR_CONFIG,
++		adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_MIF_REF_UV_ADDR_CONFIG,
++		adev->gfx.config.gb_addr_config, 0xFFFFFFFF, 0);
+ }
+ 
+ /**
+-- 
+2.7.4
+

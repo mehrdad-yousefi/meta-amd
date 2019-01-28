@@ -1,0 +1,87 @@
+From da3ce2a9c146572fbb27bbc9cf4e7c272f9f0bcb Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Tue, 19 Jun 2018 10:46:42 -0500
+Subject: [PATCH 5293/5725] drm/amdgpu: set CG flags for raven2 (v2)
+
+Raven2 does not enable all of the CG flags that raven1 does.
+
+v2: rebase (Alex)
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Feifei Xu <Feifei.Xu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 57 +++++++++++++++++++++++++-------------
+ 1 file changed, 37 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 0a93560..f5a44d1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -714,26 +714,43 @@ static int soc15_common_early_init(void *handle)
+ 		adev->external_rev_id = adev->rev_id + 0x28;
+ 		break;
+ 	case CHIP_RAVEN:
+-		adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
+-			AMD_CG_SUPPORT_GFX_MGLS |
+-			AMD_CG_SUPPORT_GFX_RLC_LS |
+-			AMD_CG_SUPPORT_GFX_CP_LS |
+-			AMD_CG_SUPPORT_GFX_3D_CGCG |
+-			AMD_CG_SUPPORT_GFX_3D_CGLS |
+-			AMD_CG_SUPPORT_GFX_CGCG |
+-			AMD_CG_SUPPORT_GFX_CGLS |
+-			AMD_CG_SUPPORT_BIF_MGCG |
+-			AMD_CG_SUPPORT_BIF_LS |
+-			AMD_CG_SUPPORT_HDP_MGCG |
+-			AMD_CG_SUPPORT_HDP_LS |
+-			AMD_CG_SUPPORT_DRM_MGCG |
+-			AMD_CG_SUPPORT_DRM_LS |
+-			AMD_CG_SUPPORT_ROM_MGCG |
+-			AMD_CG_SUPPORT_MC_MGCG |
+-			AMD_CG_SUPPORT_MC_LS |
+-			AMD_CG_SUPPORT_SDMA_MGCG |
+-			AMD_CG_SUPPORT_SDMA_LS |
+-			AMD_CG_SUPPORT_VCN_MGCG;
++		if (adev->rev_id >= 0x8)
++			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
++				AMD_CG_SUPPORT_GFX_MGLS |
++				AMD_CG_SUPPORT_GFX_CP_LS |
++				AMD_CG_SUPPORT_GFX_3D_CGCG |
++				AMD_CG_SUPPORT_GFX_3D_CGLS |
++				AMD_CG_SUPPORT_GFX_CGCG |
++				AMD_CG_SUPPORT_GFX_CGLS |
++				AMD_CG_SUPPORT_BIF_LS |
++				AMD_CG_SUPPORT_HDP_LS |
++				AMD_CG_SUPPORT_ROM_MGCG |
++				AMD_CG_SUPPORT_MC_MGCG |
++				AMD_CG_SUPPORT_MC_LS |
++				AMD_CG_SUPPORT_SDMA_MGCG |
++				AMD_CG_SUPPORT_SDMA_LS |
++				AMD_CG_SUPPORT_VCN_MGCG;
++		else
++			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
++				AMD_CG_SUPPORT_GFX_MGLS |
++				AMD_CG_SUPPORT_GFX_RLC_LS |
++				AMD_CG_SUPPORT_GFX_CP_LS |
++				AMD_CG_SUPPORT_GFX_3D_CGCG |
++				AMD_CG_SUPPORT_GFX_3D_CGLS |
++				AMD_CG_SUPPORT_GFX_CGCG |
++				AMD_CG_SUPPORT_GFX_CGLS |
++				AMD_CG_SUPPORT_BIF_MGCG |
++				AMD_CG_SUPPORT_BIF_LS |
++				AMD_CG_SUPPORT_HDP_MGCG |
++				AMD_CG_SUPPORT_HDP_LS |
++				AMD_CG_SUPPORT_DRM_MGCG |
++				AMD_CG_SUPPORT_DRM_LS |
++				AMD_CG_SUPPORT_ROM_MGCG |
++				AMD_CG_SUPPORT_MC_MGCG |
++				AMD_CG_SUPPORT_MC_LS |
++				AMD_CG_SUPPORT_SDMA_MGCG |
++				AMD_CG_SUPPORT_SDMA_LS |
++				AMD_CG_SUPPORT_VCN_MGCG;
+ 
+ 		adev->pg_flags = AMD_PG_SUPPORT_SDMA | AMD_PG_SUPPORT_VCN;
+ 
+-- 
+2.7.4
+

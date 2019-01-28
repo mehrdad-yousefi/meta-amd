@@ -1,0 +1,178 @@
+From 3f1f482713a1c19fb678d484c609bebacfc808f3 Mon Sep 17 00:00:00 2001
+From: Eric Yang <Eric.Yang2@amd.com>
+Date: Fri, 14 Sep 2018 15:55:01 -0400
+Subject: [PATCH 5492/5725] drm/amd/display: clean up encoding checks
+
+[Why]
+All ASICS we support has YCbCr support, so
+the check is unnecessary, the currently logic
+in validate output also returns true all
+the time, so the unneccessary logic is removed
+
+Signed-off-by: Eric Yang <Eric.Yang2@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c   | 16 +---------------
+ drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c |  3 +--
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c |  3 +--
+ drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c |  3 +--
+ drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c |  1 -
+ drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c   |  3 +--
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c   | 17 +----------------
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c   |  3 +--
+ drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h    |  1 -
+ 9 files changed, 7 insertions(+), 43 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+index 70eb9472..366bc8c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_link_encoder.c
+@@ -665,21 +665,7 @@ bool dce110_link_encoder_validate_dp_output(
+ 	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
+ 		return false;
+ 
+-	/* default RGB only */
+-	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB)
+-		return true;
+-
+-	if (enc110->base.features.flags.bits.IS_YCBCR_CAPABLE)
+-		return true;
+-
+-	/* for DCE 8.x or later DP Y-only feature,
+-	 * we need ASIC cap + FeatureSupportDPYonly, not support 666 */
+-	if (crtc_timing->flags.Y_ONLY &&
+-		enc110->base.features.flags.bits.IS_YCBCR_CAPABLE &&
+-		crtc_timing->display_color_depth != COLOR_DEPTH_666)
+-		return true;
+-
+-	return false;
++	return true;
+ }
+ 
+ void dce110_link_encoder_construct(
+diff --git a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+index b1cc388..5b75460 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+@@ -551,8 +551,7 @@ static const struct encoder_feature_support link_enc_feature = {
+ 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
+ 		.max_hdmi_pixel_clock = 300000,
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+-		.flags.bits.IS_TPS3_CAPABLE = true,
+-		.flags.bits.IS_YCBCR_CAPABLE = true
++		.flags.bits.IS_TPS3_CAPABLE = true
+ };
+ 
+ struct link_encoder *dce100_link_encoder_create(
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+index b44cc70..4607a6a 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+@@ -570,8 +570,7 @@ static const struct encoder_feature_support link_enc_feature = {
+ 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
+ 		.max_hdmi_pixel_clock = 594000,
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+-		.flags.bits.IS_TPS3_CAPABLE = true,
+-		.flags.bits.IS_YCBCR_CAPABLE = true
++		.flags.bits.IS_TPS3_CAPABLE = true
+ };
+ 
+ static struct link_encoder *dce110_link_encoder_create(
+diff --git a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+index 0f8332e..8b5a269 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+@@ -555,8 +555,7 @@ static const struct encoder_feature_support link_enc_feature = {
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+ 		.flags.bits.IS_HBR3_CAPABLE = true,
+ 		.flags.bits.IS_TPS3_CAPABLE = true,
+-		.flags.bits.IS_TPS4_CAPABLE = true,
+-		.flags.bits.IS_YCBCR_CAPABLE = true
++		.flags.bits.IS_TPS4_CAPABLE = true
+ };
+ 
+ struct link_encoder *dce112_link_encoder_create(
+diff --git a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+index 5905580..53a7a2f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+@@ -609,7 +609,6 @@ static const struct encoder_feature_support link_enc_feature = {
+ 		.flags.bits.IS_HBR3_CAPABLE = true,
+ 		.flags.bits.IS_TPS3_CAPABLE = true,
+ 		.flags.bits.IS_TPS4_CAPABLE = true,
+-		.flags.bits.IS_YCBCR_CAPABLE = true
+ };
+ 
+ static struct link_encoder *dce120_link_encoder_create(
+diff --git a/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c b/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
+index 1dc590c..79e5c5c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
+@@ -650,8 +650,7 @@ static const struct encoder_feature_support link_enc_feature = {
+ 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
+ 		.max_hdmi_pixel_clock = 297000,
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+-		.flags.bits.IS_TPS3_CAPABLE = true,
+-		.flags.bits.IS_YCBCR_CAPABLE = true
++		.flags.bits.IS_TPS3_CAPABLE = true
+ };
+ 
+ struct link_encoder *dce80_link_encoder_create(
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+index bef0011..ba6a8686 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_link_encoder.c
+@@ -609,22 +609,7 @@ bool dcn10_link_encoder_validate_dp_output(
+ 	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
+ 		return false;
+ 
+-	/* default RGB only */
+-	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB)
+-		return true;
+-
+-	if (enc10->base.features.flags.bits.IS_YCBCR_CAPABLE)
+-		return true;
+-
+-	/* for DCE 8.x or later DP Y-only feature,
+-	 * we need ASIC cap + FeatureSupportDPYonly, not support 666
+-	 */
+-	if (crtc_timing->flags.Y_ONLY &&
+-		enc10->base.features.flags.bits.IS_YCBCR_CAPABLE &&
+-		crtc_timing->display_color_depth != COLOR_DEPTH_666)
+-		return true;
+-
+-	return false;
++	return true;
+ }
+ 
+ void dcn10_link_encoder_construct(
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index 910f0b4..d58fbb2 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -723,8 +723,7 @@ static const struct encoder_feature_support link_enc_feature = {
+ 		.flags.bits.IS_HBR2_CAPABLE = true,
+ 		.flags.bits.IS_HBR3_CAPABLE = true,
+ 		.flags.bits.IS_TPS3_CAPABLE = true,
+-		.flags.bits.IS_TPS4_CAPABLE = true,
+-		.flags.bits.IS_YCBCR_CAPABLE = true
++		.flags.bits.IS_TPS4_CAPABLE = true
+ };
+ 
+ struct link_encoder *dcn10_link_encoder_create(
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h b/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
+index 5881892..e28e977 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/link_encoder.h
+@@ -58,7 +58,6 @@ struct encoder_feature_support {
+ 			uint32_t IS_HBR3_CAPABLE:1;
+ 			uint32_t IS_TPS3_CAPABLE:1;
+ 			uint32_t IS_TPS4_CAPABLE:1;
+-			uint32_t IS_YCBCR_CAPABLE:1;
+ 			uint32_t HDMI_6GB_EN:1;
+ 		} bits;
+ 		uint32_t raw;
+-- 
+2.7.4
+

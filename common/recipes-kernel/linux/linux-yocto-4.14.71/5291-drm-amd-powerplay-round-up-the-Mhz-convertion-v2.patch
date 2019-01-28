@@ -1,0 +1,45 @@
+From 36bf40d897e7ca3bf4718214ae6fb1e8dec27fac Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Tue, 19 Jun 2018 10:32:50 -0500
+Subject: [PATCH 5291/5725] drm/amd/powerplay: round up the Mhz convertion (v2)
+
+Since the clock value there may be like 29999 10Khz.
+
+v2: rebase (Alex)
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index a63e006..a9c54f7 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -211,12 +211,18 @@ static int smu10_set_clock_limit(struct pp_hwmgr *hwmgr, const void *input)
+ 	return 0;
+ }
+ 
++static inline uint32_t convert_10k_to_mhz(uint32_t clock)
++{
++	return (clock + 99) / 100;
++}
++
+ static int smu10_set_deep_sleep_dcefclk(struct pp_hwmgr *hwmgr, uint32_t clock)
+ {
+ 	struct smu10_hwmgr *smu10_data = (struct smu10_hwmgr *)(hwmgr->backend);
+ 
+-	if (smu10_data->need_min_deep_sleep_dcefclk && smu10_data->deep_sleep_dcefclk != clock/100) {
+-		smu10_data->deep_sleep_dcefclk = clock/100;
++	if (smu10_data->need_min_deep_sleep_dcefclk &&
++	    smu10_data->deep_sleep_dcefclk != convert_10k_to_mhz(clock)) {
++		smu10_data->deep_sleep_dcefclk = convert_10k_to_mhz(clock);
+ 		smum_send_msg_to_smc_with_parameter(hwmgr,
+ 					PPSMC_MSG_SetMinDeepSleepDcefclk,
+ 					smu10_data->deep_sleep_dcefclk);
+-- 
+2.7.4
+

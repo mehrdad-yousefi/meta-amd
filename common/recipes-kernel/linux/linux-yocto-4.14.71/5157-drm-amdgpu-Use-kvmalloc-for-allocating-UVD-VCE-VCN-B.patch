@@ -1,0 +1,113 @@
+From 254ba022a91b2f6cf90b8f8aed91f4a8a3891a39 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Wed, 9 Jan 2019 21:01:21 +0530
+Subject: [PATCH 5157/5725] drm/amdgpu: Use kvmalloc for allocating UVD/VCE/VCN
+ BO backup memory
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The allocated size can be (at least?) as large as megabytes, and
+there's no need for it to be physically contiguous.
+
+May avoid spurious failures to initialize / suspend the corresponding
+block while there's memory pressure.
+
+Bugzilla: https://bugs.freedesktop.org/107432
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c | 6 +++---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 6 +++---
+ drivers/gpu/drm/amd/amdgpu/vce_v4_0.c   | 4 ++--
+ 3 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index b933d1f..83c6e71 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -314,7 +314,7 @@ int amdgpu_uvd_sw_fini(struct amdgpu_device *adev)
+ 	for (j = 0; j < adev->uvd.num_uvd_inst; ++j) {
+ 		if (adev->uvd.harvest_config & (1 << j))
+ 			continue;
+-		kfree(adev->uvd.inst[j].saved_bo);
++		kvfree(adev->uvd.inst[j].saved_bo);
+ 
+ 		amdgpu_bo_free_kernel(&adev->uvd.inst[j].vcpu_bo,
+ 				      &adev->uvd.inst[j].gpu_addr,
+@@ -360,7 +360,7 @@ int amdgpu_uvd_suspend(struct amdgpu_device *adev)
+                 size = amdgpu_bo_size(adev->uvd.inst[j].vcpu_bo);
+                 ptr = adev->uvd.inst[j].cpu_addr;
+ 
+-                adev->uvd.inst[j].saved_bo = kmalloc(size, GFP_KERNEL);
++		adev->uvd.inst[j].saved_bo = kvmalloc(size, GFP_KERNEL);
+                 if (!adev->uvd.inst[j].saved_bo)
+                         return -ENOMEM;
+                 memcpy_fromio(adev->uvd.inst[j].saved_bo, ptr, size);
+@@ -386,7 +386,7 @@ int amdgpu_uvd_resume(struct amdgpu_device *adev)
+ 
+ 		if (adev->uvd.inst[i].saved_bo != NULL) {
+ 			memcpy_toio(ptr, adev->uvd.inst[i].saved_bo, size);
+-			kfree(adev->uvd.inst[i].saved_bo);
++			kvfree(adev->uvd.inst[i].saved_bo);
+ 			adev->uvd.inst[i].saved_bo = NULL;
+ 		} else {
+ 			const struct common_firmware_header *hdr;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 9485972..461f7dc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -130,7 +130,7 @@ int amdgpu_vcn_sw_fini(struct amdgpu_device *adev)
+ {
+ 	int i;
+ 
+-	kfree(adev->vcn.saved_bo);
++	kvfree(adev->vcn.saved_bo);
+ 
+ 	amdgpu_bo_free_kernel(&adev->vcn.vcpu_bo,
+ 			      &adev->vcn.gpu_addr,
+@@ -161,7 +161,7 @@ int amdgpu_vcn_suspend(struct amdgpu_device *adev)
+ 	size = amdgpu_bo_size(adev->vcn.vcpu_bo);
+ 	ptr = adev->vcn.cpu_addr;
+ 
+-	adev->vcn.saved_bo = kmalloc(size, GFP_KERNEL);
++	adev->vcn.saved_bo = kvmalloc(size, GFP_KERNEL);
+ 	if (!adev->vcn.saved_bo)
+ 		return -ENOMEM;
+ 
+@@ -183,7 +183,7 @@ int amdgpu_vcn_resume(struct amdgpu_device *adev)
+ 
+ 	if (adev->vcn.saved_bo != NULL) {
+ 		memcpy_toio(ptr, adev->vcn.saved_bo, size);
+-		kfree(adev->vcn.saved_bo);
++		kvfree(adev->vcn.saved_bo);
+ 		adev->vcn.saved_bo = NULL;
+ 	} else {
+ 		const struct common_firmware_header *hdr;
+diff --git a/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c b/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c
+index 258f015..90ac4d2 100755
+--- a/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c
+@@ -438,7 +438,7 @@ static int vce_v4_0_sw_init(void *handle)
+ 		const struct common_firmware_header *hdr;
+ 		unsigned size = amdgpu_bo_size(adev->vce.vcpu_bo);
+ 
+-		adev->vce.saved_bo = kmalloc(size, GFP_KERNEL);
++		adev->vce.saved_bo = kvmalloc(size, GFP_KERNEL);
+ 		if (!adev->vce.saved_bo)
+ 			return -ENOMEM;
+ 
+@@ -490,7 +490,7 @@ static int vce_v4_0_sw_fini(void *handle)
+ 	amdgpu_virt_free_mm_table(adev);
+ 
+ 	if (adev->firmware.load_type == AMDGPU_FW_LOAD_PSP) {
+-		kfree(adev->vce.saved_bo);
++		kvfree(adev->vce.saved_bo);
+ 		adev->vce.saved_bo = NULL;
+ 	}
+ 
+-- 
+2.7.4
+

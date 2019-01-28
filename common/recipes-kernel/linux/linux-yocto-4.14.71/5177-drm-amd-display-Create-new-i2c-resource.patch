@@ -1,0 +1,2888 @@
+From 2dfcd88b1cd363eab06fc6a4491d3aab35798e3b Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Mon, 23 Jul 2018 14:12:10 -0400
+Subject: [PATCH 5177/5725] drm/amd/display: Create new i2c resource
+
+[Why]
+I2C code did not match dc resource model and was generally
+unpleasant
+
+[How]
+Move code into new svelte dce_i2c files, replacing various i2c
+objects with two structs: dce_i2c_sw and dce_i2c_hw.  Fully split
+sw and hw code paths.  Remove all redundant declarations.  Use
+address lists to distinguish between versions.  Change dce80 code
+to newer register access macros.
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c  |   9 +-
+ drivers/gpu/drm/amd/display/dc/bios/bios_parser.c  |  10 +-
+ drivers/gpu/drm/amd/display/dc/core/dc.c           |   8 +-
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c      |   4 +-
+ drivers/gpu/drm/amd/display/dc/dce/Makefile        |   4 +-
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c.c       |  60 ++
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h       |  71 ++
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c    | 951 +++++++++++++++++++++
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h    | 335 ++++++++
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c    | 602 +++++++++++++
+ drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.h    |  57 ++
+ .../drm/amd/display/dc/dce100/dce100_resource.c    |  51 +-
+ .../drm/amd/display/dc/dce110/dce110_resource.c    |  51 +-
+ .../drm/amd/display/dc/dce112/dce112_resource.c    |  51 +-
+ .../drm/amd/display/dc/dce120/dce120_resource.c    |  65 +-
+ .../gpu/drm/amd/display/dc/dce80/dce80_resource.c  |  99 +++
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_resource.c  |  51 +-
+ drivers/gpu/drm/amd/display/dc/inc/core_types.h    |   3 +
+ 18 files changed, 2452 insertions(+), 30 deletions(-)
+ create mode 100644 drivers/gpu/drm/amd/display/dc/dce/dce_i2c.c
+ create mode 100644 drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h
+ create mode 100644 drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c
+ create mode 100644 drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h
+ create mode 100644 drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c
+ create mode 100644 drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.h
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 3305d9d..2704c7f 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -71,8 +71,6 @@
+ 
+ #include "modules/inc/mod_freesync.h"
+ 
+-#include "i2caux_interface.h"
+-
+ /* basic init/fini API */
+ static int amdgpu_dm_init(struct amdgpu_device *adev);
+ static void amdgpu_dm_fini(struct amdgpu_device *adev);
+@@ -3893,9 +3891,9 @@ static int amdgpu_dm_i2c_xfer(struct i2c_adapter *i2c_adap,
+ 		cmd.payloads[i].data = msgs[i].buf;
+ 	}
+ 
+-	if (dal_i2caux_submit_i2c_command(
+-			ddc_service->ctx->i2caux,
+-			ddc_service->ddc_pin,
++	if (dc_submit_i2c(
++			ddc_service->ctx->dc,
++			ddc_service->ddc_pin->hw_info.ddc_channel,
+ 			&cmd))
+ 		result = num;
+ 
+@@ -3931,6 +3929,7 @@ create_i2c(struct ddc_service *ddc_service,
+ 	snprintf(i2c->base.name, sizeof(i2c->base.name), "AMDGPU DM i2c hw bus %d", link_index);
+ 	i2c_set_adapdata(&i2c->base, i2c);
+ 	i2c->ddc_service = ddc_service;
++	i2c->ddc_service->ddc_pin->hw_info.ddc_channel = link_index;
+ 
+ 	return i2c;
+ }
+diff --git a/drivers/gpu/drm/amd/display/dc/bios/bios_parser.c b/drivers/gpu/drm/amd/display/dc/bios/bios_parser.c
+index be8a249..bfa5816 100644
+--- a/drivers/gpu/drm/amd/display/dc/bios/bios_parser.c
++++ b/drivers/gpu/drm/amd/display/dc/bios/bios_parser.c
+@@ -42,7 +42,7 @@
+ #include "bios_parser_interface.h"
+ 
+ #include "bios_parser_common.h"
+-/* TODO remove - only needed for default i2c speed */
++
+ #include "dc.h"
+ 
+ #define THREE_PERCENT_OF_10000 300
+@@ -2671,11 +2671,9 @@ static bool i2c_read(
+ 
+ 		cmd.payloads = payloads;
+ 		cmd.number_of_payloads = ARRAY_SIZE(payloads);
+-
+-		/* TODO route this through drm i2c_adapter */
+-		result = dal_i2caux_submit_i2c_command(
+-				ddc->ctx->i2caux,
+-				ddc,
++		result = dc_submit_i2c(
++				ddc->ctx->dc,
++				ddc->hw_info.ddc_channel,
+ 				&cmd);
+ 	}
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 8f4a288..152c7dd 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -54,6 +54,9 @@
+ #include "hubp.h"
+ 
+ #include "dc_link_dp.h"
++
++#include "dce/dce_i2c.h"
++
+ #define DC_LOGGER \
+ 	dc->ctx->logger
+ 
+@@ -1724,9 +1727,8 @@ bool dc_submit_i2c(
+ 
+ 	struct dc_link *link = dc->links[link_index];
+ 	struct ddc_service *ddc = link->ddc;
+-
+-	return dal_i2caux_submit_i2c_command(
+-		ddc->ctx->i2caux,
++	return dce_i2c_submit_command(
++		dc->res_pool,
+ 		ddc->ddc_pin,
+ 		cmd);
+ }
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index 7af0f31..f8b299c 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -1530,8 +1530,8 @@ static bool i2c_write(struct pipe_ctx *pipe_ctx,
+ 	payload.write = true;
+ 	cmd.payloads = &payload;
+ 
+-	if (dc_submit_i2c(pipe_ctx->stream->ctx->dc,
+-			pipe_ctx->stream->sink->link->link_index, &cmd))
++	if (dm_helpers_submit_i2c(pipe_ctx->stream->ctx,
++			pipe_ctx->stream->sink->link, &cmd))
+ 		return true;
+ 
+ 	return false;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/Makefile b/drivers/gpu/drm/amd/display/dc/dce/Makefile
+index 67b0852..36ef8b1 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/Makefile
++++ b/drivers/gpu/drm/amd/display/dc/dce/Makefile
+@@ -7,8 +7,8 @@
+ 
+ DCE = dce_audio.o dce_stream_encoder.o dce_link_encoder.o dce_hwseq.o \
+ dce_mem_input.o dce_clock_source.o dce_scl_filters.o dce_transform.o \
+-dce_clocks.o dce_opp.o dce_dmcu.o dce_abm.o dce_ipp.o dce_aux.o
+-
++dce_clocks.o dce_opp.o dce_dmcu.o dce_abm.o dce_ipp.o dce_aux.o \
++dce_i2c.o dce_i2c_hw.o dce_i2c_sw.o
+ 
+ AMD_DAL_DCE = $(addprefix $(AMDDALPATH)/dc/dce/,$(DCE))
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.c b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.c
+new file mode 100644
+index 0000000..35a7539
+--- /dev/null
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.c
+@@ -0,0 +1,60 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: AMD
++ *
++ */
++#include "dce_i2c.h"
++#include "reg_helper.h"
++
++bool dce_i2c_submit_command(
++	struct resource_pool *pool,
++	struct ddc *ddc,
++	struct i2c_command *cmd)
++{
++	struct dce_i2c_hw *dce_i2c_hw;
++	struct dce_i2c_sw *dce_i2c_sw;
++
++	if (!ddc) {
++		BREAK_TO_DEBUGGER();
++		return false;
++	}
++
++	if (!cmd) {
++		BREAK_TO_DEBUGGER();
++		return false;
++	}
++
++	/* The software engine is only available on dce8 */
++	dce_i2c_sw = dce_i2c_acquire_i2c_sw_engine(pool, ddc);
++
++	if (!dce_i2c_sw) {
++		dce_i2c_hw = acquire_i2c_hw_engine(pool, ddc);
++
++		if (!dce_i2c_hw)
++			return false;
++
++		return dce_i2c_submit_command_hw(pool, ddc, cmd, dce_i2c_hw);
++	}
++
++	return dce_i2c_submit_command_sw(pool, ddc, cmd, dce_i2c_sw);
++
++}
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h
+new file mode 100644
+index 0000000..d655f89
+--- /dev/null
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c.h
+@@ -0,0 +1,71 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: AMD
++ *
++ */
++
++#ifndef __DCE_I2C_H__
++#define __DCE_I2C_H__
++
++#include "inc/core_types.h"
++#include "dce_i2c_hw.h"
++#include "dce_i2c_sw.h"
++
++enum dce_i2c_transaction_status {
++	DCE_I2C_TRANSACTION_STATUS_UNKNOWN = (-1L),
++	DCE_I2C_TRANSACTION_STATUS_SUCCEEDED,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_CHANNEL_BUSY,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_TIMEOUT,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_PROTOCOL_ERROR,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_NACK,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_INCOMPLETE,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_OPERATION,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_INVALID_OPERATION,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_BUFFER_OVERFLOW,
++	DCE_I2C_TRANSACTION_STATUS_FAILED_HPD_DISCON
++};
++
++enum dce_i2c_transaction_operation {
++	DCE_I2C_TRANSACTION_READ,
++	DCE_I2C_TRANSACTION_WRITE
++};
++
++struct dce_i2c_transaction_payload {
++	enum dce_i2c_transaction_address_space address_space;
++	uint32_t address;
++	uint32_t length;
++	uint8_t *data;
++};
++
++struct dce_i2c_transaction_request {
++	enum dce_i2c_transaction_operation operation;
++	struct dce_i2c_transaction_payload payload;
++	enum dce_i2c_transaction_status status;
++};
++
++
++bool dce_i2c_submit_command(
++	struct resource_pool *pool,
++	struct ddc *ddc,
++	struct i2c_command *cmd);
++
++#endif
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c
+new file mode 100644
+index 0000000..6a57c48
+--- /dev/null
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.c
+@@ -0,0 +1,951 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: AMD
++ *
++ */
++#include "dce_i2c.h"
++#include "dce_i2c_hw.h"
++#include "reg_helper.h"
++#include "include/gpio_service_interface.h"
++
++#define CTX \
++	dce_i2c_hw->ctx
++#define REG(reg)\
++	dce_i2c_hw->regs->reg
++
++#undef FN
++#define FN(reg_name, field_name) \
++	dce_i2c_hw->shifts->field_name, dce_i2c_hw->masks->field_name
++
++
++static inline void reset_hw_engine(struct dce_i2c_hw *dce_i2c_hw)
++{
++	REG_UPDATE_2(DC_I2C_CONTROL,
++		     DC_I2C_SW_STATUS_RESET, 1,
++		     DC_I2C_SW_STATUS_RESET, 1);
++}
++
++static bool is_hw_busy(struct dce_i2c_hw *dce_i2c_hw)
++{
++	uint32_t i2c_sw_status = 0;
++
++	REG_GET(DC_I2C_SW_STATUS, DC_I2C_SW_STATUS, &i2c_sw_status);
++	if (i2c_sw_status == DC_I2C_STATUS__DC_I2C_STATUS_IDLE)
++		return false;
++
++	reset_hw_engine(dce_i2c_hw);
++
++	REG_GET(DC_I2C_SW_STATUS, DC_I2C_SW_STATUS, &i2c_sw_status);
++	return i2c_sw_status != DC_I2C_STATUS__DC_I2C_STATUS_IDLE;
++}
++
++static void set_speed_hw_dce80(
++	struct dce_i2c_hw *dce_i2c_hw,
++	uint32_t speed)
++{
++
++	if (speed) {
++		REG_UPDATE_N(SPEED, 2,
++			     FN(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_PRESCALE), dce_i2c_hw->reference_frequency / speed,
++			     FN(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_THRESHOLD), 2);
++	}
++}
++static void set_speed_hw_dce100(
++	struct dce_i2c_hw *dce_i2c_hw,
++	uint32_t speed)
++{
++
++	if (speed) {
++		if (dce_i2c_hw->masks->DC_I2C_DDC1_START_STOP_TIMING_CNTL)
++			REG_UPDATE_N(SPEED, 3,
++				     FN(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_PRESCALE), dce_i2c_hw->reference_frequency / speed,
++				     FN(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_THRESHOLD), 2,
++				     FN(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_START_STOP_TIMING_CNTL), speed > 50 ? 2:1);
++		else
++			REG_UPDATE_N(SPEED, 2,
++				     FN(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_PRESCALE), dce_i2c_hw->reference_frequency / speed,
++				     FN(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_THRESHOLD), 2);
++	}
++}
++bool dce_i2c_hw_engine_acquire_engine(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct ddc *ddc)
++{
++
++	enum gpio_result result;
++	uint32_t current_speed;
++
++	result = dal_ddc_open(ddc, GPIO_MODE_HARDWARE,
++		GPIO_DDC_CONFIG_TYPE_MODE_I2C);
++
++	if (result != GPIO_RESULT_OK)
++		return false;
++
++	dce_i2c_hw->ddc = ddc;
++
++
++	current_speed = dce_i2c_hw->funcs->get_speed(dce_i2c_hw);
++
++	if (current_speed)
++		dce_i2c_hw->original_speed = current_speed;
++
++	return true;
++}
++bool dce_i2c_engine_acquire_hw(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct ddc *ddc_handle)
++{
++
++	uint32_t counter = 0;
++	bool result;
++
++	do {
++		result = dce_i2c_hw_engine_acquire_engine(
++				dce_i2c_hw, ddc_handle);
++
++		if (result)
++			break;
++
++		/* i2c_engine is busy by VBios, lets wait and retry */
++
++		udelay(10);
++
++		++counter;
++	} while (counter < 2);
++
++	if (result) {
++		if (!dce_i2c_hw->funcs->setup_engine(dce_i2c_hw)) {
++			dce_i2c_hw->funcs->release_engine(dce_i2c_hw);
++			result = false;
++		}
++	}
++
++	return result;
++}
++struct dce_i2c_hw *acquire_i2c_hw_engine(
++	struct resource_pool *pool,
++	struct ddc *ddc)
++{
++
++	struct dce_i2c_hw *engine = NULL;
++
++	if (!ddc)
++		return NULL;
++
++	if (ddc->hw_info.hw_supported) {
++		enum gpio_ddc_line line = dal_ddc_get_line(ddc);
++
++		if (line < pool->pipe_count)
++			engine = pool->hw_i2cs[line];
++	}
++
++	if (!engine)
++		return NULL;
++
++
++	if (!pool->i2c_hw_buffer_in_use &&
++			dce_i2c_engine_acquire_hw(engine, ddc)) {
++		pool->i2c_hw_buffer_in_use = true;
++		return engine;
++	}
++
++
++	return NULL;
++}
++
++static bool setup_engine_hw_dce100(
++	struct dce_i2c_hw *dce_i2c_hw)
++{
++	uint32_t i2c_setup_limit = I2C_SETUP_TIME_LIMIT_DCE;
++
++	if (dce_i2c_hw->setup_limit != 0)
++		i2c_setup_limit = dce_i2c_hw->setup_limit;
++	/* Program pin select */
++	REG_UPDATE_6(DC_I2C_CONTROL,
++		     DC_I2C_GO, 0,
++		     DC_I2C_SOFT_RESET, 0,
++		     DC_I2C_SEND_RESET, 0,
++		     DC_I2C_SW_STATUS_RESET, 1,
++		     DC_I2C_TRANSACTION_COUNT, 0,
++		     DC_I2C_DDC_SELECT, dce_i2c_hw->engine_id);
++
++	/* Program time limit */
++	if (dce_i2c_hw->send_reset_length == 0) {
++		/*pre-dcn*/
++		REG_UPDATE_N(SETUP, 2,
++			     FN(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_TIME_LIMIT), i2c_setup_limit,
++			     FN(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_ENABLE), 1);
++	}
++	/* Program HW priority
++	 * set to High - interrupt software I2C at any time
++	 * Enable restart of SW I2C that was interrupted by HW
++	 * disable queuing of software while I2C is in use by HW
++	 */
++	REG_UPDATE_2(DC_I2C_ARBITRATION,
++		     DC_I2C_NO_QUEUED_SW_GO, 0,
++		     DC_I2C_SW_PRIORITY, DC_I2C_ARBITRATION__DC_I2C_SW_PRIORITY_NORMAL);
++
++	return true;
++}
++static bool setup_engine_hw_dce80(
++	struct dce_i2c_hw *dce_i2c_hw)
++{
++
++	/* Program pin select */
++	{
++		REG_UPDATE_6(DC_I2C_CONTROL,
++			     DC_I2C_GO, 0,
++			     DC_I2C_SOFT_RESET, 0,
++			     DC_I2C_SEND_RESET, 0,
++			     DC_I2C_SW_STATUS_RESET, 1,
++			     DC_I2C_TRANSACTION_COUNT, 0,
++			     DC_I2C_DDC_SELECT, dce_i2c_hw->engine_id);
++	}
++
++	/* Program time limit */
++	{
++		REG_UPDATE_2(SETUP,
++			     DC_I2C_DDC1_TIME_LIMIT, I2C_SETUP_TIME_LIMIT_DCE,
++			     DC_I2C_DDC1_ENABLE, 1);
++	}
++
++	/* Program HW priority
++	 * set to High - interrupt software I2C at any time
++	 * Enable restart of SW I2C that was interrupted by HW
++	 * disable queuing of software while I2C is in use by HW
++	 */
++	{
++		REG_UPDATE_2(DC_I2C_ARBITRATION,
++			     DC_I2C_NO_QUEUED_SW_GO, 0,
++			     DC_I2C_SW_PRIORITY, DC_I2C_ARBITRATION__DC_I2C_SW_PRIORITY_NORMAL);
++	}
++
++	return true;
++}
++
++
++
++static void process_channel_reply_hw_dce80(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct i2c_reply_transaction_data *reply)
++{
++	uint32_t length = reply->length;
++	uint8_t *buffer = reply->data;
++
++	REG_SET_3(DC_I2C_DATA, 0,
++		 DC_I2C_INDEX, length - 1,
++		 DC_I2C_DATA_RW, 1,
++		 DC_I2C_INDEX_WRITE, 1);
++
++	while (length) {
++		/* after reading the status,
++		 * if the I2C operation executed successfully
++		 * (i.e. DC_I2C_STATUS_DONE = 1) then the I2C controller
++		 * should read data bytes from I2C circular data buffer
++		 */
++
++		uint32_t i2c_data;
++
++		REG_GET(DC_I2C_DATA, DC_I2C_DATA, &i2c_data);
++		*buffer++ = i2c_data;
++
++		--length;
++	}
++}
++static void process_channel_reply_hw_dce100(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct i2c_reply_transaction_data *reply)
++{
++	uint32_t length = reply->length;
++	uint8_t *buffer = reply->data;
++
++	REG_SET_3(DC_I2C_DATA, 0,
++		 DC_I2C_INDEX, dce_i2c_hw->buffer_used_write,
++		 DC_I2C_DATA_RW, 1,
++		 DC_I2C_INDEX_WRITE, 1);
++
++	while (length) {
++		/* after reading the status,
++		 * if the I2C operation executed successfully
++		 * (i.e. DC_I2C_STATUS_DONE = 1) then the I2C controller
++		 * should read data bytes from I2C circular data buffer
++		 */
++
++		uint32_t i2c_data;
++
++		REG_GET(DC_I2C_DATA, DC_I2C_DATA, &i2c_data);
++		*buffer++ = i2c_data;
++
++		--length;
++	}
++}
++enum i2c_channel_operation_result dce_i2c_hw_engine_wait_on_operation_result(
++	struct dce_i2c_hw *dce_i2c_hw,
++	uint32_t timeout,
++	enum i2c_channel_operation_result expected_result)
++{
++	enum i2c_channel_operation_result result;
++	uint32_t i = 0;
++
++	if (!timeout)
++		return I2C_CHANNEL_OPERATION_SUCCEEDED;
++
++	do {
++
++		result = dce_i2c_hw->funcs->get_channel_status(
++				dce_i2c_hw, NULL);
++
++		if (result != expected_result)
++			break;
++
++		udelay(1);
++
++		++i;
++	} while (i < timeout);
++	return result;
++}
++static enum i2c_channel_operation_result get_channel_status_hw(
++	struct dce_i2c_hw *dce_i2c_hw,
++	uint8_t *returned_bytes)
++{
++	uint32_t i2c_sw_status = 0;
++	uint32_t value =
++		REG_GET(DC_I2C_SW_STATUS, DC_I2C_SW_STATUS, &i2c_sw_status);
++	if (i2c_sw_status == DC_I2C_STATUS__DC_I2C_STATUS_USED_BY_SW)
++		return I2C_CHANNEL_OPERATION_ENGINE_BUSY;
++	else if (value & dce_i2c_hw->masks->DC_I2C_SW_STOPPED_ON_NACK)
++		return I2C_CHANNEL_OPERATION_NO_RESPONSE;
++	else if (value & dce_i2c_hw->masks->DC_I2C_SW_TIMEOUT)
++		return I2C_CHANNEL_OPERATION_TIMEOUT;
++	else if (value & dce_i2c_hw->masks->DC_I2C_SW_ABORTED)
++		return I2C_CHANNEL_OPERATION_FAILED;
++	else if (value & dce_i2c_hw->masks->DC_I2C_SW_DONE)
++		return I2C_CHANNEL_OPERATION_SUCCEEDED;
++
++	/*
++	 * this is the case when HW used for communication, I2C_SW_STATUS
++	 * could be zero
++	 */
++	return I2C_CHANNEL_OPERATION_SUCCEEDED;
++}
++
++static void submit_channel_request_hw(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct i2c_request_transaction_data *request)
++{
++	request->status = I2C_CHANNEL_OPERATION_SUCCEEDED;
++
++	if (!dce_i2c_hw->funcs->process_transaction(dce_i2c_hw, request))
++		return;
++
++	if (dce_i2c_hw->funcs->is_hw_busy(dce_i2c_hw)) {
++		request->status = I2C_CHANNEL_OPERATION_ENGINE_BUSY;
++		return;
++	}
++
++	dce_i2c_hw->funcs->execute_transaction(dce_i2c_hw);
++
++
++}
++uint32_t get_reference_clock(
++		struct dc_bios *bios)
++{
++	struct dc_firmware_info info = { { 0 } };
++
++	if (bios->funcs->get_firmware_info(bios, &info) != BP_RESULT_OK)
++		return 0;
++
++	return info.pll_info.crystal_frequency;
++}
++
++static void execute_transaction_hw(
++	struct dce_i2c_hw *dce_i2c_hw)
++{
++	REG_UPDATE_N(SETUP, 5,
++		     FN(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_DATA_DRIVE_EN), 0,
++		     FN(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_CLK_DRIVE_EN), 0,
++		     FN(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_DATA_DRIVE_SEL), 0,
++		     FN(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_INTRA_TRANSACTION_DELAY), 0,
++		     FN(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_INTRA_BYTE_DELAY), 0);
++
++
++	REG_UPDATE_5(DC_I2C_CONTROL,
++		     DC_I2C_SOFT_RESET, 0,
++		     DC_I2C_SW_STATUS_RESET, 0,
++		     DC_I2C_SEND_RESET, 0,
++		     DC_I2C_GO, 0,
++		     DC_I2C_TRANSACTION_COUNT, dce_i2c_hw->transaction_count - 1);
++
++	/* start I2C transfer */
++	REG_UPDATE(DC_I2C_CONTROL, DC_I2C_GO, 1);
++
++	/* all transactions were executed and HW buffer became empty
++	 * (even though it actually happens when status becomes DONE)
++	 */
++	dce_i2c_hw->transaction_count = 0;
++	dce_i2c_hw->buffer_used_bytes = 0;
++}
++static bool process_transaction_hw_dce80(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct i2c_request_transaction_data *request)
++{
++	uint32_t length = request->length;
++	uint8_t *buffer = request->data;
++
++	bool last_transaction = false;
++	uint32_t value = 0;
++
++	{
++
++		last_transaction = ((dce_i2c_hw->transaction_count == 3) ||
++				(request->action == DCE_I2C_TRANSACTION_ACTION_I2C_WRITE) ||
++				(request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ));
++
++
++		switch (dce_i2c_hw->transaction_count) {
++		case 0:
++			REG_UPDATE_5(DC_I2C_TRANSACTION0,
++				     DC_I2C_STOP_ON_NACK0, 1,
++				     DC_I2C_START0, 1,
++				     DC_I2C_RW0, 0 != (request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ),
++				     DC_I2C_COUNT0, length,
++				     DC_I2C_STOP0, last_transaction ? 1 : 0);
++			break;
++		case 1:
++			REG_UPDATE_5(DC_I2C_TRANSACTION1,
++				     DC_I2C_STOP_ON_NACK0, 1,
++				     DC_I2C_START0, 1,
++				     DC_I2C_RW0, 0 != (request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ),
++				     DC_I2C_COUNT0, length,
++				     DC_I2C_STOP0, last_transaction ? 1 : 0);
++			break;
++		case 2:
++			REG_UPDATE_5(DC_I2C_TRANSACTION2,
++				     DC_I2C_STOP_ON_NACK0, 1,
++				     DC_I2C_START0, 1,
++				     DC_I2C_RW0, 0 != (request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ),
++				     DC_I2C_COUNT0, length,
++				     DC_I2C_STOP0, last_transaction ? 1 : 0);
++			break;
++		case 3:
++			REG_UPDATE_5(DC_I2C_TRANSACTION3,
++				     DC_I2C_STOP_ON_NACK0, 1,
++				     DC_I2C_START0, 1,
++				     DC_I2C_RW0, 0 != (request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ),
++				     DC_I2C_COUNT0, length,
++				     DC_I2C_STOP0, last_transaction ? 1 : 0);
++			break;
++		default:
++			/* TODO Warning ? */
++			break;
++		}
++	}
++
++	/* Write the I2C address and I2C data
++	 * into the hardware circular buffer, one byte per entry.
++	 * As an example, the 7-bit I2C slave address for CRT monitor
++	 * for reading DDC/EDID information is 0b1010001.
++	 * For an I2C send operation, the LSB must be programmed to 0;
++	 * for I2C receive operation, the LSB must be programmed to 1.
++	 */
++
++	{
++		if (dce_i2c_hw->transaction_count == 0) {
++			value = REG_SET_4(DC_I2C_DATA, 0,
++					 DC_I2C_DATA_RW, false,
++					 DC_I2C_DATA, request->address,
++					 DC_I2C_INDEX, 0,
++					 DC_I2C_INDEX_WRITE, 1);
++		} else
++			value = REG_SET_2(DC_I2C_DATA, 0,
++					 DC_I2C_DATA_RW, false,
++					 DC_I2C_DATA, request->address);
++
++		if (!(request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ)) {
++
++			while (length) {
++				REG_SET_2(DC_I2C_DATA, value,
++					 DC_I2C_INDEX_WRITE, 0,
++					 DC_I2C_DATA, *buffer++);
++				--length;
++			}
++		}
++	}
++
++	++dce_i2c_hw->transaction_count;
++	dce_i2c_hw->buffer_used_bytes += length + 1;
++
++	return last_transaction;
++}
++
++#define STOP_TRANS_PREDICAT \
++		((dce_i2c_hw->transaction_count == 3) ||	\
++				(request->action == DCE_I2C_TRANSACTION_ACTION_I2C_WRITE) ||	\
++				(request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ))
++
++#define SET_I2C_TRANSACTION(id)	\
++		do {	\
++			REG_UPDATE_N(DC_I2C_TRANSACTION##id, 5,	\
++				FN(DC_I2C_TRANSACTION0, DC_I2C_STOP_ON_NACK0), 1,	\
++				FN(DC_I2C_TRANSACTION0, DC_I2C_START0), 1,	\
++				FN(DC_I2C_TRANSACTION0, DC_I2C_STOP0), STOP_TRANS_PREDICAT ? 1:0,	\
++				FN(DC_I2C_TRANSACTION0, DC_I2C_RW0), (0 != (request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ)),	\
++				FN(DC_I2C_TRANSACTION0, DC_I2C_COUNT0), length);	\
++				if (STOP_TRANS_PREDICAT)	\
++					last_transaction = true;	\
++		} while (false)
++
++static bool process_transaction_hw_dce100(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct i2c_request_transaction_data *request)
++{
++	uint32_t length = request->length;
++	uint8_t *buffer = request->data;
++	uint32_t value = 0;
++
++	bool last_transaction = false;
++
++	switch (dce_i2c_hw->transaction_count) {
++	case 0:
++		SET_I2C_TRANSACTION(0);
++		break;
++	case 1:
++		SET_I2C_TRANSACTION(1);
++		break;
++	case 2:
++		SET_I2C_TRANSACTION(2);
++		break;
++	case 3:
++		SET_I2C_TRANSACTION(3);
++		break;
++	default:
++		/* TODO Warning ? */
++		break;
++	}
++
++
++	/* Write the I2C address and I2C data
++	 * into the hardware circular buffer, one byte per entry.
++	 * As an example, the 7-bit I2C slave address for CRT monitor
++	 * for reading DDC/EDID information is 0b1010001.
++	 * For an I2C send operation, the LSB must be programmed to 0;
++	 * for I2C receive operation, the LSB must be programmed to 1.
++	 */
++	if (dce_i2c_hw->transaction_count == 0) {
++		value = REG_SET_4(DC_I2C_DATA, 0,
++				  DC_I2C_DATA_RW, false,
++				  DC_I2C_DATA, request->address,
++				  DC_I2C_INDEX, 0,
++				  DC_I2C_INDEX_WRITE, 1);
++		dce_i2c_hw->buffer_used_write = 0;
++	} else
++		value = REG_SET_2(DC_I2C_DATA, 0,
++			  DC_I2C_DATA_RW, false,
++			  DC_I2C_DATA, request->address);
++
++	dce_i2c_hw->buffer_used_write++;
++
++	if (!(request->action & DCE_I2C_TRANSACTION_ACTION_I2C_READ)) {
++		while (length) {
++			REG_SET_2(DC_I2C_DATA, value,
++				  DC_I2C_INDEX_WRITE, 0,
++				  DC_I2C_DATA, *buffer++);
++			dce_i2c_hw->buffer_used_write++;
++			--length;
++		}
++	}
++
++	++dce_i2c_hw->transaction_count;
++	dce_i2c_hw->buffer_used_bytes += length + 1;
++
++	return last_transaction;
++}
++static uint32_t get_transaction_timeout_hw(
++	const struct dce_i2c_hw *dce_i2c_hw,
++	uint32_t length)
++{
++
++	uint32_t speed = dce_i2c_hw->funcs->get_speed(dce_i2c_hw);
++
++
++
++	uint32_t period_timeout;
++	uint32_t num_of_clock_stretches;
++
++	if (!speed)
++		return 0;
++
++	period_timeout = (1000 * TRANSACTION_TIMEOUT_IN_I2C_CLOCKS) / speed;
++
++	num_of_clock_stretches = 1 + (length << 3) + 1;
++	num_of_clock_stretches +=
++		(dce_i2c_hw->buffer_used_bytes << 3) +
++		(dce_i2c_hw->transaction_count << 1);
++
++	return period_timeout * num_of_clock_stretches;
++}
++
++static void release_engine_dce_hw(
++	struct resource_pool *pool,
++	struct dce_i2c_hw *dce_i2c_hw)
++{
++	pool->i2c_hw_buffer_in_use = false;
++
++	dce_i2c_hw->funcs->release_engine(dce_i2c_hw);
++	dal_ddc_close(dce_i2c_hw->ddc);
++
++	dce_i2c_hw->ddc = NULL;
++}
++
++static void release_engine_hw(
++	struct dce_i2c_hw *dce_i2c_hw)
++{
++	bool safe_to_reset;
++
++	/* Restore original HW engine speed */
++
++	dce_i2c_hw->funcs->set_speed(dce_i2c_hw, dce_i2c_hw->original_speed);
++
++	/* Release I2C */
++	REG_UPDATE(DC_I2C_ARBITRATION, DC_I2C_SW_DONE_USING_I2C_REG, 1);
++
++	/* Reset HW engine */
++	{
++		uint32_t i2c_sw_status = 0;
++
++		REG_GET(DC_I2C_SW_STATUS, DC_I2C_SW_STATUS, &i2c_sw_status);
++		/* if used by SW, safe to reset */
++		safe_to_reset = (i2c_sw_status == 1);
++	}
++
++	if (safe_to_reset)
++		REG_UPDATE_2(DC_I2C_CONTROL,
++			     DC_I2C_SOFT_RESET, 1,
++			     DC_I2C_SW_STATUS_RESET, 1);
++	else
++		REG_UPDATE(DC_I2C_CONTROL, DC_I2C_SW_STATUS_RESET, 1);
++	/* HW I2c engine - clock gating feature */
++	if (!dce_i2c_hw->engine_keep_power_up_count)
++		dce_i2c_hw->funcs->disable_i2c_hw_engine(dce_i2c_hw);
++
++}
++
++
++static void disable_i2c_hw_engine(
++	struct dce_i2c_hw *dce_i2c_hw)
++{
++	REG_UPDATE_N(SETUP, 1, FN(SETUP, DC_I2C_DDC1_ENABLE), 0);
++}
++static uint32_t get_speed_hw(
++	const struct dce_i2c_hw *dce_i2c_hw)
++{
++	uint32_t pre_scale = 0;
++
++	REG_GET(SPEED, DC_I2C_DDC1_PRESCALE, &pre_scale);
++
++	/* [anaumov] it seems following is unnecessary */
++	/*ASSERT(value.bits.DC_I2C_DDC1_PRESCALE);*/
++	return pre_scale ?
++		dce_i2c_hw->reference_frequency / pre_scale :
++		dce_i2c_hw->default_speed;
++}
++static uint32_t get_hw_buffer_available_size(
++	const struct dce_i2c_hw *dce_i2c_hw)
++{
++	return dce_i2c_hw->buffer_size -
++			dce_i2c_hw->buffer_used_bytes;
++}
++bool dce_i2c_hw_engine_submit_request(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dce_i2c_transaction_request *dce_i2c_request,
++	bool middle_of_transaction)
++{
++
++	struct i2c_request_transaction_data request;
++
++	uint32_t transaction_timeout;
++
++	enum i2c_channel_operation_result operation_result;
++
++	bool result = false;
++
++	/* We need following:
++	 * transaction length will not exceed
++	 * the number of free bytes in HW buffer (minus one for address)
++	 */
++
++	if (dce_i2c_request->payload.length >=
++			get_hw_buffer_available_size(dce_i2c_hw)) {
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_BUFFER_OVERFLOW;
++		return false;
++	}
++
++	if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_READ)
++		request.action = middle_of_transaction ?
++			DCE_I2C_TRANSACTION_ACTION_I2C_READ_MOT :
++			DCE_I2C_TRANSACTION_ACTION_I2C_READ;
++	else if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_WRITE)
++		request.action = middle_of_transaction ?
++			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE_MOT :
++			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE;
++	else {
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_INVALID_OPERATION;
++		/* [anaumov] in DAL2, there was no "return false" */
++		return false;
++	}
++
++	request.address = (uint8_t) dce_i2c_request->payload.address;
++	request.length = dce_i2c_request->payload.length;
++	request.data = dce_i2c_request->payload.data;
++
++	/* obtain timeout value before submitting request */
++
++	transaction_timeout = get_transaction_timeout_hw(
++		dce_i2c_hw, dce_i2c_request->payload.length + 1);
++
++	submit_channel_request_hw(
++		dce_i2c_hw, &request);
++
++	if ((request.status == I2C_CHANNEL_OPERATION_FAILED) ||
++		(request.status == I2C_CHANNEL_OPERATION_ENGINE_BUSY)) {
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_CHANNEL_BUSY;
++		return false;
++	}
++
++	/* wait until transaction proceed */
++
++	operation_result = dce_i2c_hw_engine_wait_on_operation_result(
++		dce_i2c_hw,
++		transaction_timeout,
++		I2C_CHANNEL_OPERATION_ENGINE_BUSY);
++
++	/* update transaction status */
++
++	switch (operation_result) {
++	case I2C_CHANNEL_OPERATION_SUCCEEDED:
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_SUCCEEDED;
++		result = true;
++	break;
++	case I2C_CHANNEL_OPERATION_NO_RESPONSE:
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_NACK;
++	break;
++	case I2C_CHANNEL_OPERATION_TIMEOUT:
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_TIMEOUT;
++	break;
++	case I2C_CHANNEL_OPERATION_FAILED:
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_INCOMPLETE;
++	break;
++	default:
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_OPERATION;
++	}
++
++	if (result && (dce_i2c_request->operation == DCE_I2C_TRANSACTION_READ)) {
++		struct i2c_reply_transaction_data reply;
++
++		reply.data = dce_i2c_request->payload.data;
++		reply.length = dce_i2c_request->payload.length;
++
++		dce_i2c_hw->funcs->process_channel_reply(dce_i2c_hw, &reply);
++
++
++	}
++
++	return result;
++}
++
++bool dce_i2c_submit_command_hw(
++	struct resource_pool *pool,
++	struct ddc *ddc,
++	struct i2c_command *cmd,
++	struct dce_i2c_hw *dce_i2c_hw)
++{
++	uint8_t index_of_payload = 0;
++	bool result;
++
++	dce_i2c_hw->funcs->set_speed(dce_i2c_hw, cmd->speed);
++
++	result = true;
++
++	while (index_of_payload < cmd->number_of_payloads) {
++		bool mot = (index_of_payload != cmd->number_of_payloads - 1);
++
++		struct i2c_payload *payload = cmd->payloads + index_of_payload;
++
++		struct dce_i2c_transaction_request request = { 0 };
++
++		request.operation = payload->write ?
++			DCE_I2C_TRANSACTION_WRITE :
++			DCE_I2C_TRANSACTION_READ;
++
++		request.payload.address_space =
++			DCE_I2C_TRANSACTION_ADDRESS_SPACE_I2C;
++		request.payload.address = (payload->address << 1) |
++			!payload->write;
++		request.payload.length = payload->length;
++		request.payload.data = payload->data;
++
++
++		if (!dce_i2c_hw_engine_submit_request(
++				dce_i2c_hw, &request, mot)) {
++			result = false;
++			break;
++		}
++
++
++
++		++index_of_payload;
++	}
++
++	release_engine_dce_hw(pool, dce_i2c_hw);
++
++	return result;
++}
++static const struct dce_i2c_hw_funcs dce100_i2c_hw_funcs = {
++		.setup_engine = setup_engine_hw_dce100,
++		.set_speed = set_speed_hw_dce100,
++		.get_speed = get_speed_hw,
++		.release_engine = release_engine_hw,
++		.process_transaction = process_transaction_hw_dce100,
++		.process_channel_reply = process_channel_reply_hw_dce100,
++		.is_hw_busy = is_hw_busy,
++		.get_channel_status = get_channel_status_hw,
++		.execute_transaction = execute_transaction_hw,
++		.disable_i2c_hw_engine = disable_i2c_hw_engine
++};
++static const struct dce_i2c_hw_funcs dce80_i2c_hw_funcs = {
++		.setup_engine = setup_engine_hw_dce80,
++		.set_speed = set_speed_hw_dce80,
++		.get_speed = get_speed_hw,
++		.release_engine = release_engine_hw,
++		.process_transaction = process_transaction_hw_dce80,
++		.process_channel_reply = process_channel_reply_hw_dce80,
++		.is_hw_busy = is_hw_busy,
++		.get_channel_status = get_channel_status_hw,
++		.execute_transaction = execute_transaction_hw,
++		.disable_i2c_hw_engine = disable_i2c_hw_engine
++};
++
++
++
++void dce_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks)
++{
++	dce_i2c_hw->ctx = ctx;
++	dce_i2c_hw->engine_id = engine_id;
++	dce_i2c_hw->reference_frequency = get_reference_clock(ctx->dc_bios) >> 1;
++	dce_i2c_hw->regs = regs;
++	dce_i2c_hw->shifts = shifts;
++	dce_i2c_hw->masks = masks;
++	dce_i2c_hw->buffer_used_bytes = 0;
++	dce_i2c_hw->transaction_count = 0;
++	dce_i2c_hw->engine_keep_power_up_count = 1;
++	dce_i2c_hw->original_speed = DEFAULT_I2C_HW_SPEED;
++	dce_i2c_hw->default_speed = DEFAULT_I2C_HW_SPEED;
++	dce_i2c_hw->send_reset_length = 0;
++	dce_i2c_hw->setup_limit = I2C_SETUP_TIME_LIMIT_DCE;
++	dce_i2c_hw->funcs = &dce80_i2c_hw_funcs;
++	dce_i2c_hw->buffer_size = I2C_HW_BUFFER_SIZE_DCE;
++}
++
++void dce100_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks)
++{
++
++	uint32_t xtal_ref_div = 0;
++
++	dce_i2c_hw_construct(dce_i2c_hw,
++			ctx,
++			engine_id,
++			regs,
++			shifts,
++			masks);
++	dce_i2c_hw->funcs = &dce100_i2c_hw_funcs;
++	dce_i2c_hw->buffer_size = I2C_HW_BUFFER_SIZE_DCE100;
++
++	REG_GET(MICROSECOND_TIME_BASE_DIV, XTAL_REF_DIV, &xtal_ref_div);
++
++	if (xtal_ref_div == 0)
++		xtal_ref_div = 2;
++
++	/*Calculating Reference Clock by divding original frequency by
++	 * XTAL_REF_DIV.
++	 * At upper level, uint32_t reference_frequency =
++	 *  dal_dce_i2c_get_reference_clock(as) >> 1
++	 *  which already divided by 2. So we need x2 to get original
++	 *  reference clock from ppll_info
++	 */
++	dce_i2c_hw->reference_frequency =
++		(dce_i2c_hw->reference_frequency * 2) / xtal_ref_div;
++}
++
++void dce112_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks)
++{
++	dce100_i2c_hw_construct(dce_i2c_hw,
++			ctx,
++			engine_id,
++			regs,
++			shifts,
++			masks);
++	dce_i2c_hw->default_speed = DEFAULT_I2C_HW_SPEED_100KHZ;
++}
++
++void dcn1_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks)
++{
++	dce112_i2c_hw_construct(dce_i2c_hw,
++			ctx,
++			engine_id,
++			regs,
++			shifts,
++			masks);
++	dce_i2c_hw->setup_limit = I2C_SETUP_TIME_LIMIT_DCN;
++}
++
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h
+new file mode 100644
+index 0000000..8baef39
+--- /dev/null
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_hw.h
+@@ -0,0 +1,335 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: AMD
++ *
++ */
++
++#ifndef __DCE_I2C_HW_H__
++#define __DCE_I2C_HW_H__
++
++enum dc_i2c_status {
++	DC_I2C_STATUS__DC_I2C_STATUS_IDLE,
++	DC_I2C_STATUS__DC_I2C_STATUS_USED_BY_SW,
++	DC_I2C_STATUS__DC_I2C_STATUS_USED_BY_HW
++};
++
++enum dc_i2c_arbitration {
++	DC_I2C_ARBITRATION__DC_I2C_SW_PRIORITY_NORMAL,
++	DC_I2C_ARBITRATION__DC_I2C_SW_PRIORITY_HIGH
++};
++
++enum i2c_channel_operation_result {
++	I2C_CHANNEL_OPERATION_SUCCEEDED,
++	I2C_CHANNEL_OPERATION_FAILED,
++	I2C_CHANNEL_OPERATION_NOT_GRANTED,
++	I2C_CHANNEL_OPERATION_IS_BUSY,
++	I2C_CHANNEL_OPERATION_NO_HANDLE_PROVIDED,
++	I2C_CHANNEL_OPERATION_CHANNEL_IN_USE,
++	I2C_CHANNEL_OPERATION_CHANNEL_CLIENT_MAX_ALLOWED,
++	I2C_CHANNEL_OPERATION_ENGINE_BUSY,
++	I2C_CHANNEL_OPERATION_TIMEOUT,
++	I2C_CHANNEL_OPERATION_NO_RESPONSE,
++	I2C_CHANNEL_OPERATION_HW_REQUEST_I2C_BUS,
++	I2C_CHANNEL_OPERATION_WRONG_PARAMETER,
++	I2C_CHANNEL_OPERATION_OUT_NB_OF_RETRIES,
++	I2C_CHANNEL_OPERATION_NOT_STARTED
++};
++
++
++enum dce_i2c_transaction_action {
++	DCE_I2C_TRANSACTION_ACTION_I2C_WRITE = 0x00,
++	DCE_I2C_TRANSACTION_ACTION_I2C_READ = 0x10,
++	DCE_I2C_TRANSACTION_ACTION_I2C_STATUS_REQUEST = 0x20,
++
++	DCE_I2C_TRANSACTION_ACTION_I2C_WRITE_MOT = 0x40,
++	DCE_I2C_TRANSACTION_ACTION_I2C_READ_MOT = 0x50,
++	DCE_I2C_TRANSACTION_ACTION_I2C_STATUS_REQUEST_MOT = 0x60,
++
++	DCE_I2C_TRANSACTION_ACTION_DP_WRITE = 0x80,
++	DCE_I2C_TRANSACTION_ACTION_DP_READ = 0x90
++};
++
++enum {
++	I2C_SETUP_TIME_LIMIT_DCE = 255,
++	I2C_SETUP_TIME_LIMIT_DCN = 3,
++	I2C_HW_BUFFER_SIZE_DCE100 = 538,
++	I2C_HW_BUFFER_SIZE_DCE = 144,
++	I2C_SEND_RESET_LENGTH_9 = 9,
++	I2C_SEND_RESET_LENGTH_10 = 10,
++	DEFAULT_I2C_HW_SPEED = 50,
++	DEFAULT_I2C_HW_SPEED_100KHZ = 100,
++	TRANSACTION_TIMEOUT_IN_I2C_CLOCKS = 32,
++};
++
++#define I2C_HW_ENGINE_COMMON_REG_LIST(id)\
++	SRI(SETUP, DC_I2C_DDC, id),\
++	SRI(SPEED, DC_I2C_DDC, id),\
++	SR(DC_I2C_ARBITRATION),\
++	SR(DC_I2C_CONTROL),\
++	SR(DC_I2C_SW_STATUS),\
++	SR(DC_I2C_TRANSACTION0),\
++	SR(DC_I2C_TRANSACTION1),\
++	SR(DC_I2C_TRANSACTION2),\
++	SR(DC_I2C_TRANSACTION3),\
++	SR(DC_I2C_DATA),\
++	SR(MICROSECOND_TIME_BASE_DIV)
++
++#define I2C_SF(reg_name, field_name, post_fix)\
++	.field_name = reg_name ## __ ## field_name ## post_fix
++
++#define I2C_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(mask_sh)\
++	I2C_SF(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_ENABLE, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_TIME_LIMIT, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_DATA_DRIVE_EN, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_CLK_DRIVE_EN, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_DATA_DRIVE_SEL, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_INTRA_TRANSACTION_DELAY, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_INTRA_BYTE_DELAY, mask_sh),\
++	I2C_SF(DC_I2C_ARBITRATION, DC_I2C_SW_DONE_USING_I2C_REG, mask_sh),\
++	I2C_SF(DC_I2C_ARBITRATION, DC_I2C_NO_QUEUED_SW_GO, mask_sh),\
++	I2C_SF(DC_I2C_ARBITRATION, DC_I2C_SW_PRIORITY, mask_sh),\
++	I2C_SF(DC_I2C_CONTROL, DC_I2C_SOFT_RESET, mask_sh),\
++	I2C_SF(DC_I2C_CONTROL, DC_I2C_SW_STATUS_RESET, mask_sh),\
++	I2C_SF(DC_I2C_CONTROL, DC_I2C_GO, mask_sh),\
++	I2C_SF(DC_I2C_CONTROL, DC_I2C_SEND_RESET, mask_sh),\
++	I2C_SF(DC_I2C_CONTROL, DC_I2C_TRANSACTION_COUNT, mask_sh),\
++	I2C_SF(DC_I2C_CONTROL, DC_I2C_DDC_SELECT, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_PRESCALE, mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_THRESHOLD, mask_sh),\
++	I2C_SF(DC_I2C_SW_STATUS, DC_I2C_SW_STOPPED_ON_NACK, mask_sh),\
++	I2C_SF(DC_I2C_SW_STATUS, DC_I2C_SW_TIMEOUT, mask_sh),\
++	I2C_SF(DC_I2C_SW_STATUS, DC_I2C_SW_ABORTED, mask_sh),\
++	I2C_SF(DC_I2C_SW_STATUS, DC_I2C_SW_DONE, mask_sh),\
++	I2C_SF(DC_I2C_SW_STATUS, DC_I2C_SW_STATUS, mask_sh),\
++	I2C_SF(DC_I2C_TRANSACTION0, DC_I2C_STOP_ON_NACK0, mask_sh),\
++	I2C_SF(DC_I2C_TRANSACTION0, DC_I2C_START0, mask_sh),\
++	I2C_SF(DC_I2C_TRANSACTION0, DC_I2C_RW0, mask_sh),\
++	I2C_SF(DC_I2C_TRANSACTION0, DC_I2C_STOP0, mask_sh),\
++	I2C_SF(DC_I2C_TRANSACTION0, DC_I2C_COUNT0, mask_sh),\
++	I2C_SF(DC_I2C_DATA, DC_I2C_DATA_RW, mask_sh),\
++	I2C_SF(DC_I2C_DATA, DC_I2C_DATA, mask_sh),\
++	I2C_SF(DC_I2C_DATA, DC_I2C_INDEX, mask_sh),\
++	I2C_SF(DC_I2C_DATA, DC_I2C_INDEX_WRITE, mask_sh),\
++	I2C_SF(MICROSECOND_TIME_BASE_DIV, XTAL_REF_DIV, mask_sh)
++
++#define I2C_COMMON_MASK_SH_LIST_DCE110(mask_sh)\
++	I2C_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(mask_sh),\
++	I2C_SF(DC_I2C_DDC1_SPEED, DC_I2C_DDC1_START_STOP_TIMING_CNTL, mask_sh)
++
++struct dce_i2c_shift {
++	uint8_t DC_I2C_DDC1_ENABLE;
++	uint8_t DC_I2C_DDC1_TIME_LIMIT;
++	uint8_t DC_I2C_DDC1_DATA_DRIVE_EN;
++	uint8_t DC_I2C_DDC1_CLK_DRIVE_EN;
++	uint8_t DC_I2C_DDC1_DATA_DRIVE_SEL;
++	uint8_t DC_I2C_DDC1_INTRA_TRANSACTION_DELAY;
++	uint8_t DC_I2C_DDC1_INTRA_BYTE_DELAY;
++	uint8_t DC_I2C_SW_DONE_USING_I2C_REG;
++	uint8_t DC_I2C_NO_QUEUED_SW_GO;
++	uint8_t DC_I2C_SW_PRIORITY;
++	uint8_t DC_I2C_SOFT_RESET;
++	uint8_t DC_I2C_SW_STATUS_RESET;
++	uint8_t DC_I2C_GO;
++	uint8_t DC_I2C_SEND_RESET;
++	uint8_t DC_I2C_TRANSACTION_COUNT;
++	uint8_t DC_I2C_DDC_SELECT;
++	uint8_t DC_I2C_DDC1_PRESCALE;
++	uint8_t DC_I2C_DDC1_THRESHOLD;
++	uint8_t DC_I2C_DDC1_START_STOP_TIMING_CNTL;
++	uint8_t DC_I2C_SW_STOPPED_ON_NACK;
++	uint8_t DC_I2C_SW_TIMEOUT;
++	uint8_t DC_I2C_SW_ABORTED;
++	uint8_t DC_I2C_SW_DONE;
++	uint8_t DC_I2C_SW_STATUS;
++	uint8_t DC_I2C_STOP_ON_NACK0;
++	uint8_t DC_I2C_START0;
++	uint8_t DC_I2C_RW0;
++	uint8_t DC_I2C_STOP0;
++	uint8_t DC_I2C_COUNT0;
++	uint8_t DC_I2C_DATA_RW;
++	uint8_t DC_I2C_DATA;
++	uint8_t DC_I2C_INDEX;
++	uint8_t DC_I2C_INDEX_WRITE;
++	uint8_t XTAL_REF_DIV;
++};
++
++struct dce_i2c_mask {
++	uint32_t DC_I2C_DDC1_ENABLE;
++	uint32_t DC_I2C_DDC1_TIME_LIMIT;
++	uint32_t DC_I2C_DDC1_DATA_DRIVE_EN;
++	uint32_t DC_I2C_DDC1_CLK_DRIVE_EN;
++	uint32_t DC_I2C_DDC1_DATA_DRIVE_SEL;
++	uint32_t DC_I2C_DDC1_INTRA_TRANSACTION_DELAY;
++	uint32_t DC_I2C_DDC1_INTRA_BYTE_DELAY;
++	uint32_t DC_I2C_SW_DONE_USING_I2C_REG;
++	uint32_t DC_I2C_NO_QUEUED_SW_GO;
++	uint32_t DC_I2C_SW_PRIORITY;
++	uint32_t DC_I2C_SOFT_RESET;
++	uint32_t DC_I2C_SW_STATUS_RESET;
++	uint32_t DC_I2C_GO;
++	uint32_t DC_I2C_SEND_RESET;
++	uint32_t DC_I2C_TRANSACTION_COUNT;
++	uint32_t DC_I2C_DDC_SELECT;
++	uint32_t DC_I2C_DDC1_PRESCALE;
++	uint32_t DC_I2C_DDC1_THRESHOLD;
++	uint32_t DC_I2C_DDC1_START_STOP_TIMING_CNTL;
++	uint32_t DC_I2C_SW_STOPPED_ON_NACK;
++	uint32_t DC_I2C_SW_TIMEOUT;
++	uint32_t DC_I2C_SW_ABORTED;
++	uint32_t DC_I2C_SW_DONE;
++	uint32_t DC_I2C_SW_STATUS;
++	uint32_t DC_I2C_STOP_ON_NACK0;
++	uint32_t DC_I2C_START0;
++	uint32_t DC_I2C_RW0;
++	uint32_t DC_I2C_STOP0;
++	uint32_t DC_I2C_COUNT0;
++	uint32_t DC_I2C_DATA_RW;
++	uint32_t DC_I2C_DATA;
++	uint32_t DC_I2C_INDEX;
++	uint32_t DC_I2C_INDEX_WRITE;
++	uint32_t XTAL_REF_DIV;
++};
++
++struct dce_i2c_registers {
++	uint32_t SETUP;
++	uint32_t SPEED;
++	uint32_t DC_I2C_ARBITRATION;
++	uint32_t DC_I2C_CONTROL;
++	uint32_t DC_I2C_SW_STATUS;
++	uint32_t DC_I2C_TRANSACTION0;
++	uint32_t DC_I2C_TRANSACTION1;
++	uint32_t DC_I2C_TRANSACTION2;
++	uint32_t DC_I2C_TRANSACTION3;
++	uint32_t DC_I2C_DATA;
++	uint32_t MICROSECOND_TIME_BASE_DIV;
++};
++
++enum dce_i2c_transaction_address_space {
++	DCE_I2C_TRANSACTION_ADDRESS_SPACE_I2C = 1,
++	DCE_I2C_TRANSACTION_ADDRESS_SPACE_DPCD
++};
++
++struct i2c_request_transaction_data {
++	enum dce_i2c_transaction_action action;
++	enum i2c_channel_operation_result status;
++	uint8_t address;
++	uint32_t length;
++	uint8_t *data;
++};
++
++struct i2c_reply_transaction_data {
++	uint32_t length;
++	uint8_t *data;
++};
++
++struct dce_i2c_hw {
++	struct ddc *ddc;
++	uint32_t original_speed;
++	uint32_t engine_keep_power_up_count;
++	uint32_t transaction_count;
++	uint32_t buffer_used_bytes;
++	uint32_t buffer_used_write;
++	uint32_t reference_frequency;
++	uint32_t default_speed;
++	uint32_t engine_id;
++	uint32_t setup_limit;
++	uint32_t send_reset_length;
++	uint32_t buffer_size;
++	struct dc_context *ctx;
++
++	const struct dce_i2c_hw_funcs *funcs;
++	const struct dce_i2c_registers *regs;
++	const struct dce_i2c_shift *shifts;
++	const struct dce_i2c_mask *masks;
++};
++
++
++struct dce_i2c_hw_funcs {
++	bool (*setup_engine)(
++		struct dce_i2c_hw *dce_i2c_hw);
++	void (*set_speed)(
++		struct dce_i2c_hw *dce_i2c_hw,
++		uint32_t speed);
++	uint32_t (*get_speed)(
++		const struct dce_i2c_hw *dce_i2c_hw);
++	void (*release_engine)(
++		struct dce_i2c_hw *dce_i2c_hw);
++	bool (*process_transaction)(
++		struct dce_i2c_hw *dce_i2c_hw,
++		struct i2c_request_transaction_data *request);
++	void (*process_channel_reply)(
++		struct dce_i2c_hw *dce_i2c_hw,
++		struct i2c_reply_transaction_data *reply);
++	bool (*is_hw_busy)(
++		struct dce_i2c_hw *dce_i2c_hw);
++	enum i2c_channel_operation_result (*get_channel_status)(
++		struct dce_i2c_hw *dce_i2c_hw,
++		uint8_t *returned_bytes);
++	void (*execute_transaction)(
++		struct dce_i2c_hw *dce_i2c_hw);
++	void (*disable_i2c_hw_engine)(
++		struct dce_i2c_hw *dce_i2c_hw);
++};
++
++void dce_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks);
++
++void dce100_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks);
++
++void dce112_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks);
++
++void dcn1_i2c_hw_construct(
++	struct dce_i2c_hw *dce_i2c_hw,
++	struct dc_context *ctx,
++	uint32_t engine_id,
++	const struct dce_i2c_registers *regs,
++	const struct dce_i2c_shift *shifts,
++	const struct dce_i2c_mask *masks);
++
++bool dce_i2c_submit_command_hw(
++	struct resource_pool *pool,
++	struct ddc *ddc,
++	struct i2c_command *cmd,
++	struct dce_i2c_hw *dce_i2c_hw);
++
++struct dce_i2c_hw *acquire_i2c_hw_engine(
++	struct resource_pool *pool,
++	struct ddc *ddc);
++
++#endif
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c
+new file mode 100644
+index 0000000..ab11129
+--- /dev/null
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.c
+@@ -0,0 +1,602 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: AMD
++ *
++ */
++#include "dce_i2c.h"
++#include "dce_i2c_sw.h"
++#include "include/gpio_service_interface.h"
++#define SCL false
++#define SDA true
++
++void dce_i2c_sw_construct(
++	struct dce_i2c_sw *dce_i2c_sw,
++	struct dc_context *ctx)
++{
++	dce_i2c_sw->ctx = ctx;
++}
++
++static inline bool read_bit_from_ddc(
++	struct ddc *ddc,
++	bool data_nor_clock)
++{
++	uint32_t value = 0;
++
++	if (data_nor_clock)
++		dal_gpio_get_value(ddc->pin_data, &value);
++	else
++		dal_gpio_get_value(ddc->pin_clock, &value);
++
++	return (value != 0);
++}
++
++static inline void write_bit_to_ddc(
++	struct ddc *ddc,
++	bool data_nor_clock,
++	bool bit)
++{
++	uint32_t value = bit ? 1 : 0;
++
++	if (data_nor_clock)
++		dal_gpio_set_value(ddc->pin_data, value);
++	else
++		dal_gpio_set_value(ddc->pin_clock, value);
++}
++
++static void release_engine_dce_sw(
++	struct resource_pool *pool,
++	struct dce_i2c_sw *dce_i2c_sw)
++{
++	dal_ddc_close(dce_i2c_sw->ddc);
++	dce_i2c_sw->ddc = NULL;
++}
++
++enum i2c_channel_operation_result dce_i2c_sw_engine_get_channel_status(
++	struct dce_i2c_sw *engine,
++	uint8_t *returned_bytes)
++{
++	/* No arbitration with VBIOS is performed since DCE 6.0 */
++	return I2C_CHANNEL_OPERATION_SUCCEEDED;
++}
++static bool get_hw_supported_ddc_line(
++	struct ddc *ddc,
++	enum gpio_ddc_line *line)
++{
++	enum gpio_ddc_line line_found;
++
++	*line = GPIO_DDC_LINE_UNKNOWN;
++
++	if (!ddc) {
++		BREAK_TO_DEBUGGER();
++		return false;
++	}
++
++	if (!ddc->hw_info.hw_supported)
++		return false;
++
++	line_found = dal_ddc_get_line(ddc);
++
++	if (line_found >= GPIO_DDC_LINE_COUNT)
++		return false;
++
++	*line = line_found;
++
++	return true;
++}
++static bool wait_for_scl_high_sw(
++	struct dc_context *ctx,
++	struct ddc *ddc,
++	uint16_t clock_delay_div_4)
++{
++	uint32_t scl_retry = 0;
++	uint32_t scl_retry_max = I2C_SW_TIMEOUT_DELAY / clock_delay_div_4;
++
++	udelay(clock_delay_div_4);
++
++	do {
++		if (read_bit_from_ddc(ddc, SCL))
++			return true;
++
++		udelay(clock_delay_div_4);
++
++		++scl_retry;
++	} while (scl_retry <= scl_retry_max);
++
++	return false;
++}
++static bool write_byte_sw(
++	struct dc_context *ctx,
++	struct ddc *ddc_handle,
++	uint16_t clock_delay_div_4,
++	uint8_t byte)
++{
++	int32_t shift = 7;
++	bool ack;
++
++	/* bits are transmitted serially, starting from MSB */
++
++	do {
++		udelay(clock_delay_div_4);
++
++		write_bit_to_ddc(ddc_handle, SDA, (byte >> shift) & 1);
++
++		udelay(clock_delay_div_4);
++
++		write_bit_to_ddc(ddc_handle, SCL, true);
++
++		if (!wait_for_scl_high_sw(ctx, ddc_handle, clock_delay_div_4))
++			return false;
++
++		write_bit_to_ddc(ddc_handle, SCL, false);
++
++		--shift;
++	} while (shift >= 0);
++
++	/* The display sends ACK by preventing the SDA from going high
++	 * after the SCL pulse we use to send our last data bit.
++	 * If the SDA goes high after that bit, it's a NACK
++	 */
++
++	udelay(clock_delay_div_4);
++
++	write_bit_to_ddc(ddc_handle, SDA, true);
++
++	udelay(clock_delay_div_4);
++
++	write_bit_to_ddc(ddc_handle, SCL, true);
++
++	if (!wait_for_scl_high_sw(ctx, ddc_handle, clock_delay_div_4))
++		return false;
++
++	/* read ACK bit */
++
++	ack = !read_bit_from_ddc(ddc_handle, SDA);
++
++	udelay(clock_delay_div_4 << 1);
++
++	write_bit_to_ddc(ddc_handle, SCL, false);
++
++	udelay(clock_delay_div_4 << 1);
++
++	return ack;
++}
++
++static bool read_byte_sw(
++	struct dc_context *ctx,
++	struct ddc *ddc_handle,
++	uint16_t clock_delay_div_4,
++	uint8_t *byte,
++	bool more)
++{
++	int32_t shift = 7;
++
++	uint8_t data = 0;
++
++	/* The data bits are read from MSB to LSB;
++	 * bit is read while SCL is high
++	 */
++
++	do {
++		write_bit_to_ddc(ddc_handle, SCL, true);
++
++		if (!wait_for_scl_high_sw(ctx, ddc_handle, clock_delay_div_4))
++			return false;
++
++		if (read_bit_from_ddc(ddc_handle, SDA))
++			data |= (1 << shift);
++
++		write_bit_to_ddc(ddc_handle, SCL, false);
++
++		udelay(clock_delay_div_4 << 1);
++
++		--shift;
++	} while (shift >= 0);
++
++	/* read only whole byte */
++
++	*byte = data;
++
++	udelay(clock_delay_div_4);
++
++	/* send the acknowledge bit:
++	 * SDA low means ACK, SDA high means NACK
++	 */
++
++	write_bit_to_ddc(ddc_handle, SDA, !more);
++
++	udelay(clock_delay_div_4);
++
++	write_bit_to_ddc(ddc_handle, SCL, true);
++
++	if (!wait_for_scl_high_sw(ctx, ddc_handle, clock_delay_div_4))
++		return false;
++
++	write_bit_to_ddc(ddc_handle, SCL, false);
++
++	udelay(clock_delay_div_4);
++
++	write_bit_to_ddc(ddc_handle, SDA, true);
++
++	udelay(clock_delay_div_4);
++
++	return true;
++}
++static bool stop_sync_sw(
++	struct dc_context *ctx,
++	struct ddc *ddc_handle,
++	uint16_t clock_delay_div_4)
++{
++	uint32_t retry = 0;
++
++	/* The I2C communications stop signal is:
++	 * the SDA going high from low, while the SCL is high.
++	 */
++
++	write_bit_to_ddc(ddc_handle, SCL, false);
++
++	udelay(clock_delay_div_4);
++
++	write_bit_to_ddc(ddc_handle, SDA, false);
++
++	udelay(clock_delay_div_4);
++
++	write_bit_to_ddc(ddc_handle, SCL, true);
++
++	if (!wait_for_scl_high_sw(ctx, ddc_handle, clock_delay_div_4))
++		return false;
++
++	write_bit_to_ddc(ddc_handle, SDA, true);
++
++	do {
++		udelay(clock_delay_div_4);
++
++		if (read_bit_from_ddc(ddc_handle, SDA))
++			return true;
++
++		++retry;
++	} while (retry <= 2);
++
++	return false;
++}
++static bool i2c_write_sw(
++	struct dc_context *ctx,
++	struct ddc *ddc_handle,
++	uint16_t clock_delay_div_4,
++	uint8_t address,
++	uint32_t length,
++	const uint8_t *data)
++{
++	uint32_t i = 0;
++
++	if (!write_byte_sw(ctx, ddc_handle, clock_delay_div_4, address))
++		return false;
++
++	while (i < length) {
++		if (!write_byte_sw(ctx, ddc_handle, clock_delay_div_4, data[i]))
++			return false;
++		++i;
++	}
++
++	return true;
++}
++
++static bool i2c_read_sw(
++	struct dc_context *ctx,
++	struct ddc *ddc_handle,
++	uint16_t clock_delay_div_4,
++	uint8_t address,
++	uint32_t length,
++	uint8_t *data)
++{
++	uint32_t i = 0;
++
++	if (!write_byte_sw(ctx, ddc_handle, clock_delay_div_4, address))
++		return false;
++
++	while (i < length) {
++		if (!read_byte_sw(ctx, ddc_handle, clock_delay_div_4, data + i,
++			i < length - 1))
++			return false;
++		++i;
++	}
++
++	return true;
++}
++
++
++
++static bool start_sync_sw(
++	struct dc_context *ctx,
++	struct ddc *ddc_handle,
++	uint16_t clock_delay_div_4)
++{
++	uint32_t retry = 0;
++
++	/* The I2C communications start signal is:
++	 * the SDA going low from high, while the SCL is high.
++	 */
++
++	write_bit_to_ddc(ddc_handle, SCL, true);
++
++	udelay(clock_delay_div_4);
++
++	do {
++		write_bit_to_ddc(ddc_handle, SDA, true);
++
++		if (!read_bit_from_ddc(ddc_handle, SDA)) {
++			++retry;
++			continue;
++		}
++
++		udelay(clock_delay_div_4);
++
++		write_bit_to_ddc(ddc_handle, SCL, true);
++
++		if (!wait_for_scl_high_sw(ctx, ddc_handle, clock_delay_div_4))
++			break;
++
++		write_bit_to_ddc(ddc_handle, SDA, false);
++
++		udelay(clock_delay_div_4);
++
++		write_bit_to_ddc(ddc_handle, SCL, false);
++
++		udelay(clock_delay_div_4);
++
++		return true;
++	} while (retry <= I2C_SW_RETRIES);
++
++	return false;
++}
++
++void dce_i2c_sw_engine_set_speed(
++	struct dce_i2c_sw *engine,
++	uint32_t speed)
++{
++	ASSERT(speed);
++
++	engine->speed = speed ? speed : DCE_I2C_DEFAULT_I2C_SW_SPEED;
++
++	engine->clock_delay = 1000 / engine->speed;
++
++	if (engine->clock_delay < 12)
++		engine->clock_delay = 12;
++}
++
++bool dce_i2c_sw_engine_acquire_engine(
++	struct dce_i2c_sw *engine,
++	struct ddc *ddc)
++{
++	enum gpio_result result;
++
++	result = dal_ddc_open(ddc, GPIO_MODE_FAST_OUTPUT,
++		GPIO_DDC_CONFIG_TYPE_MODE_I2C);
++
++	if (result != GPIO_RESULT_OK)
++		return false;
++
++	engine->ddc = ddc;
++
++	return true;
++}
++bool dce_i2c_engine_acquire_sw(
++	struct dce_i2c_sw *dce_i2c_sw,
++	struct ddc *ddc_handle)
++{
++	uint32_t counter = 0;
++	bool result;
++
++	do {
++
++		result = dce_i2c_sw_engine_acquire_engine(
++				dce_i2c_sw, ddc_handle);
++
++		if (result)
++			break;
++
++		/* i2c_engine is busy by VBios, lets wait and retry */
++
++		udelay(10);
++
++		++counter;
++	} while (counter < 2);
++
++	return result;
++}
++
++
++
++
++void dce_i2c_sw_engine_submit_channel_request(
++	struct dce_i2c_sw *engine,
++	struct i2c_request_transaction_data *req)
++{
++	struct ddc *ddc = engine->ddc;
++	uint16_t clock_delay_div_4 = engine->clock_delay >> 2;
++
++	/* send sync (start / repeated start) */
++
++	bool result = start_sync_sw(engine->ctx, ddc, clock_delay_div_4);
++
++	/* process payload */
++
++	if (result) {
++		switch (req->action) {
++		case DCE_I2C_TRANSACTION_ACTION_I2C_WRITE:
++		case DCE_I2C_TRANSACTION_ACTION_I2C_WRITE_MOT:
++			result = i2c_write_sw(engine->ctx, ddc, clock_delay_div_4,
++				req->address, req->length, req->data);
++		break;
++		case DCE_I2C_TRANSACTION_ACTION_I2C_READ:
++		case DCE_I2C_TRANSACTION_ACTION_I2C_READ_MOT:
++			result = i2c_read_sw(engine->ctx, ddc, clock_delay_div_4,
++				req->address, req->length, req->data);
++		break;
++		default:
++			result = false;
++		break;
++		}
++	}
++
++	/* send stop if not 'mot' or operation failed */
++
++	if (!result ||
++		(req->action == DCE_I2C_TRANSACTION_ACTION_I2C_WRITE) ||
++		(req->action == DCE_I2C_TRANSACTION_ACTION_I2C_READ))
++		if (!stop_sync_sw(engine->ctx, ddc, clock_delay_div_4))
++			result = false;
++
++	req->status = result ?
++		I2C_CHANNEL_OPERATION_SUCCEEDED :
++		I2C_CHANNEL_OPERATION_FAILED;
++}
++bool dce_i2c_sw_engine_submit_request(
++	struct dce_i2c_sw *engine,
++	struct dce_i2c_transaction_request *dce_i2c_request,
++	bool middle_of_transaction)
++{
++	struct i2c_request_transaction_data request;
++	bool operation_succeeded = false;
++
++	if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_READ)
++		request.action = middle_of_transaction ?
++			DCE_I2C_TRANSACTION_ACTION_I2C_READ_MOT :
++			DCE_I2C_TRANSACTION_ACTION_I2C_READ;
++	else if (dce_i2c_request->operation == DCE_I2C_TRANSACTION_WRITE)
++		request.action = middle_of_transaction ?
++			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE_MOT :
++			DCE_I2C_TRANSACTION_ACTION_I2C_WRITE;
++	else {
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_INVALID_OPERATION;
++		/* in DAL2, there was no "return false" */
++		return false;
++	}
++
++	request.address = (uint8_t)dce_i2c_request->payload.address;
++	request.length = dce_i2c_request->payload.length;
++	request.data = dce_i2c_request->payload.data;
++
++	dce_i2c_sw_engine_submit_channel_request(engine, &request);
++
++	if ((request.status == I2C_CHANNEL_OPERATION_ENGINE_BUSY) ||
++		(request.status == I2C_CHANNEL_OPERATION_FAILED))
++		dce_i2c_request->status =
++			DCE_I2C_TRANSACTION_STATUS_FAILED_CHANNEL_BUSY;
++	else {
++		enum i2c_channel_operation_result operation_result;
++
++		do {
++			operation_result =
++				dce_i2c_sw_engine_get_channel_status(engine, NULL);
++
++			switch (operation_result) {
++			case I2C_CHANNEL_OPERATION_SUCCEEDED:
++				dce_i2c_request->status =
++					DCE_I2C_TRANSACTION_STATUS_SUCCEEDED;
++				operation_succeeded = true;
++			break;
++			case I2C_CHANNEL_OPERATION_NO_RESPONSE:
++				dce_i2c_request->status =
++					DCE_I2C_TRANSACTION_STATUS_FAILED_NACK;
++			break;
++			case I2C_CHANNEL_OPERATION_TIMEOUT:
++				dce_i2c_request->status =
++				DCE_I2C_TRANSACTION_STATUS_FAILED_TIMEOUT;
++			break;
++			case I2C_CHANNEL_OPERATION_FAILED:
++				dce_i2c_request->status =
++				DCE_I2C_TRANSACTION_STATUS_FAILED_INCOMPLETE;
++			break;
++			default:
++				dce_i2c_request->status =
++				DCE_I2C_TRANSACTION_STATUS_FAILED_OPERATION;
++			break;
++			}
++		} while (operation_result == I2C_CHANNEL_OPERATION_ENGINE_BUSY);
++	}
++
++	return operation_succeeded;
++}
++bool dce_i2c_submit_command_sw(
++	struct resource_pool *pool,
++	struct ddc *ddc,
++	struct i2c_command *cmd,
++	struct dce_i2c_sw *dce_i2c_sw)
++{
++	uint8_t index_of_payload = 0;
++	bool result;
++
++	dce_i2c_sw_engine_set_speed(dce_i2c_sw, cmd->speed);
++
++	result = true;
++
++	while (index_of_payload < cmd->number_of_payloads) {
++		bool mot = (index_of_payload != cmd->number_of_payloads - 1);
++
++		struct i2c_payload *payload = cmd->payloads + index_of_payload;
++
++		struct dce_i2c_transaction_request request = { 0 };
++
++		request.operation = payload->write ?
++			DCE_I2C_TRANSACTION_WRITE :
++			DCE_I2C_TRANSACTION_READ;
++
++		request.payload.address_space =
++			DCE_I2C_TRANSACTION_ADDRESS_SPACE_I2C;
++		request.payload.address = (payload->address << 1) |
++			!payload->write;
++		request.payload.length = payload->length;
++		request.payload.data = payload->data;
++
++
++		if (!dce_i2c_sw_engine_submit_request(
++			dce_i2c_sw, &request, mot)) {
++			result = false;
++			break;
++		}
++
++		++index_of_payload;
++	}
++
++	release_engine_dce_sw(pool, dce_i2c_sw);
++
++	return result;
++}
++struct dce_i2c_sw *dce_i2c_acquire_i2c_sw_engine(
++	struct resource_pool *pool,
++	struct ddc *ddc)
++{
++	enum gpio_ddc_line line;
++	struct dce_i2c_sw *engine = NULL;
++
++	if (get_hw_supported_ddc_line(ddc, &line))
++		engine = pool->sw_i2cs[line];
++
++	if (!engine)
++		return NULL;
++
++	if (!dce_i2c_engine_acquire_sw(engine, ddc))
++		return NULL;
++
++	return engine;
++}
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.h b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.h
+new file mode 100644
+index 0000000..5bbcdd4
+--- /dev/null
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_i2c_sw.h
+@@ -0,0 +1,57 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: AMD
++ *
++ */
++
++#ifndef __DCE_I2C_SW_H__
++#define __DCE_I2C_SW_H__
++
++enum {
++	DCE_I2C_DEFAULT_I2C_SW_SPEED = 50,
++	I2C_SW_RETRIES = 10,
++	I2C_SW_TIMEOUT_DELAY = 3000,
++};
++
++struct dce_i2c_sw {
++	struct ddc *ddc;
++	struct dc_context *ctx;
++	uint32_t clock_delay;
++	uint32_t speed;
++};
++
++void dce_i2c_sw_construct(
++	struct dce_i2c_sw *dce_i2c_sw,
++	struct dc_context *ctx);
++
++bool dce_i2c_submit_command_sw(
++	struct resource_pool *pool,
++	struct ddc *ddc,
++	struct i2c_command *cmd,
++	struct dce_i2c_sw *dce_i2c_sw);
++
++struct dce_i2c_sw *dce_i2c_acquire_i2c_sw_engine(
++	struct resource_pool *pool,
++	struct ddc *ddc);
++
++#endif
++
+diff --git a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+index 3f76e60..ae613b0 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+@@ -54,6 +54,7 @@
+ #include "dce/dce_dmcu.h"
+ #include "dce/dce_aux.h"
+ #include "dce/dce_abm.h"
++#include "dce/dce_i2c.h"
+ 
+ #ifndef mmMC_HUB_RDREQ_DMIF_LIMIT
+ #include "gmc/gmc_8_2_d.h"
+@@ -602,7 +603,40 @@ struct aux_engine *dce100_aux_engine_create(
+ 
+ 	return &aux_engine->base;
+ }
++#define i2c_inst_regs(id) { I2C_HW_ENGINE_COMMON_REG_LIST(id) }
++
++static const struct dce_i2c_registers i2c_hw_regs[] = {
++		i2c_inst_regs(1),
++		i2c_inst_regs(2),
++		i2c_inst_regs(3),
++		i2c_inst_regs(4),
++		i2c_inst_regs(5),
++		i2c_inst_regs(6),
++};
++
++static const struct dce_i2c_shift i2c_shifts = {
++		I2C_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(__SHIFT)
++};
++
++static const struct dce_i2c_mask i2c_masks = {
++		I2C_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(_MASK)
++};
++
++struct dce_i2c_hw *dce100_i2c_hw_create(
++	struct dc_context *ctx,
++	uint32_t inst)
++{
++	struct dce_i2c_hw *dce_i2c_hw =
++		kzalloc(sizeof(struct dce_i2c_hw), GFP_KERNEL);
++
++	if (!dce_i2c_hw)
++		return NULL;
++
++	dce100_i2c_hw_construct(dce_i2c_hw, ctx, inst,
++				    &i2c_hw_regs[inst], &i2c_shifts, &i2c_masks);
+ 
++	return dce_i2c_hw;
++}
+ struct clock_source *dce100_clock_source_create(
+ 	struct dc_context *ctx,
+ 	struct dc_bios *bios,
+@@ -658,7 +692,14 @@ static void destruct(struct dce110_resource_pool *pool)
+ 
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
+-
++		if (pool->base.hw_i2cs[i] != NULL) {
++			kfree(pool->base.hw_i2cs[i]);
++			pool->base.hw_i2cs[i] = NULL;
++		}
++		if (pool->base.sw_i2cs[i] != NULL) {
++			kfree(pool->base.sw_i2cs[i]);
++			pool->base.sw_i2cs[i] = NULL;
++		}
+ 	}
+ 
+ 	for (i = 0; i < pool->base.stream_enc_count; i++) {
+@@ -970,6 +1011,14 @@ static bool construct(
+ 				"DC:failed to create aux engine!!\n");
+ 			goto res_create_fail;
+ 		}
++		pool->base.hw_i2cs[i] = dce100_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create i2c engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.sw_i2cs[i] = NULL;
+ 	}
+ 
+ 	dc->caps.max_planes =  pool->base.pipe_count;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+index e5e9e92..49c5c70 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+@@ -52,6 +52,7 @@
+ #include "dce/dce_aux.h"
+ #include "dce/dce_abm.h"
+ #include "dce/dce_dmcu.h"
++#include "dce/dce_i2c.h"
+ 
+ #define DC_LOGGER \
+ 		dc->ctx->logger
+@@ -620,7 +621,40 @@ struct aux_engine *dce110_aux_engine_create(
+ 
+ 	return &aux_engine->base;
+ }
++#define i2c_inst_regs(id) { I2C_HW_ENGINE_COMMON_REG_LIST(id) }
++
++static const struct dce_i2c_registers i2c_hw_regs[] = {
++		i2c_inst_regs(1),
++		i2c_inst_regs(2),
++		i2c_inst_regs(3),
++		i2c_inst_regs(4),
++		i2c_inst_regs(5),
++		i2c_inst_regs(6),
++};
++
++static const struct dce_i2c_shift i2c_shifts = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(__SHIFT)
++};
++
++static const struct dce_i2c_mask i2c_masks = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(_MASK)
++};
++
++struct dce_i2c_hw *dce110_i2c_hw_create(
++	struct dc_context *ctx,
++	uint32_t inst)
++{
++	struct dce_i2c_hw *dce_i2c_hw =
++		kzalloc(sizeof(struct dce_i2c_hw), GFP_KERNEL);
++
++	if (!dce_i2c_hw)
++		return NULL;
++
++	dce100_i2c_hw_construct(dce_i2c_hw, ctx, inst,
++				    &i2c_hw_regs[inst], &i2c_shifts, &i2c_masks);
+ 
++	return dce_i2c_hw;
++}
+ struct clock_source *dce110_clock_source_create(
+ 	struct dc_context *ctx,
+ 	struct dc_bios *bios,
+@@ -687,7 +721,14 @@ static void destruct(struct dce110_resource_pool *pool)
+ 
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
+-
++		if (pool->base.hw_i2cs[i] != NULL) {
++			kfree(pool->base.hw_i2cs[i]);
++			pool->base.hw_i2cs[i] = NULL;
++		}
++		if (pool->base.sw_i2cs[i] != NULL) {
++			kfree(pool->base.sw_i2cs[i]);
++			pool->base.sw_i2cs[i] = NULL;
++		}
+ 	}
+ 
+ 	for (i = 0; i < pool->base.stream_enc_count; i++) {
+@@ -1303,6 +1344,14 @@ static bool construct(
+ 				"DC:failed to create aux engine!!\n");
+ 			goto res_create_fail;
+ 		}
++		pool->base.hw_i2cs[i] = dce110_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create i2c engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.sw_i2cs[i] = NULL;
+ 	}
+ 
+ 	dc->fbc_compressor = dce110_compressor_create(ctx);
+diff --git a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+index 2881293..d35dc730 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+@@ -50,6 +50,7 @@
+ #include "dce/dce_abm.h"
+ #include "dce/dce_dmcu.h"
+ #include "dce/dce_aux.h"
++#include "dce/dce_i2c.h"
+ 
+ #include "reg_helper.h"
+ 
+@@ -620,7 +621,40 @@ struct aux_engine *dce112_aux_engine_create(
+ 
+ 	return &aux_engine->base;
+ }
++#define i2c_inst_regs(id) { I2C_HW_ENGINE_COMMON_REG_LIST(id) }
++
++static const struct dce_i2c_registers i2c_hw_regs[] = {
++		i2c_inst_regs(1),
++		i2c_inst_regs(2),
++		i2c_inst_regs(3),
++		i2c_inst_regs(4),
++		i2c_inst_regs(5),
++		i2c_inst_regs(6),
++};
++
++static const struct dce_i2c_shift i2c_shifts = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(__SHIFT)
++};
++
++static const struct dce_i2c_mask i2c_masks = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(_MASK)
++};
++
++struct dce_i2c_hw *dce112_i2c_hw_create(
++	struct dc_context *ctx,
++	uint32_t inst)
++{
++	struct dce_i2c_hw *dce_i2c_hw =
++		kzalloc(sizeof(struct dce_i2c_hw), GFP_KERNEL);
++
++	if (!dce_i2c_hw)
++		return NULL;
++
++	dce112_i2c_hw_construct(dce_i2c_hw, ctx, inst,
++				    &i2c_hw_regs[inst], &i2c_shifts, &i2c_masks);
+ 
++	return dce_i2c_hw;
++}
+ struct clock_source *dce112_clock_source_create(
+ 	struct dc_context *ctx,
+ 	struct dc_bios *bios,
+@@ -676,7 +710,14 @@ static void destruct(struct dce110_resource_pool *pool)
+ 			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+ 			pool->base.timing_generators[i] = NULL;
+ 		}
+-
++		if (pool->base.hw_i2cs[i] != NULL) {
++			kfree(pool->base.hw_i2cs[i]);
++			pool->base.hw_i2cs[i] = NULL;
++		}
++		if (pool->base.sw_i2cs[i] != NULL) {
++			kfree(pool->base.sw_i2cs[i]);
++			pool->base.sw_i2cs[i] = NULL;
++		}
+ 	}
+ 
+ 	for (i = 0; i < pool->base.stream_enc_count; i++) {
+@@ -1252,6 +1293,14 @@ static bool construct(
+ 				"DC:failed to create aux engine!!\n");
+ 			goto res_create_fail;
+ 		}
++		pool->base.hw_i2cs[i] = dce112_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create i2c engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.sw_i2cs[i] = NULL;
+ 	}
+ 
+ 	if (!resource_construct(num_virtual_links, dc, &pool->base,
+diff --git a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+index d43f37d..b2fb06f3 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+@@ -54,6 +54,7 @@
+ #include "dce/dce_abm.h"
+ #include "dce/dce_dmcu.h"
+ #include "dce/dce_aux.h"
++#include "dce/dce_i2c.h"
+ 
+ #include "dce/dce_12_0_offset.h"
+ #include "dce/dce_12_0_sh_mask.h"
+@@ -392,7 +393,40 @@ struct aux_engine *dce120_aux_engine_create(
+ 
+ 	return &aux_engine->base;
+ }
++#define i2c_inst_regs(id) { I2C_HW_ENGINE_COMMON_REG_LIST(id) }
++
++static const struct dce_i2c_registers i2c_hw_regs[] = {
++		i2c_inst_regs(1),
++		i2c_inst_regs(2),
++		i2c_inst_regs(3),
++		i2c_inst_regs(4),
++		i2c_inst_regs(5),
++		i2c_inst_regs(6),
++};
++
++static const struct dce_i2c_shift i2c_shifts = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(__SHIFT)
++};
+ 
++static const struct dce_i2c_mask i2c_masks = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(_MASK)
++};
++
++struct dce_i2c_hw *dce120_i2c_hw_create(
++	struct dc_context *ctx,
++	uint32_t inst)
++{
++	struct dce_i2c_hw *dce_i2c_hw =
++		kzalloc(sizeof(struct dce_i2c_hw), GFP_KERNEL);
++
++	if (!dce_i2c_hw)
++		return NULL;
++
++	dce112_i2c_hw_construct(dce_i2c_hw, ctx, inst,
++				    &i2c_hw_regs[inst], &i2c_shifts, &i2c_masks);
++
++	return dce_i2c_hw;
++}
+ static const struct bios_registers bios_regs = {
+ 	.BIOS_SCRATCH_6 = mmBIOS_SCRATCH_6 + NBIO_BASE(mmBIOS_SCRATCH_6_BASE_IDX)
+ };
+@@ -501,7 +535,14 @@ static void destruct(struct dce110_resource_pool *pool)
+ 
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
+-
++		if (pool->base.hw_i2cs[i] != NULL) {
++			kfree(pool->base.hw_i2cs[i]);
++			pool->base.hw_i2cs[i] = NULL;
++		}
++		if (pool->base.sw_i2cs[i] != NULL) {
++			kfree(pool->base.sw_i2cs[i]);
++			pool->base.sw_i2cs[i] = NULL;
++		}
+ 	}
+ 
+ 	for (i = 0; i < pool->base.audio_count; i++) {
+@@ -957,6 +998,7 @@ static bool construct(
+ 		goto res_create_fail;
+ 	}
+ 
++
+ 	irq_init_data.ctx = dc->ctx;
+ 	pool->base.irqs = dal_irq_service_dce120_create(&irq_init_data);
+ 	if (!pool->base.irqs)
+@@ -1021,13 +1063,20 @@ static bool construct(
+ 				"DC: failed to create output pixel processor!\n");
+ 		}
+ 		pool->base.engines[i] = dce120_aux_engine_create(ctx, i);
+-				if (pool->base.engines[i] == NULL) {
+-					BREAK_TO_DEBUGGER();
+-					dm_error(
+-						"DC:failed to create aux engine!!\n");
+-					goto res_create_fail;
+-				}
+-
++		if (pool->base.engines[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create aux engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.hw_i2cs[i] = dce120_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create i2c engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.sw_i2cs[i] = NULL;
+ 		/* check next valid pipe */
+ 		j++;
+ 	}
+diff --git a/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c b/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
+index 604c629..4eae859 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
+@@ -56,6 +56,7 @@
+ #include "dce/dce_dmcu.h"
+ #include "dce/dce_aux.h"
+ #include "dce/dce_abm.h"
++#include "dce/dce_i2c.h"
+ /* TODO remove this include */
+ 
+ #ifndef mmMC_HUB_RDREQ_DMIF_LIMIT
+@@ -480,7 +481,54 @@ struct aux_engine *dce80_aux_engine_create(
+ 
+ 	return &aux_engine->base;
+ }
++#define i2c_inst_regs(id) { I2C_HW_ENGINE_COMMON_REG_LIST(id) }
++
++static const struct dce_i2c_registers i2c_hw_regs[] = {
++		i2c_inst_regs(1),
++		i2c_inst_regs(2),
++		i2c_inst_regs(3),
++		i2c_inst_regs(4),
++		i2c_inst_regs(5),
++		i2c_inst_regs(6),
++};
++
++static const struct dce_i2c_shift i2c_shifts = {
++		I2C_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(__SHIFT)
++};
++
++static const struct dce_i2c_mask i2c_masks = {
++		I2C_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(_MASK)
++};
++
++struct dce_i2c_hw *dce80_i2c_hw_create(
++	struct dc_context *ctx,
++	uint32_t inst)
++{
++	struct dce_i2c_hw *dce_i2c_hw =
++		kzalloc(sizeof(struct dce_i2c_hw), GFP_KERNEL);
++
++	if (!dce_i2c_hw)
++		return NULL;
++
++	dce_i2c_hw_construct(dce_i2c_hw, ctx, inst,
++				    &i2c_hw_regs[inst], &i2c_shifts, &i2c_masks);
+ 
++	return dce_i2c_hw;
++}
++
++struct dce_i2c_sw *dce80_i2c_sw_create(
++	struct dc_context *ctx)
++{
++	struct dce_i2c_sw *dce_i2c_sw =
++		kzalloc(sizeof(struct dce_i2c_sw), GFP_KERNEL);
++
++	if (!dce_i2c_sw)
++		return NULL;
++
++	dce_i2c_sw_construct(dce_i2c_sw, ctx);
++
++	return dce_i2c_sw;
++}
+ static struct stream_encoder *dce80_stream_encoder_create(
+ 	enum engine_id eng_id,
+ 	struct dc_context *ctx)
+@@ -691,6 +739,14 @@ static void destruct(struct dce110_resource_pool *pool)
+ 
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
++		if (pool->base.hw_i2cs[i] != NULL) {
++			kfree(pool->base.hw_i2cs[i]);
++			pool->base.hw_i2cs[i] = NULL;
++		}
++		if (pool->base.sw_i2cs[i] != NULL) {
++			kfree(pool->base.sw_i2cs[i]);
++			pool->base.sw_i2cs[i] = NULL;
++		}
+ 	}
+ 
+ 	for (i = 0; i < pool->base.stream_enc_count; i++) {
+@@ -887,6 +943,7 @@ static bool dce80_construct(
+ 		BREAK_TO_DEBUGGER();
+ 		goto res_create_fail;
+ 	}
++
+ 	if (dm_pp_get_static_clocks(ctx, &static_clk_info))
+ 		pool->base.dccg->max_clks_state =
+ 					static_clk_info.max_clocks_state;
+@@ -943,6 +1000,20 @@ static bool dce80_construct(
+ 				"DC:failed to create aux engine!!\n");
+ 			goto res_create_fail;
+ 		}
++		pool->base.hw_i2cs[i] = dce80_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create i2c engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.sw_i2cs[i] = dce80_i2c_sw_create(ctx);
++		if (pool->base.sw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create sw i2c!!\n");
++			goto res_create_fail;
++		}
+ 	}
+ 
+ 	dc->caps.max_planes =  pool->base.pipe_count;
+@@ -1129,6 +1200,20 @@ static bool dce81_construct(
+ 			dm_error("DC: failed to create output pixel processor!\n");
+ 			goto res_create_fail;
+ 		}
++		pool->base.hw_i2cs[i] = dce80_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create i2c engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.sw_i2cs[i] = dce80_i2c_sw_create(ctx);
++		if (pool->base.sw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create sw i2c!!\n");
++			goto res_create_fail;
++		}
+ 	}
+ 
+ 	dc->caps.max_planes =  pool->base.pipe_count;
+@@ -1311,6 +1396,20 @@ static bool dce83_construct(
+ 			dm_error("DC: failed to create output pixel processor!\n");
+ 			goto res_create_fail;
+ 		}
++		pool->base.hw_i2cs[i] = dce80_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create i2c engine!!\n");
++			goto res_create_fail;
++		}
++		pool->base.sw_i2cs[i] = dce80_i2c_sw_create(ctx);
++		if (pool->base.sw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create sw i2c!!\n");
++			goto res_create_fail;
++		}
+ 	}
+ 
+ 	dc->caps.max_planes =  pool->base.pipe_count;
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index 6b44ed3..28ebad8 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -65,6 +65,7 @@
+ #include "dce/dce_abm.h"
+ #include "dce/dce_dmcu.h"
+ #include "dce/dce_aux.h"
++#include "dce/dce_i2c.h"
+ 
+ const struct _vcs_dpi_ip_params_st dcn1_0_ip = {
+ 	.rob_buffer_size_kbytes = 64,
+@@ -610,7 +611,40 @@ struct aux_engine *dcn10_aux_engine_create(
+ 
+ 	return &aux_engine->base;
+ }
++#define i2c_inst_regs(id) { I2C_HW_ENGINE_COMMON_REG_LIST(id) }
++
++static const struct dce_i2c_registers i2c_hw_regs[] = {
++		i2c_inst_regs(1),
++		i2c_inst_regs(2),
++		i2c_inst_regs(3),
++		i2c_inst_regs(4),
++		i2c_inst_regs(5),
++		i2c_inst_regs(6),
++};
++
++static const struct dce_i2c_shift i2c_shifts = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(__SHIFT)
++};
++
++static const struct dce_i2c_mask i2c_masks = {
++		I2C_COMMON_MASK_SH_LIST_DCE110(_MASK)
++};
++
++struct dce_i2c_hw *dcn10_i2c_hw_create(
++	struct dc_context *ctx,
++	uint32_t inst)
++{
++	struct dce_i2c_hw *dce_i2c_hw =
++		kzalloc(sizeof(struct dce_i2c_hw), GFP_KERNEL);
++
++	if (!dce_i2c_hw)
++		return NULL;
++
++	dcn1_i2c_hw_construct(dce_i2c_hw, ctx, inst,
++				    &i2c_hw_regs[inst], &i2c_shifts, &i2c_masks);
+ 
++	return dce_i2c_hw;
++}
+ static struct mpc *dcn10_mpc_create(struct dc_context *ctx)
+ {
+ 	struct dcn10_mpc *mpc10 = kzalloc(sizeof(struct dcn10_mpc),
+@@ -862,6 +896,14 @@ static void destruct(struct dcn10_resource_pool *pool)
+ 
+ 		if (pool->base.engines[i] != NULL)
+ 			pool->base.engines[i]->funcs->destroy_engine(&pool->base.engines[i]);
++		if (pool->base.hw_i2cs[i] != NULL) {
++			kfree(pool->base.hw_i2cs[i]);
++			pool->base.hw_i2cs[i] = NULL;
++		}
++		if (pool->base.sw_i2cs[i] != NULL) {
++			kfree(pool->base.sw_i2cs[i]);
++			pool->base.sw_i2cs[i] = NULL;
++		}
+ 	}
+ 
+ 	for (i = 0; i < pool->base.stream_enc_count; i++)
+@@ -1300,7 +1342,14 @@ static bool construct(
+ 				"DC:failed to create aux engine!!\n");
+ 			goto fail;
+ 		}
+-
++		pool->base.hw_i2cs[i] = dcn10_i2c_hw_create(ctx, i);
++		if (pool->base.hw_i2cs[i] == NULL) {
++			BREAK_TO_DEBUGGER();
++			dm_error(
++				"DC:failed to create hw i2c!!\n");
++			goto fail;
++		}
++		pool->base.sw_i2cs[i] = NULL;
+ 		/* check next valid pipe */
+ 		j++;
+ 	}
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/core_types.h b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+index b4d3300..ed388d3 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/core_types.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+@@ -143,6 +143,9 @@ struct resource_pool {
+ 	struct mpc *mpc;
+ 	struct pp_smu_funcs_rv *pp_smu;
+ 	struct pp_smu_display_requirement_rv pp_smu_req;
++	struct dce_i2c_hw *hw_i2cs[MAX_PIPES];
++	struct dce_i2c_sw *sw_i2cs[MAX_PIPES];
++	bool i2c_hw_buffer_in_use;
+ 
+ 	unsigned int pipe_count;
+ 	unsigned int underlay_pipe_index;
+-- 
+2.7.4
+

@@ -1,0 +1,297 @@
+From 3ab294894c23bf30a57dd7df2fceb30e6c1b27ce Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Tue, 18 Sep 2018 15:00:49 -0400
+Subject: [PATCH 5580/5725] drm/amd/display: remove safe_to_lower flag from dc,
+ use 2 functions instead
+
+This is done to keep things more readable, avoids a true/false flag
+in dc interface layer.
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c           |  8 ++---
+ .../amd/display/dc/dce100/dce100_hw_sequencer.c    | 15 +++------
+ .../amd/display/dc/dce100/dce100_hw_sequencer.h    |  5 ++-
+ .../amd/display/dc/dce110/dce110_hw_sequencer.c    | 30 ++++++++++++-----
+ .../amd/display/dc/dce110/dce110_hw_sequencer.h    |  9 +++--
+ .../drm/amd/display/dc/dce80/dce80_hw_sequencer.c  |  3 +-
+ .../drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c  | 39 +++++++++++++++++++---
+ drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h  |  8 +++--
+ 8 files changed, 79 insertions(+), 38 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 289d12f..3842541 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -967,7 +967,7 @@ static enum dc_status dc_commit_state_no_check(struct dc *dc, struct dc_state *c
+ 	if (!dcb->funcs->is_accelerated_mode(dcb))
+ 		dc->hwss.enable_accelerated_mode(dc, context);
+ 
+-	dc->hwss.set_bandwidth(dc, context, false);
++	dc->hwss.prepare_bandwidth(dc, context);
+ 
+ 	/* re-program planes for existing stream, in case we need to
+ 	 * free up plane resource for later use
+@@ -1036,7 +1036,7 @@ static enum dc_status dc_commit_state_no_check(struct dc *dc, struct dc_state *c
+ 	dc_enable_stereo(dc, context, dc_streams, context->stream_count);
+ 
+ 	/* pplib is notified if disp_num changed */
+-	dc->hwss.set_bandwidth(dc, context, true);
++	dc->hwss.optimize_bandwidth(dc, context);
+ 
+ 	dc_release_state(dc->current_state);
+ 
+@@ -1085,7 +1085,7 @@ bool dc_post_update_surfaces_to_stream(struct dc *dc)
+ 
+ 	dc->optimized_required = false;
+ 
+-	dc->hwss.set_bandwidth(dc, context, true);
++	dc->hwss.optimize_bandwidth(dc, context);
+ 	return true;
+ }
+ 
+@@ -1505,7 +1505,7 @@ static void commit_planes_for_stream(struct dc *dc,
+ 	struct pipe_ctx *top_pipe_to_program = NULL;
+ 
+ 	if (update_type == UPDATE_TYPE_FULL) {
+-		dc->hwss.set_bandwidth(dc, context, false);
++		dc->hwss.prepare_bandwidth(dc, context);
+ 		context_clock_trace(dc, context);
+ 	}
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c
+index 2725eac..5055026 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.c
+@@ -105,22 +105,16 @@ bool dce100_enable_display_power_gating(
+ 		return false;
+ }
+ 
+-void dce100_set_bandwidth(
++void dce100_prepare_bandwidth(
+ 		struct dc *dc,
+-		struct dc_state *context,
+-		bool decrease_allowed)
++		struct dc_state *context)
+ {
+-	int dispclk_khz = context->bw.dce.dispclk_khz;
+-
+-	context->bw.dce.dispclk_khz = context->bw.dce.dispclk_khz * 115 / 100;
+-
+ 	dce110_set_safe_displaymarks(&context->res_ctx, dc->res_pool);
+ 
+ 	dc->res_pool->dccg->funcs->update_clocks(
+ 			dc->res_pool->dccg,
+ 			context,
+-			decrease_allowed);
+-	context->bw.dce.dispclk_khz = dispclk_khz;
++			false);
+ }
+ 
+ /**************************************************************************/
+@@ -130,6 +124,7 @@ void dce100_hw_sequencer_construct(struct dc *dc)
+ 	dce110_hw_sequencer_construct(dc);
+ 
+ 	dc->hwss.enable_display_power_gating = dce100_enable_display_power_gating;
+-	dc->hwss.set_bandwidth = dce100_set_bandwidth;
++	dc->hwss.prepare_bandwidth = dce100_prepare_bandwidth;
++	dc->hwss.optimize_bandwidth = dce100_prepare_bandwidth;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.h b/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.h
+index c6ec0ed..acd4185 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.h
++++ b/drivers/gpu/drm/amd/display/dc/dce100/dce100_hw_sequencer.h
+@@ -33,10 +33,9 @@ struct dc_state;
+ 
+ void dce100_hw_sequencer_construct(struct dc *dc);
+ 
+-void dce100_set_bandwidth(
++void dce100_prepare_bandwidth(
+ 		struct dc *dc,
+-		struct dc_state *context,
+-		bool decrease_allowed);
++		struct dc_state *context);
+ 
+ bool dce100_enable_display_power_gating(struct dc *dc, uint8_t controller_id,
+ 					struct dc_bios *dcb,
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 6a9b4c2..e58a34e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -2349,22 +2349,33 @@ static void init_hw(struct dc *dc)
+ 
+ }
+ 
+-void dce110_set_bandwidth(
++
++void dce110_prepare_bandwidth(
+ 		struct dc *dc,
+-		struct dc_state *context,
+-		bool decrease_allowed)
++		struct dc_state *context)
+ {
+ 	struct dccg *dccg = dc->res_pool->dccg;
+ 
+-	if (decrease_allowed)
+-		dce110_set_displaymarks(dc, context);
+-	else
+-		dce110_set_safe_displaymarks(&context->res_ctx, dc->res_pool);
++	dce110_set_safe_displaymarks(&context->res_ctx, dc->res_pool);
+ 
+ 	dccg->funcs->update_clocks(
+ 			dccg,
+ 			context,
+-			decrease_allowed);
++			false);
++}
++
++void dce110_optimize_bandwidth(
++		struct dc *dc,
++		struct dc_state *context)
++{
++	struct dccg *dccg = dc->res_pool->dccg;
++
++	dce110_set_displaymarks(dc, context);
++
++	dccg->funcs->update_clocks(
++			dccg,
++			context,
++			true);
+ }
+ 
+ static void dce110_program_front_end_for_pipe(
+@@ -2664,7 +2675,8 @@ static const struct hw_sequencer_funcs dce110_funcs = {
+ 	.enable_display_power_gating = dce110_enable_display_power_gating,
+ 	.disable_plane = dce110_power_down_fe,
+ 	.pipe_control_lock = dce_pipe_control_lock,
+-	.set_bandwidth = dce110_set_bandwidth,
++	.prepare_bandwidth = dce110_prepare_bandwidth,
++	.optimize_bandwidth = dce110_optimize_bandwidth,
+ 	.set_drr = set_drr,
+ 	.get_position = get_position,
+ 	.set_static_screen_control = set_static_screen_control,
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.h b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.h
+index c5e04f8..cd3e36d 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.h
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.h
+@@ -63,10 +63,13 @@ void dce110_set_safe_displaymarks(
+ 		struct resource_context *res_ctx,
+ 		const struct resource_pool *pool);
+ 
+-void dce110_set_bandwidth(
++void dce110_prepare_bandwidth(
+ 		struct dc *dc,
+-		struct dc_state *context,
+-		bool decrease_allowed);
++		struct dc_state *context);
++
++void dce110_optimize_bandwidth(
++		struct dc *dc,
++		struct dc_state *context);
+ 
+ void dp_receiver_power_ctrl(struct dc_link *link, bool on);
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce80/dce80_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce80/dce80_hw_sequencer.c
+index 6c6a1a1..a60a90e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce80/dce80_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce80/dce80_hw_sequencer.c
+@@ -76,6 +76,7 @@ void dce80_hw_sequencer_construct(struct dc *dc)
+ 
+ 	dc->hwss.enable_display_power_gating = dce100_enable_display_power_gating;
+ 	dc->hwss.pipe_control_lock = dce_pipe_control_lock;
+-	dc->hwss.set_bandwidth = dce100_set_bandwidth;
++	dc->hwss.prepare_bandwidth = dce100_prepare_bandwidth;
++	dc->hwss.optimize_bandwidth = dce100_prepare_bandwidth;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 4976230..6375241 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -2358,10 +2358,9 @@ static void dcn10_apply_ctx_for_surface(
+ 		hubbub1_wm_change_req_wa(dc->res_pool->hubbub);
+ }
+ 
+-static void dcn10_set_bandwidth(
++static void dcn10_prepare_bandwidth(
+ 		struct dc *dc,
+-		struct dc_state *context,
+-		bool safe_to_lower)
++		struct dc_state *context)
+ {
+ 	if (dc->debug.sanity_checks)
+ 		dcn10_verify_allow_pstate_change_high(dc);
+@@ -2373,7 +2372,36 @@ static void dcn10_set_bandwidth(
+ 		dc->res_pool->dccg->funcs->update_clocks(
+ 				dc->res_pool->dccg,
+ 				context,
+-				safe_to_lower);
++				false);
++	}
++
++	hubbub1_program_watermarks(dc->res_pool->hubbub,
++			&context->bw.dcn.watermarks,
++			dc->res_pool->ref_clock_inKhz / 1000,
++			true);
++
++	if (dc->debug.pplib_wm_report_mode == WM_REPORT_OVERRIDE)
++		dcn_bw_notify_pplib_of_wm_ranges(dc);
++
++	if (dc->debug.sanity_checks)
++		dcn10_verify_allow_pstate_change_high(dc);
++}
++
++static void dcn10_optimize_bandwidth(
++		struct dc *dc,
++		struct dc_state *context)
++{
++	if (dc->debug.sanity_checks)
++		dcn10_verify_allow_pstate_change_high(dc);
++
++	if (!IS_FPGA_MAXIMUS_DC(dc->ctx->dce_environment)) {
++		if (context->stream_count == 0)
++			context->bw.dcn.clk.phyclk_khz = 0;
++
++		dc->res_pool->dccg->funcs->update_clocks(
++				dc->res_pool->dccg,
++				context,
++				true);
+ 	}
+ 
+ 	hubbub1_program_watermarks(dc->res_pool->hubbub,
+@@ -2682,7 +2710,8 @@ static const struct hw_sequencer_funcs dcn10_funcs = {
+ 	.disable_plane = dcn10_disable_plane,
+ 	.blank_pixel_data = dcn10_blank_pixel_data,
+ 	.pipe_control_lock = dcn10_pipe_control_lock,
+-	.set_bandwidth = dcn10_set_bandwidth,
++	.prepare_bandwidth = dcn10_prepare_bandwidth,
++	.optimize_bandwidth = dcn10_optimize_bandwidth,
+ 	.reset_hw_ctx_wrap = reset_hw_ctx_wrap,
+ 	.enable_stream_timing = dcn10_enable_stream_timing,
+ 	.set_drr = set_drr,
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+index c673d3e..75de1d8 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+@@ -177,10 +177,12 @@ struct hw_sequencer_funcs {
+ 			struct pipe_ctx *pipe_ctx,
+ 			bool blank);
+ 
+-	void (*set_bandwidth)(
++	void (*prepare_bandwidth)(
+ 			struct dc *dc,
+-			struct dc_state *context,
+-			bool safe_to_lower);
++			struct dc_state *context);
++	void (*optimize_bandwidth)(
++			struct dc *dc,
++			struct dc_state *context);
+ 
+ 	void (*set_drr)(struct pipe_ctx **pipe_ctx, int num_pipes,
+ 			int vmin, int vmax);
+-- 
+2.7.4
+

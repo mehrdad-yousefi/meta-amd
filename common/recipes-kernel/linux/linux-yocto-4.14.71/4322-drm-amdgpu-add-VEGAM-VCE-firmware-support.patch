@@ -1,0 +1,49 @@
+From 597424491a72bcd2648246385a2035da3cbf36b2 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Wed, 11 Apr 2018 15:25:57 -0500
+Subject: [PATCH 4322/5725] drm/amdgpu: add VEGAM VCE firmware support
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
+index d7261e0..e2186ed 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
+@@ -51,8 +51,9 @@
+ #define FIRMWARE_FIJI		"amdgpu/fiji_vce.bin"
+ #define FIRMWARE_STONEY		"amdgpu/stoney_vce.bin"
+ #define FIRMWARE_POLARIS10	"amdgpu/polaris10_vce.bin"
+-#define FIRMWARE_POLARIS11         "amdgpu/polaris11_vce.bin"
+-#define FIRMWARE_POLARIS12         "amdgpu/polaris12_vce.bin"
++#define FIRMWARE_POLARIS11	"amdgpu/polaris11_vce.bin"
++#define FIRMWARE_POLARIS12	"amdgpu/polaris12_vce.bin"
++#define FIRMWARE_VEGAM		"amdgpu/vegam_vce.bin"
+ 
+ #define FIRMWARE_VEGA10		"amdgpu/vega10_vce.bin"
+ #define FIRMWARE_VEGA12		"amdgpu/vega12_vce.bin"
+@@ -71,6 +72,7 @@ MODULE_FIRMWARE(FIRMWARE_STONEY);
+ MODULE_FIRMWARE(FIRMWARE_POLARIS10);
+ MODULE_FIRMWARE(FIRMWARE_POLARIS11);
+ MODULE_FIRMWARE(FIRMWARE_POLARIS12);
++MODULE_FIRMWARE(FIRMWARE_VEGAM);
+ 
+ MODULE_FIRMWARE(FIRMWARE_VEGA10);
+ MODULE_FIRMWARE(FIRMWARE_VEGA12);
+@@ -132,6 +134,9 @@ int amdgpu_vce_sw_init(struct amdgpu_device *adev, unsigned long size)
+ 	case CHIP_POLARIS12:
+ 		fw_name = FIRMWARE_POLARIS12;
+ 		break;
++	case CHIP_VEGAM:
++		fw_name = FIRMWARE_VEGAM;
++		break;
+ 	case CHIP_VEGA10:
+ 		fw_name = FIRMWARE_VEGA10;
+ 		break;
+-- 
+2.7.4
+

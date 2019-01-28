@@ -1,0 +1,36 @@
+From 0c46ca9688a925f46b5dfdceda88e676cb329564 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 18 Jul 2018 16:29:29 -0400
+Subject: [PATCH 5100/5725] drm/amdgpu: fix emit frame size and comments for
+ jpeg
+
+Fix vcn jpeg ring emit fence size in dword, and fix the naming in comments.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Acked-by: Leo Liu <leo.liu at amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 4221312..9108230 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -1762,10 +1762,10 @@ static const struct amdgpu_ring_funcs vcn_v1_0_jpeg_ring_vm_funcs = {
+ 		6 + 6 + /* hdp invalidate / flush */
+ 		SOC15_FLUSH_GPU_TLB_NUM_WREG * 6 +
+ 		SOC15_FLUSH_GPU_TLB_NUM_REG_WAIT * 8 +
+-		8 + /* vcn_v1_0_dec_ring_emit_vm_flush */
+-		14 + 14 + /* vcn_v1_0_dec_ring_emit_fence x2 vm fence */
++		8 + /* vcn_v1_0_jpeg_ring_emit_vm_flush */
++		26 + 26 + /* vcn_v1_0_jpeg_ring_emit_fence x2 vm fence */
+ 		6,
+-	.emit_ib_size = 22, /* vcn_v1_0_dec_ring_emit_ib */
++	.emit_ib_size = 22, /* vcn_v1_0_jpeg_ring_emit_ib */
+ 	.emit_ib = vcn_v1_0_jpeg_ring_emit_ib,
+ 	.emit_fence = vcn_v1_0_jpeg_ring_emit_fence,
+ 	.emit_vm_flush = vcn_v1_0_jpeg_ring_emit_vm_flush,
+-- 
+2.7.4
+

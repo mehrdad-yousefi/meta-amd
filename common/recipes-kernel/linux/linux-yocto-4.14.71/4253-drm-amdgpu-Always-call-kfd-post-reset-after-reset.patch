@@ -1,0 +1,38 @@
+From 09e93809fdfc9cff10f07c64e8deba7ee261d568 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Wed, 11 Apr 2018 15:42:39 -0400
+Subject: [PATCH 4253/5725] drm/amdgpu: Always call kfd post reset after reset
+
+Even reset failed, kfd post reset need to be called to make lock balance on
+kfd side
+
+Change-Id: I8b6ef29d7527915611be0b96a9cd039bc75bb0a9
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index a23b1ec..8859f19 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -3321,10 +3321,10 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+                 amdgpu_vf_error_put(adev, AMDGIM_ERROR_VF_GPU_RESET_FAIL, 0, r);
+         } else {
+                 dev_info(adev->dev, "GPU reset(%d) successed!\n",atomic_read(&adev->gpu_reset_counter));
+-		/*unlock kfd after a successfully recovery*/
+-		amdgpu_amdkfd_post_reset(adev);
+         }
+-
++	
++	/*unlock kfd */
++	amdgpu_amdkfd_post_reset(adev);
+         amdgpu_vf_error_trans_all(adev);
+ 	adev->in_gpu_reset = 0;
+ 	mutex_unlock(&adev->lock_reset);
+-- 
+2.7.4
+

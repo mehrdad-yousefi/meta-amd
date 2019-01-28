@@ -1,0 +1,28 @@
+From 92c42fccdc78d6f3f383a572c7358fb162c7e147 Mon Sep 17 00:00:00 2001
+From: "Frank.Min" <Frank.Min@amd.com>
+Date: Tue, 2 Oct 2018 15:02:09 +0800
+Subject: [PATCH 5575/5725] drm/amdgpu: fix sdma doorbell comments typo
+
+Change-Id: I0a3dff9f01a90717e0c32b7fa81a5e891bd1d52d
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Frank.Min <Frank.Min@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 5e6df72..ef666f8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -437,7 +437,7 @@ typedef enum _AMDGPU_DOORBELL64_ASSIGNMENT
+ 	 * default non-graphics QWORD index is 0xe0 - 0xFF inclusive
+ 	 */
+ 
+-	/* sDMA engines  reserved from 0xe0 -oxef  */
++	/* sDMA engines  reserved from 0xe0 -0xef  */
+ 	AMDGPU_DOORBELL64_sDMA_ENGINE0            = 0xE0,
+ 	AMDGPU_DOORBELL64_sDMA_HI_PRI_ENGINE0     = 0xE1,
+ 	AMDGPU_DOORBELL64_sDMA_ENGINE1            = 0xE8,
+-- 
+2.7.4
+

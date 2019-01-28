@@ -1,0 +1,107 @@
+From 470406effaeb6612042eb4584c6ba5fecd55d221 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Tue, 24 Apr 2018 17:59:05 -0400
+Subject: [PATCH 5662/5725] drm/amdkfd: Match release_mem interface with other
+ PM functions
+
+Return an error status instead of the length of the packet. The
+packet size can be read from pmf->release_mem_size. This makes the
+interface consistent with the other packet manager functions.
+
+Change-Id: I1980dc11738b9233aa549044afd5f3c6c564ff60
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c | 11 +++++++----
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c      |  4 ++--
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c      |  4 ++--
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h                 |  2 +-
+ 4 files changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index e60aaf8..8067092 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -208,16 +208,19 @@ static int allocate_vmid(struct device_queue_manager *dqm,
+ static int flush_texture_cache_nocpsch(struct kfd_dev *kdev,
+ 				struct qcm_process_device *qpd)
+ {
+-	uint32_t len;
++	const struct packet_manager_funcs *pmf = qpd->dqm->packets.pmf;
++	int ret;
+ 
+ 	if (!qpd->ib_kaddr)
+ 		return -ENOMEM;
+ 
+-	len = qpd->dqm->packets.pmf->release_mem(qpd->ib_base,
+-						 (uint32_t *)qpd->ib_kaddr);
++	ret = pmf->release_mem(qpd->ib_base, (uint32_t *)qpd->ib_kaddr);
++	if (ret)
++		return ret;
+ 
+ 	return kdev->kfd2kgd->submit_ib(kdev->kgd, KGD_ENGINE_MEC1, qpd->vmid,
+-				qpd->ib_base, (uint32_t *)qpd->ib_kaddr, len);
++				qpd->ib_base, (uint32_t *)qpd->ib_kaddr,
++				pmf->release_mem_size / sizeof(uint32_t));
+ }
+ 
+ static void deallocate_vmid(struct device_queue_manager *dqm,
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
+index f311f13..c6d5a33 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_v9.c
+@@ -295,7 +295,7 @@ static int pm_query_status_v9(struct packet_manager *pm, uint32_t *buffer,
+ }
+ 
+ 
+-static uint32_t pm_release_mem_v9(uint64_t gpu_addr, uint32_t *buffer)
++static int pm_release_mem_v9(uint64_t gpu_addr, uint32_t *buffer)
+ {
+ 	struct pm4_mec_release_mem *packet;
+ 
+@@ -320,7 +320,7 @@ static uint32_t pm_release_mem_v9(uint64_t gpu_addr, uint32_t *buffer)
+ 
+ 	packet->data_lo = 0;
+ 
+-	return sizeof(struct pm4_mec_release_mem) / sizeof(unsigned int);
++	return 0;
+ }
+ 
+ static struct packet_manager_funcs kfd_v9_pm_funcs = {
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
+index 178c5d0..a1a2e7b 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue_vi.c
+@@ -329,7 +329,7 @@ static int pm_query_status_vi(struct packet_manager *pm, uint32_t *buffer,
+ }
+ 
+ 
+-static uint32_t pm_release_mem_vi(uint64_t gpu_addr, uint32_t *buffer)
++static int pm_release_mem_vi(uint64_t gpu_addr, uint32_t *buffer)
+ {
+ 	struct pm4_mec_release_mem *packet;
+ 
+@@ -355,7 +355,7 @@ static uint32_t pm_release_mem_vi(uint64_t gpu_addr, uint32_t *buffer)
+ 
+ 	packet->data_lo = 0;
+ 
+-	return sizeof(struct pm4_mec_release_mem) / sizeof(unsigned int);
++	return 0;
+ }
+ 
+ static struct packet_manager_funcs kfd_vi_pm_funcs = {
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index e9c64ef..52740ae 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -1011,7 +1011,7 @@ struct packet_manager_funcs {
+ 			unsigned int sdma_engine);
+ 	int (*query_status)(struct packet_manager *pm, uint32_t *buffer,
+ 			uint64_t fence_address,	uint32_t fence_value);
+-	uint32_t (*release_mem)(uint64_t gpu_addr, uint32_t *buffer);
++	int (*release_mem)(uint64_t gpu_addr, uint32_t *buffer);
+ 
+ 	/* Packet sizes */
+ 	int map_process_size;
+-- 
+2.7.4
+

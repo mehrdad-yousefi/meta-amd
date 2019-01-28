@@ -1,0 +1,102 @@
+From 0df11ed38e5134ad6e17399dd5e2cb89936c6c6c Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Thu, 2 Aug 2018 17:47:15 +0800
+Subject: [PATCH 5078/5725] drm/amdgpu: move firmware definitions into
+ amdgpu_ucode header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Demangle amdgpu.h.
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h       | 27 ---------------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h | 24 ++++++++++++++++++++++++
+ 2 files changed, 24 insertions(+), 27 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index b2e03fb..5f3250c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -738,33 +738,6 @@ int amdgpu_device_wb_get(struct amdgpu_device *adev, u32 *wb);
+ void amdgpu_device_wb_free(struct amdgpu_device *adev, u32 wb);
+ 
+ /*
+- * Firmware
+- */
+-enum amdgpu_firmware_load_type {
+-	AMDGPU_FW_LOAD_DIRECT = 0,
+-	AMDGPU_FW_LOAD_SMU,
+-	AMDGPU_FW_LOAD_PSP,
+-};
+-
+-struct amdgpu_firmware {
+-	struct amdgpu_firmware_info ucode[AMDGPU_UCODE_ID_MAXIMUM];
+-	enum amdgpu_firmware_load_type load_type;
+-	struct amdgpu_bo *fw_buf;
+-	unsigned int fw_size;
+-	unsigned int max_ucodes;
+-	/* firmwares are loaded by psp instead of smu from vega10 */
+-	const struct amdgpu_psp_funcs *funcs;
+-	struct amdgpu_bo *rbuf;
+-	struct mutex mutex;
+-
+-	/* gpu info firmware data pointer */
+-	const struct firmware *gpu_info_fw;
+-
+-	void *fw_buf_ptr;
+-	uint64_t fw_buf_mc;
+-};
+-
+-/*
+  * Benchmarking
+  */
+ void amdgpu_benchmark(struct amdgpu_device *adev, int test_number);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h
+index 2334cb6..1a265e4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h
+@@ -205,6 +205,12 @@ enum AMDGPU_UCODE_STATUS {
+ 	AMDGPU_UCODE_STATUS_LOADED,
+ };
+ 
++enum amdgpu_firmware_load_type {
++	AMDGPU_FW_LOAD_DIRECT = 0,
++	AMDGPU_FW_LOAD_SMU,
++	AMDGPU_FW_LOAD_PSP,
++};
++
+ /* conform to smu_ucode_xfer_cz.h */
+ #define AMDGPU_SDMA0_UCODE_LOADED	0x00000001
+ #define AMDGPU_SDMA1_UCODE_LOADED	0x00000002
+@@ -233,6 +239,24 @@ struct amdgpu_firmware_info {
+ 	uint32_t tmr_mc_addr_hi;
+ };
+ 
++struct amdgpu_firmware {
++	struct amdgpu_firmware_info ucode[AMDGPU_UCODE_ID_MAXIMUM];
++	enum amdgpu_firmware_load_type load_type;
++	struct amdgpu_bo *fw_buf;
++	unsigned int fw_size;
++	unsigned int max_ucodes;
++	/* firmwares are loaded by psp instead of smu from vega10 */
++	const struct amdgpu_psp_funcs *funcs;
++	struct amdgpu_bo *rbuf;
++	struct mutex mutex;
++
++	/* gpu info firmware data pointer */
++	const struct firmware *gpu_info_fw;
++
++	void *fw_buf_ptr;
++	uint64_t fw_buf_mc;
++};
++
+ void amdgpu_ucode_print_mc_hdr(const struct common_firmware_header *hdr);
+ void amdgpu_ucode_print_smc_hdr(const struct common_firmware_header *hdr);
+ void amdgpu_ucode_print_gfx_hdr(const struct common_firmware_header *hdr);
+-- 
+2.7.4
+

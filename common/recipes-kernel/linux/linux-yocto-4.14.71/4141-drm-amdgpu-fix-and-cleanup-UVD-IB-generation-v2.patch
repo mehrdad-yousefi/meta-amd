@@ -1,0 +1,43 @@
+From 6fa2c740af47c0bb5aa6305569ca669c61f5d6d6 Mon Sep 17 00:00:00 2001
+From: christian koenig <ckoenig.leichtzumerken@gmail.com>
+Date: Wed, 7 Feb 2018 20:48:21 +0100
+Subject: [PATCH 4141/5725] drm/amdgpu: fix and cleanup UVD IB generation(v2)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Moving the structure assignment to inside the if condition.
+
+Change-Id: I4956f054cd23736b605ab058acacb078207a53cb
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Leo Liu <leo.liu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index 0685e18..6cf5ccf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -959,7 +959,6 @@ int amdgpu_uvd_ring_parse_cs(struct amdgpu_cs_parser *parser, uint32_t ib_idx)
+ static int amdgpu_uvd_send_msg(struct amdgpu_ring *ring, struct amdgpu_bo *bo,
+ 			       bool direct, struct dma_fence **fence)
+ {
+-	struct ttm_operation_ctx ctx = { true, false };
+ 	struct amdgpu_device *adev = ring->adev;
+ 	struct dma_fence *f = NULL;
+ 	struct amdgpu_job *job;
+@@ -973,6 +972,8 @@ static int amdgpu_uvd_send_msg(struct amdgpu_ring *ring, struct amdgpu_bo *bo,
+ 	amdgpu_bo_unpin(bo);	
+ 
+ 	if (!ring->adev->uvd.address_64_bit) {
++		struct ttm_operation_ctx ctx = { true, false };
++
+ 		amdgpu_ttm_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_VRAM);
+ 		amdgpu_uvd_force_into_uvd_segment(bo);
+ 		r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+-- 
+2.7.4
+

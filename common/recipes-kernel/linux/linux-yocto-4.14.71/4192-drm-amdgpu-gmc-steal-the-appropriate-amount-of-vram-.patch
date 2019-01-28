@@ -1,0 +1,280 @@
+From 902cb65faf2a55f952e0101e8aee55d2852bf1be Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexdeucher@gmail.com>
+Date: Fri, 6 Apr 2018 14:54:09 -0500
+Subject: [PATCH 4192/5725] drm/amdgpu/gmc: steal the appropriate amount of
+ vram for fw hand-over (v2)
+
+Steal 9 MB for vga emulation and fb if vga is enabled, otherwise,
+steal enough to cover the current display size as set by the vbios.
+
+If no memory is used (e.g., secondary or headless card), skip
+stolen memory reserve.
+
+v2: skip reservation if vram is limited, address Christian's comments
+
+Reviewed-and-Tested-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com> (v2)
+Signed-off-by: Alex Deucher <alexdeucher@gmail.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 14 +++++----
+ drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c   | 23 +++++++++++++--
+ drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c   | 23 +++++++++++++--
+ drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c   | 23 +++++++++++++--
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c   | 51 +++++++++++++++++++++++++++++----
+ 5 files changed, 116 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index aa6d4e0..53b0fcc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1642,12 +1642,14 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 		return r;
+ 	}
+ 
+-	r = amdgpu_bo_create_kernel(adev, adev->gmc.stolen_size, PAGE_SIZE,
+-				    AMDGPU_GEM_DOMAIN_VRAM,
+-				    &adev->stolen_vga_memory,
+-				    NULL, NULL);
+-	if (r)
+-		return r;
++	if (adev->gmc.stolen_size) {
++		r = amdgpu_bo_create_kernel(adev, adev->gmc.stolen_size, PAGE_SIZE,
++					    AMDGPU_GEM_DOMAIN_VRAM,
++					    &adev->stolen_vga_memory,
++					    NULL, NULL);
++		if (r)
++			return r;
++	}
+ 
+ 	DRM_INFO("amdgpu: %uM of VRAM memory ready\n",
+ 		 (unsigned) (adev->gmc.real_vram_size / (1024 * 1024)));
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+index 94c6b13..ef77f79 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+@@ -824,6 +824,25 @@ static int gmc_v6_0_late_init(void *handle)
+ 		return 0;
+ }
+ 
++static unsigned gmc_v6_0_get_vbios_fb_size(struct amdgpu_device *adev)
++{
++	u32 d1vga_control = RREG32(mmD1VGA_CONTROL);
++	unsigned size;
++
++	if (REG_GET_FIELD(d1vga_control, D1VGA_CONTROL, D1VGA_MODE_ENABLE)) {
++		size = 9 * 1024 * 1024; /* reserve 8MB for vga emulator and 1 MB for FB */
++	} else {
++		u32 viewport = RREG32(mmVIEWPORT_SIZE);
++		size = (REG_GET_FIELD(viewport, VIEWPORT_SIZE, VIEWPORT_HEIGHT) *
++			REG_GET_FIELD(viewport, VIEWPORT_SIZE, VIEWPORT_WIDTH) *
++			4);
++	}
++	/* return 0 if the pre-OS buffer uses up most of vram */
++	if ((adev->gmc.real_vram_size - size) < (8 * 1024 * 1024))
++		return 0;
++	return size;
++}
++
+ static int gmc_v6_0_sw_init(void *handle)
+ {
+ 	int r;
+@@ -850,8 +869,6 @@ static int gmc_v6_0_sw_init(void *handle)
+ 
+ 	adev->gmc.mc_mask = 0xffffffffffULL;
+ 
+-	adev->gmc.stolen_size = 256 * 1024;
+-
+ 	adev->need_dma32 = false;
+ 	dma_bits = adev->need_dma32 ? 32 : 40;
+ 	r = pci_set_dma_mask(adev->pdev, DMA_BIT_MASK(dma_bits));
+@@ -876,6 +893,8 @@ static int gmc_v6_0_sw_init(void *handle)
+ 	if (r)
+ 		return r;
+ 
++	adev->gmc.stolen_size = gmc_v6_0_get_vbios_fb_size(adev);
++
+ 	r = amdgpu_bo_init(adev);
+ 	if (r)
+ 		return r;
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+index a1348d5..cee1aec 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v7_0.c
+@@ -966,6 +966,25 @@ static int gmc_v7_0_late_init(void *handle)
+ 		return 0;
+ }
+ 
++static unsigned gmc_v7_0_get_vbios_fb_size(struct amdgpu_device *adev)
++{
++	u32 d1vga_control = RREG32(mmD1VGA_CONTROL);
++	unsigned size;
++
++	if (REG_GET_FIELD(d1vga_control, D1VGA_CONTROL, D1VGA_MODE_ENABLE)) {
++		size = 9 * 1024 * 1024; /* reserve 8MB for vga emulator and 1 MB for FB */
++	} else {
++		u32 viewport = RREG32(mmVIEWPORT_SIZE);
++		size = (REG_GET_FIELD(viewport, VIEWPORT_SIZE, VIEWPORT_HEIGHT) *
++			REG_GET_FIELD(viewport, VIEWPORT_SIZE, VIEWPORT_WIDTH) *
++			4);
++	}
++	/* return 0 if the pre-OS buffer uses up most of vram */
++	if ((adev->gmc.real_vram_size - size) < (8 * 1024 * 1024))
++		return 0;
++	return size;
++}
++
+ static int gmc_v7_0_sw_init(void *handle)
+ {
+ 	int r;
+@@ -1000,8 +1019,6 @@ static int gmc_v7_0_sw_init(void *handle)
+ 	 */
+ 	adev->gmc.mc_mask = 0xffffffffffULL; /* 40 bit MC */
+ 
+-	adev->gmc.stolen_size = 256 * 1024;
+-
+ 	/* set DMA mask + need_dma32 flags.
+ 	 * PCIE - can handle 40-bits.
+ 	 * IGP - can handle 40-bits
+@@ -1031,6 +1048,8 @@ static int gmc_v7_0_sw_init(void *handle)
+ 	if (r)
+ 		return r;
+ 
++	adev->gmc.stolen_size = gmc_v7_0_get_vbios_fb_size(adev);
++
+ 	/* Memory manager */
+ 	r = amdgpu_bo_init(adev);
+ 	if (r)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+index 4e1b464..67f9b74 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+@@ -1061,6 +1061,25 @@ static int gmc_v8_0_late_init(void *handle)
+ 		return 0;
+ }
+ 
++static unsigned gmc_v8_0_get_vbios_fb_size(struct amdgpu_device *adev)
++{
++	u32 d1vga_control = RREG32(mmD1VGA_CONTROL);
++	unsigned size;
++
++	if (REG_GET_FIELD(d1vga_control, D1VGA_CONTROL, D1VGA_MODE_ENABLE)) {
++		size = 9 * 1024 * 1024; /* reserve 8MB for vga emulator and 1 MB for FB */
++	} else {
++		u32 viewport = RREG32(mmVIEWPORT_SIZE);
++		size = (REG_GET_FIELD(viewport, VIEWPORT_SIZE, VIEWPORT_HEIGHT) *
++			REG_GET_FIELD(viewport, VIEWPORT_SIZE, VIEWPORT_WIDTH) *
++			4);
++	}
++	/* return 0 if the pre-OS buffer uses up most of vram */
++	if ((adev->gmc.real_vram_size - size) < (8 * 1024 * 1024))
++		return 0;
++	return size;
++}
++
+ #define mmMC_SEQ_MISC0_FIJI 0xA71
+ 
+ static int gmc_v8_0_sw_init(void *handle)
+@@ -1102,8 +1121,6 @@ static int gmc_v8_0_sw_init(void *handle)
+ 	 */
+ 	adev->gmc.mc_mask = 0xffffffffffULL; /* 40 bit MC */
+ 
+-	adev->gmc.stolen_size = 256 * 1024;
+-
+ 	/* set DMA mask + need_dma32 flags.
+ 	 * PCIE - can handle 40-bits.
+ 	 * IGP - can handle 40-bits
+@@ -1133,6 +1150,8 @@ static int gmc_v8_0_sw_init(void *handle)
+ 	if (r)
+ 		return r;
+ 
++	adev->gmc.stolen_size = gmc_v8_0_get_vbios_fb_size(adev);
++
+ 	/* Memory manager */
+ 	r = amdgpu_bo_init(adev);
+ 	if (r)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 2d40733..315045a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -56,6 +56,14 @@
+ #define DF_CS_AON0_DramBaseAddress0__IntLvAddrSel_MASK                                                        0x00000700L
+ #define DF_CS_AON0_DramBaseAddress0__DramBaseAddr_MASK                                                        0xFFFFF000L
+ 
++/* add these here since we already include dce12 headers and these are for DCN */
++#define mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION                                                          0x055d
++#define mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION_BASE_IDX                                                 2
++#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_WIDTH__SHIFT                                        0x0
++#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_HEIGHT__SHIFT                                       0x10
++#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_WIDTH_MASK                                          0x00003FFFL
++#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_HEIGHT_MASK                                         0x3FFF0000L
++
+ /* XXX Move this macro to VEGA10 header file, which is like vid.h for VI.*/
+ #define AMDGPU_NUM_OF_VMIDS			8
+ 
+@@ -791,6 +799,41 @@ static int gmc_v9_0_gart_init(struct amdgpu_device *adev)
+ 	return amdgpu_gart_table_vram_alloc(adev);
+ }
+ 
++static unsigned gmc_v9_0_get_vbios_fb_size(struct amdgpu_device *adev)
++{
++	u32 d1vga_control = RREG32_SOC15(DCE, 0, mmD1VGA_CONTROL);
++	unsigned size;
++
++	if (REG_GET_FIELD(d1vga_control, D1VGA_CONTROL, D1VGA_MODE_ENABLE)) {
++		size = 9 * 1024 * 1024; /* reserve 8MB for vga emulator and 1 MB for FB */
++	} else {
++		u32 viewport;
++
++		switch (adev->asic_type) {
++		case CHIP_RAVEN:
++			viewport = RREG32_SOC15(DCE, 0, mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION);
++			size = (REG_GET_FIELD(viewport,
++					      HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION, PRI_VIEWPORT_HEIGHT) *
++				REG_GET_FIELD(viewport,
++					      HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION, PRI_VIEWPORT_WIDTH) *
++				4);
++			break;
++		case CHIP_VEGA10:
++		case CHIP_VEGA12:
++		default:
++			viewport = RREG32_SOC15(DCE, 0, mmSCL0_VIEWPORT_SIZE);
++			size = (REG_GET_FIELD(viewport, SCL0_VIEWPORT_SIZE, VIEWPORT_HEIGHT) *
++				REG_GET_FIELD(viewport, SCL0_VIEWPORT_SIZE, VIEWPORT_WIDTH) *
++				4);
++			break;
++		}
++	}
++	/* return 0 if the pre-OS buffer uses up most of vram */
++	if ((adev->gmc.real_vram_size - size) < (8 * 1024 * 1024))
++		return 0;
++	return size;
++}
++
+ static int gmc_v9_0_sw_init(void *handle)
+ {
+ 	int r;
+@@ -842,12 +885,6 @@ static int gmc_v9_0_sw_init(void *handle)
+ 	 */
+ 	adev->gmc.mc_mask = 0xffffffffffffULL; /* 48 bit MC */
+ 
+-	/*
+-	 * It needs to reserve 8M stolen memory for vega10
+-	 * TODO: Figure out how to avoid that...
+-	 */
+-	adev->gmc.stolen_size = 8 * 1024 * 1024;
+-
+ 	/* set DMA mask + need_dma32 flags.
+ 	 * PCIE - can handle 44-bits.
+ 	 * IGP - can handle 44-bits
+@@ -871,6 +908,8 @@ static int gmc_v9_0_sw_init(void *handle)
+ 	if (r)
+ 		return r;
+ 
++	adev->gmc.stolen_size = gmc_v9_0_get_vbios_fb_size(adev);
++
+ 	/* Memory manager */
+ 	r = amdgpu_bo_init(adev);
+ 	if (r)
+-- 
+2.7.4
+

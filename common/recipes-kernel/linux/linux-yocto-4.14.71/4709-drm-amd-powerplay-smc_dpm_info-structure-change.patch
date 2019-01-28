@@ -1,0 +1,91 @@
+From 748ff5b23d3fe68482caa6f37bcb16503a7e1c5f Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 11 Jun 2018 15:20:39 +0800
+Subject: [PATCH 4709/5725] drm/amd/powerplay: smc_dpm_info structure change
+
+A new member Vr2_I2C_address is added.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/atomfirmware.h                   | 5 ++++-
+ drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c           | 2 ++
+ drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.h           | 2 ++
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c | 2 ++
+ drivers/gpu/drm/amd/powerplay/inc/vega12/smu9_driver_if.h    | 5 ++++-
+ 5 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/atomfirmware.h b/drivers/gpu/drm/amd/include/atomfirmware.h
+index 092d800..33b4de4 100644
+--- a/drivers/gpu/drm/amd/include/atomfirmware.h
++++ b/drivers/gpu/drm/amd/include/atomfirmware.h
+@@ -1433,7 +1433,10 @@ struct atom_smc_dpm_info_v4_1
+ 	uint8_t  acggfxclkspreadpercent;
+ 	uint16_t acggfxclkspreadfreq;
+ 
+-	uint32_t boardreserved[10];
++	uint8_t Vr2_I2C_address;
++	uint8_t padding_vr2[3];
++
++	uint32_t boardreserved[9];
+ };
+ 
+ /* 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c
+index aa2faff..d27c1c9 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.c
+@@ -699,5 +699,7 @@ int pp_atomfwctrl_get_smc_dpm_information(struct pp_hwmgr *hwmgr,
+ 	param->acggfxclkspreadpercent = info->acggfxclkspreadpercent;
+ 	param->acggfxclkspreadfreq = info->acggfxclkspreadfreq;
+ 
++	param->Vr2_I2C_address = info->Vr2_I2C_address;
++
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.h b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.h
+index 745bd38..22e2166 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomfwctrl.h
+@@ -210,6 +210,8 @@ struct pp_atomfwctrl_smc_dpm_parameters
+ 	uint8_t  acggfxclkspreadenabled;
+ 	uint8_t  acggfxclkspreadpercent;
+ 	uint16_t acggfxclkspreadfreq;
++
++	uint8_t Vr2_I2C_address;
+ };
+ 
+ int pp_atomfwctrl_get_gpu_pll_dividers_vega10(struct pp_hwmgr *hwmgr,
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
+index 888ddca..2991470 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_processpptables.c
+@@ -230,6 +230,8 @@ static int append_vbios_pptable(struct pp_hwmgr *hwmgr, PPTable_t *ppsmc_pptable
+ 		ppsmc_pptable->AcgThresholdFreqLow = 0xFFFF;
+ 	}
+ 
++	ppsmc_pptable->Vr2_I2C_address = smc_dpm_table.Vr2_I2C_address;
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/vega12/smu9_driver_if.h b/drivers/gpu/drm/amd/powerplay/inc/vega12/smu9_driver_if.h
+index 2f8a3b9..b08526f 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/vega12/smu9_driver_if.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/vega12/smu9_driver_if.h
+@@ -499,7 +499,10 @@ typedef struct {
+ 	uint8_t      AcgGfxclkSpreadPercent;
+ 	uint16_t     AcgGfxclkSpreadFreq;
+ 
+-	uint32_t     BoardReserved[10];
++  uint8_t      Vr2_I2C_address;
++  uint8_t      padding_vr2[3];
++
++  uint32_t     BoardReserved[9];
+ 
+ 
+   uint32_t     MmHubPadding[7];
+-- 
+2.7.4
+

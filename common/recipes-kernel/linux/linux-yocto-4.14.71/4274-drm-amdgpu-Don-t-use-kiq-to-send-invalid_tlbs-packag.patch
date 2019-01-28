@@ -1,0 +1,29 @@
+From b25f2d7078a9aa344bec6253a625383e1fc2a5f2 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Mon, 23 Apr 2018 13:52:13 -0400
+Subject: [PATCH 4274/5725] drm/amdgpu: Don't use kiq to send invalid_tlbs
+ package on GPU reset
+
+Change-Id: I94d8e3800200aadc1fcb58ecf19a1bd29fc53251
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+index 49291d6..a81e301 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+@@ -989,7 +989,7 @@ static int invalidate_tlbs(struct kgd_dev *kgd, uint16_t pasid)
+ 	int vmid;
+ 	struct amdgpu_ring *ring = &adev->gfx.kiq.ring;
+ 
+-	if (ring->ready)
++	if (ring->ready && (!adev->in_gpu_reset))
+ 		return invalidate_tlbs_with_kiq(adev, pasid);
+ 
+ 	for (vmid = 0; vmid < 16; vmid++) {
+-- 
+2.7.4
+

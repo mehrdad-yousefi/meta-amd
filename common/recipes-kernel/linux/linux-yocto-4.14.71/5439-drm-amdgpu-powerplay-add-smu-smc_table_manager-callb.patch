@@ -1,0 +1,191 @@
+From 773f9cfb05f9d96cfffc2b2b4706e3446a57855a Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 20 Sep 2018 21:17:17 -0500
+Subject: [PATCH 5439/5725] drm/amdgpu/powerplay: add smu smc_table_manager
+ callback for vega20
+
+For consistency with other asics.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 32 +++++++++++-----------
+ .../gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c   | 22 ++++++++++++---
+ .../gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h   |  4 ---
+ 3 files changed, 34 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 7825c6a..260e0e4 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -743,8 +743,8 @@ static int vega20_init_smc_table(struct pp_hwmgr *hwmgr)
+ 
+ 	memcpy(pp_table, pptable_information->smc_pptable, sizeof(PPTable_t));
+ 
+-	result = vega20_copy_table_to_smc(hwmgr,
+-			(uint8_t *)pp_table, TABLE_PPTABLE);
++	result = smum_smc_table_manager(hwmgr,
++					(uint8_t *)pp_table, TABLE_PPTABLE, false);
+ 	PP_ASSERT_WITH_CODE(!result,
+ 			"[InitSMCTable] Failed to upload PPtable!",
+ 			return result);
+@@ -1067,7 +1067,7 @@ static int vega20_od8_initialize_default_settings(
+ 	vega20_od8_set_feature_id(hwmgr);
+ 
+ 	/* Set default values */
+-	ret = vega20_copy_table_from_smc(hwmgr, (uint8_t *)od_table, TABLE_OVERDRIVE);
++	ret = smum_smc_table_manager(hwmgr, (uint8_t *)od_table, TABLE_OVERDRIVE, true);
+ 	PP_ASSERT_WITH_CODE(!ret,
+ 			"Failed to export over drive table!",
+ 			return ret);
+@@ -1195,7 +1195,7 @@ static int vega20_od8_initialize_default_settings(
+ 		}
+ 	}
+ 
+-	ret = vega20_copy_table_to_smc(hwmgr, (uint8_t *)od_table, TABLE_OVERDRIVE);
++	ret = smum_smc_table_manager(hwmgr, (uint8_t *)od_table, TABLE_OVERDRIVE, false);
+ 	PP_ASSERT_WITH_CODE(!ret,
+ 			"Failed to import over drive table!",
+ 			return ret);
+@@ -1214,7 +1214,7 @@ static int vega20_od8_set_settings(
+ 	struct vega20_od8_single_setting *od8_settings =
+ 			data->od8_settings.od8_settings_array;
+ 
+-	ret = vega20_copy_table_from_smc(hwmgr, (uint8_t *)(&od_table), TABLE_OVERDRIVE);
++	ret = smum_smc_table_manager(hwmgr, (uint8_t *)(&od_table), TABLE_OVERDRIVE, true);
+ 	PP_ASSERT_WITH_CODE(!ret,
+ 			"Failed to export over drive table!",
+ 			return ret);
+@@ -1271,7 +1271,7 @@ static int vega20_od8_set_settings(
+ 		break;
+ 	}
+ 
+-	ret = vega20_copy_table_to_smc(hwmgr, (uint8_t *)(&od_table), TABLE_OVERDRIVE);
++	ret = smum_smc_table_manager(hwmgr, (uint8_t *)(&od_table), TABLE_OVERDRIVE, false);
+ 	PP_ASSERT_WITH_CODE(!ret,
+ 			"Failed to import over drive table!",
+ 			return ret);
+@@ -1841,7 +1841,7 @@ static int vega20_get_gpu_power(struct pp_hwmgr *hwmgr,
+ 	int ret = 0;
+ 	SmuMetrics_t metrics_table;
+ 
+-	ret = vega20_copy_table_from_smc(hwmgr, (uint8_t *)&metrics_table, TABLE_SMU_METRICS);
++	ret = smum_smc_table_manager(hwmgr, (uint8_t *)&metrics_table, TABLE_SMU_METRICS, true);
+ 	PP_ASSERT_WITH_CODE(!ret,
+ 			"Failed to export SMU METRICS table!",
+ 			return ret);
+@@ -1893,7 +1893,7 @@ static int vega20_get_current_activity_percent(struct pp_hwmgr *hwmgr,
+ 	int ret = 0;
+ 	SmuMetrics_t metrics_table;
+ 
+-	ret = vega20_copy_table_from_smc(hwmgr, (uint8_t *)&metrics_table, TABLE_SMU_METRICS);
++	ret = smum_smc_table_manager(hwmgr, (uint8_t *)&metrics_table, TABLE_SMU_METRICS, true);
+ 	PP_ASSERT_WITH_CODE(!ret,
+ 			"Failed to export SMU METRICS table!",
+ 			return ret);
+@@ -2612,18 +2612,18 @@ static int vega20_odn_edit_dpm_table(struct pp_hwmgr *hwmgr,
+ 		data->gfxclk_overdrive = false;
+ 		data->memclk_overdrive = false;
+ 
+-		ret = vega20_copy_table_from_smc(hwmgr,
+-				(uint8_t *)od_table,
+-				TABLE_OVERDRIVE);
++		ret = smum_smc_table_manager(hwmgr,
++					     (uint8_t *)od_table,
++					     TABLE_OVERDRIVE, true);
+ 		PP_ASSERT_WITH_CODE(!ret,
+ 				"Failed to export overdrive table!",
+ 				return ret);
+ 		break;
+ 
+ 	case PP_OD_COMMIT_DPM_TABLE:
+-		ret = vega20_copy_table_to_smc(hwmgr,
+-				(uint8_t *)od_table,
+-				TABLE_OVERDRIVE);
++		ret = smum_smc_table_manager(hwmgr,
++					     (uint8_t *)od_table,
++					     TABLE_OVERDRIVE, false);
+ 		PP_ASSERT_WITH_CODE(!ret,
+ 				"Failed to import overdrive table!",
+ 				return ret);
+@@ -2847,8 +2847,8 @@ static int vega20_display_configuration_changed_task(struct pp_hwmgr *hwmgr)
+ 
+ 	if ((data->water_marks_bitmap & WaterMarksExist) &&
+ 	    !(data->water_marks_bitmap & WaterMarksLoaded)) {
+-		result = vega20_copy_table_to_smc(hwmgr,
+-			(uint8_t *)wm_table, TABLE_WATERMARKS);
++		result = smum_smc_table_manager(hwmgr,
++						(uint8_t *)wm_table, TABLE_WATERMARKS, false);
+ 		PP_ASSERT_WITH_CODE(!result,
+ 				"Failed to update WMTABLE!",
+ 				return result);
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c
+index 52438f5..b7ff7d4 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.c
+@@ -160,8 +160,8 @@ static uint32_t vega20_get_argument(struct pp_hwmgr *hwmgr)
+  * @param   hwmgr    the address of the HW manager
+  * @param   table_id    the driver's table ID to copy from
+  */
+-int vega20_copy_table_from_smc(struct pp_hwmgr *hwmgr,
+-		uint8_t *table, int16_t table_id)
++static int vega20_copy_table_from_smc(struct pp_hwmgr *hwmgr,
++				      uint8_t *table, int16_t table_id)
+ {
+ 	struct vega20_smumgr *priv =
+ 			(struct vega20_smumgr *)(hwmgr->smu_backend);
+@@ -200,8 +200,8 @@ int vega20_copy_table_from_smc(struct pp_hwmgr *hwmgr,
+  * @param   hwmgr    the address of the HW manager
+  * @param   table_id    the table to copy from
+  */
+-int vega20_copy_table_to_smc(struct pp_hwmgr *hwmgr,
+-		uint8_t *table, int16_t table_id)
++static int vega20_copy_table_to_smc(struct pp_hwmgr *hwmgr,
++				    uint8_t *table, int16_t table_id)
+ {
+ 	struct vega20_smumgr *priv =
+ 			(struct vega20_smumgr *)(hwmgr->smu_backend);
+@@ -560,6 +560,19 @@ static bool vega20_is_dpm_running(struct pp_hwmgr *hwmgr)
+ 		return false;
+ }
+ 
++static int vega20_smc_table_manager(struct pp_hwmgr *hwmgr, uint8_t *table,
++				    uint16_t table_id, bool rw)
++{
++	int ret;
++
++	if (rw)
++		ret = vega20_copy_table_from_smc(hwmgr, table, table_id);
++	else
++		ret = vega20_copy_table_to_smc(hwmgr, table, table_id);
++
++	return ret;
++}
++
+ const struct pp_smumgr_func vega20_smu_funcs = {
+ 	.smu_init = &vega20_smu_init,
+ 	.smu_fini = &vega20_smu_fini,
+@@ -571,4 +584,5 @@ const struct pp_smumgr_func vega20_smu_funcs = {
+ 	.upload_pptable_settings = NULL,
+ 	.is_dpm_running = vega20_is_dpm_running,
+ 	.get_argument = vega20_get_argument,
++	.smc_table_manager = vega20_smc_table_manager,
+ };
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h
+index fd17601..77349c3 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega20_smumgr.h
+@@ -47,10 +47,6 @@ struct vega20_smumgr {
+ #define SMU_FEATURES_HIGH_MASK       0xFFFFFFFF00000000
+ #define SMU_FEATURES_HIGH_SHIFT      32
+ 
+-int vega20_copy_table_from_smc(struct pp_hwmgr *hwmgr,
+-		uint8_t *table, int16_t table_id);
+-int vega20_copy_table_to_smc(struct pp_hwmgr *hwmgr,
+-		uint8_t *table, int16_t table_id);
+ int vega20_enable_smc_features(struct pp_hwmgr *hwmgr,
+ 		bool enable, uint64_t feature_mask);
+ int vega20_get_enabled_smc_features(struct pp_hwmgr *hwmgr,
+-- 
+2.7.4
+

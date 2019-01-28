@@ -1,0 +1,30 @@
+From 0bb4609466186a070b8709401ec63a13bd387ab2 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 12:27:54 +0800
+Subject: [PATCH 4387/5725] drm/amdgpu: Add vega20 to asic_type enum.
+
+Add vega20 to amd_asic_type enum and amdgpu_asic_name[].
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 405d3a8..f2a038b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -86,6 +86,7 @@ static const char *amdgpu_asic_name[] = {
+ 	"VEGAM",
+ 	"VEGA10",
+ 	"VEGA12",
++	"VEGA20",
+ 	"RAVEN",
+ 	"LAST",
+ };
+-- 
+2.7.4
+

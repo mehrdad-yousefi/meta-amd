@@ -1,0 +1,31 @@
+From 3a6bb2a44986255a0c79632c0d8b30ebe60efc0b Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Mon, 10 Sep 2018 12:53:25 -0400
+Subject: [PATCH 5406/5725] drm/amdgpu:Add error message when register failed
+ to reach expected value
+
+Add error message when register failed to reach expected value, It will
+help discover potential issue.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15_common.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15_common.h b/drivers/gpu/drm/amd/amdgpu/soc15_common.h
+index 0942f49..f5d6025 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15_common.h
++++ b/drivers/gpu/drm/amd/amdgpu/soc15_common.h
+@@ -56,6 +56,8 @@
+ 			tmp_ = RREG32(adev->reg_offset[ip##_HWIP][inst][reg##_BASE_IDX] + reg); \
+ 			loop--;					\
+ 			if (!loop) {				\
++				DRM_ERROR("Register(%d) [%s] failed to reach value 0x%08x != 0x%08x\n", \
++							inst, #reg, expected_value, (tmp_ & (mask))); \
+ 				ret = -ETIMEDOUT;		\
+ 				break;				\
+ 			}					\
+-- 
+2.7.4
+

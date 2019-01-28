@@ -1,0 +1,37 @@
+From 60d522653804dfc9ce1eced7176716c031c62562 Mon Sep 17 00:00:00 2001
+From: shaoyunl <Shaoyun.Liu@amd.com>
+Date: Mon, 10 Sep 2018 12:04:27 -0400
+Subject: [PATCH 5398/5725] drm/amdgpu: Init correct fb region for none XGMI
+ configuration
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fix : 5c777a5 'Adjust GART and AGP location with xgmi offset'
+
+Change-Id: I2d78024fbe44a37f46a35d34c1e64dbd3937fdf1
+Signed-off-by: shaoyunl <Shaoyun.Liu@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+index 77907e2..9a5b252 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+@@ -121,6 +121,11 @@ void amdgpu_gmc_vram_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc,
+ 	mc->vram_end = mc->vram_start + mc->mc_vram_size - 1;
+ 	if (limit && limit < mc->real_vram_size)
+ 		mc->real_vram_size = limit;
++
++	if (mc->xgmi.num_physical_nodes == 0) {
++		mc->fb_start = mc->vram_start;
++		mc->fb_end = mc->vram_end;
++	}
+ 	dev_info(adev->dev, "VRAM: %lluM 0x%016llX - 0x%016llX (%lluM used)\n",
+ 			mc->mc_vram_size >> 20, mc->vram_start,
+ 			mc->vram_end, mc->real_vram_size >> 20);
+-- 
+2.7.4
+

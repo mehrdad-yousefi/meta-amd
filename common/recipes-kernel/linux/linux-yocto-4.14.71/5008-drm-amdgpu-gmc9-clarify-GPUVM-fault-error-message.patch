@@ -1,0 +1,33 @@
+From 43b325ef0b087e4e910afac353f61760ab24e6d2 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 24 Jul 2018 11:52:58 -0500
+Subject: [PATCH 5008/5725] drm/amdgpu/gmc9: clarify GPUVM fault error message
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The address printed is the actual address, not the page.
+
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 5255647..68355b1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -268,7 +268,7 @@ static int gmc_v9_0_process_interrupt(struct amdgpu_device *adev,
+ 			entry->src_id, entry->ring_id, entry->vmid,
+ 			entry->pasid, task_info.process_name, task_info.tgid,
+ 			task_info.task_name, task_info.pid);
+-		dev_err(adev->dev, "  at page 0x%016llx from %d\n",
++		dev_err(adev->dev, "  at address 0x%016llx from %d\n",
+ 			addr, entry->client_id);
+ 		if (!amdgpu_sriov_vf(adev))
+ 			dev_err(adev->dev,
+-- 
+2.7.4
+

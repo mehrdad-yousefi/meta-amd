@@ -1,0 +1,88 @@
+From ec4f3289f18aa3898bbccc7f44adcbc73f6c7374 Mon Sep 17 00:00:00 2001
+From: Kevin Wang <Kevin1.Wang@amd.com>
+Date: Fri, 13 Jul 2018 11:05:37 +0800
+Subject: [PATCH 4662/5725] Revert "drm/amd/display: Implement
+ dm_pp_get_clock_levels_by_type_with_latency"
+
+This reverts commit b342bd14b90f31f3864ca8e6dba4a7174d53c1f0.
+
+Conflicts:
+      drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
+
+Change-Id: Ibefed56c4ccc604294deffafd9a59458e0ebd8e8
+
+this feature is not work well,so disable it.
+next release driver will enable it.
+
+Signed-off-by: Kevin Wang <Kevin1.Wang@amd.com>
+Reviewed-by: Evan Quan <Evan.Quan@amd.com>
+---
+ .../drm/amd/display/amdgpu_dm/amdgpu_dm_services.c | 45 +---------------------
+ 1 file changed, 2 insertions(+), 43 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
+index 5a33461..0229c7ed 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
+@@ -234,33 +234,6 @@ static void pp_to_dc_clock_levels(
+ 	}
+ }
+ 
+-static void pp_to_dc_clock_levels_with_latency(
+-		const struct pp_clock_levels_with_latency *pp_clks,
+-		struct dm_pp_clock_levels_with_latency *clk_level_info,
+-		enum dm_pp_clock_type dc_clk_type)
+-{
+-	uint32_t i;
+-
+-	if (pp_clks->num_levels > DM_PP_MAX_CLOCK_LEVELS) {
+-		DRM_INFO("DM_PPLIB: Warning: %s clock: number of levels %d exceeds maximum of %d!\n",
+-				DC_DECODE_PP_CLOCK_TYPE(dc_clk_type),
+-				pp_clks->num_levels,
+-				DM_PP_MAX_CLOCK_LEVELS);
+-
+-		clk_level_info->num_levels = DM_PP_MAX_CLOCK_LEVELS;
+-	} else
+-		clk_level_info->num_levels = pp_clks->num_levels;
+-
+-	DRM_DEBUG("DM_PPLIB: values for %s clock\n",
+-			DC_DECODE_PP_CLOCK_TYPE(dc_clk_type));
+-
+-	for (i = 0; i < clk_level_info->num_levels; i++) {
+-		DRM_DEBUG("DM_PPLIB:\t %d\n", pp_clks->data[i].clocks_in_khz);
+-		clk_level_info->data[i].clocks_in_khz = pp_clks->data[i].clocks_in_khz;
+-		clk_level_info->data[i].latency_in_us = pp_clks->data[i].latency_in_us;
+-	}
+-}
+-
+ bool dm_pp_get_clock_levels_by_type(
+ 		const struct dc_context *ctx,
+ 		enum dm_pp_clock_type clk_type,
+@@ -338,22 +311,8 @@ bool dm_pp_get_clock_levels_by_type_with_latency(
+ 	enum dm_pp_clock_type clk_type,
+ 	struct dm_pp_clock_levels_with_latency *clk_level_info)
+ {
+-	struct amdgpu_device *adev = ctx->driver_context;
+-	void *pp_handle = adev->powerplay.pp_handle;
+-	struct pp_clock_levels_with_latency pp_clks = { 0 };
+-	const struct amd_pm_funcs *pp_funcs = adev->powerplay.pp_funcs;
+-
+-	if (!pp_funcs || !pp_funcs->get_clock_by_type_with_latency)
+-		return false;
+-
+-	if (pp_funcs->get_clock_by_type_with_latency(pp_handle,
+-						     dc_to_pp_clock_type(clk_type),
+-						     &pp_clks))
+-		return false;
+-
+-	pp_to_dc_clock_levels_with_latency(&pp_clks, clk_level_info, clk_type);
+-
+-	return true;
++	/* TODO: to be implemented */
++	return false;
+ }
+ 
+ bool dm_pp_get_clock_levels_by_type_with_voltage(
+-- 
+2.7.4
+

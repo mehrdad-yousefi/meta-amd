@@ -1,0 +1,64 @@
+From df9fb730247f6683baf44736e8ccc46be8483438 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Tue, 24 Apr 2018 18:26:51 -0400
+Subject: [PATCH 4289/5725] drm/amdkfd: Fix error handling around
+ kfd_process_create_wq
+
+Change-Id: Ic4c2b210db0cd248e82916f7f4b04b6c2071ed69
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_module.c  | 5 +++--
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 7 ++++++-
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_module.c b/drivers/gpu/drm/amd/amdkfd/kfd_module.c
+index a05f734..261657f 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_module.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_module.c
+@@ -102,7 +102,6 @@ MODULE_PARM_DESC(halt_if_hws_hang, "Halt if HWS hang is detected (0 = off (defau
+ 
+ static int amdkfd_init_completed;
+ 
+-
+ int kgd2kfd_init(unsigned int interface_version,
+ 		const struct kgd2kfd_calls **g2f)
+ {
+@@ -155,7 +154,7 @@ static int __init kfd_module_init(void)
+ 
+ 	err = kfd_ipc_init();
+ 	if (err < 0)
+-		goto err_topology;
++		goto err_ipc;
+ 
+ 	err = kfd_process_create_wq();
+ 	if (err < 0)
+@@ -172,6 +171,8 @@ static int __init kfd_module_init(void)
+ 	return 0;
+ 
+ err_create_wq:
++err_ipc:
++	kfd_topology_shutdown();
+ err_topology:
+ 	kfd_chardev_exit();
+ err_ioctl:
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index 0b04c63..2208794 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -80,7 +80,12 @@ int kfd_process_create_wq(void)
+ 	if (!kfd_restore_wq)
+ 		kfd_restore_wq = alloc_ordered_workqueue("kfd_restore_wq", 0);
+ 
+-	return kfd_process_wq && kfd_restore_wq ? 0 : -ENOMEM;
++	if (!kfd_process_wq || !kfd_restore_wq) {
++		kfd_process_destroy_wq();
++		return -ENOMEM;
++	}
++
++	return 0;
+ }
+ 
+ void kfd_process_destroy_wq(void)
+-- 
+2.7.4
+

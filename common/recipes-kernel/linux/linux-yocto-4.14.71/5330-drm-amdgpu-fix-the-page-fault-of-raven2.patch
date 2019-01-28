@@ -1,0 +1,83 @@
+From 71f0a8227045b3ffacf87299e130cd4bc41a3338 Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Fri, 21 Sep 2018 18:15:01 +0800
+Subject: [PATCH 5330/5725] drm/amdgpu: fix the page fault of raven2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+While the apg_end address is 0xffffffff, if add 1 with it, the value will be
+overflow and roll back to 0. So when 0 is written to
+mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR, the system aperture is actually disabled. And
+so any access to vram will trigger a page fault.
+
+Raven2's HW issue only need increase the vram end address, and needn't do it on
+the agp.
+
+Change-Id: I4f775c01857a3c8111f2145023ad15c4e94f0b26
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Cc: Marek Olšák <marek.olsak@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c | 16 ++++++++++++++--
+ drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c  | 16 ++++++++++++++--
+ 2 files changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c
+index ffd0ec9..ceb7847 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfxhub_v1_0.c
+@@ -73,8 +73,20 @@ static void gfxhub_v1_0_init_system_aperture_regs(struct amdgpu_device *adev)
+ 	/* Program the system aperture low logical page number. */
+ 	WREG32_SOC15(GC, 0, mmMC_VM_SYSTEM_APERTURE_LOW_ADDR,
+ 		     min(adev->gmc.vram_start, adev->gmc.agp_start) >> 18);
+-	WREG32_SOC15(GC, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
+-		     max(adev->gmc.vram_end, adev->gmc.agp_end) >> 18);
++
++	if (adev->asic_type == CHIP_RAVEN && adev->rev_id >= 0x8)
++		/*
++		 * Raven2 has a HW issue that it is unable to use the vram which
++		 * is out of MC_VM_SYSTEM_APERTURE_HIGH_ADDR. So here is the
++		 * workaround that increase system aperture high address (add 1)
++		 * to get rid of the VM fault and hardware hang.
++		 */
++		WREG32_SOC15(GC, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
++			     max((adev->gmc.vram_end >> 18) + 0x1,
++				 adev->gmc.agp_end >> 18));
++	else
++		WREG32_SOC15(GC, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
++			     max(adev->gmc.vram_end, adev->gmc.agp_end) >> 18);
+ 
+ 	/* Set default page address. */
+ 	value = adev->vram_scratch.gpu_addr - adev->gmc.vram_start
+diff --git a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+index 21a822f..cca6c1b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/mmhub_v1_0.c
+@@ -84,8 +84,20 @@ static void mmhub_v1_0_init_system_aperture_regs(struct amdgpu_device *adev)
+ 	/* Program the system aperture low logical page number. */
+ 	WREG32_SOC15(MMHUB, 0, mmMC_VM_SYSTEM_APERTURE_LOW_ADDR,
+ 		     min(adev->gmc.vram_start, adev->gmc.agp_start) >> 18);
+-	WREG32_SOC15(MMHUB, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
+-		     max(adev->gmc.vram_end, adev->gmc.agp_end) >> 18);
++
++	if (adev->asic_type == CHIP_RAVEN && adev->rev_id >= 0x8)
++		/*
++		 * Raven2 has a HW issue that it is unable to use the vram which
++		 * is out of MC_VM_SYSTEM_APERTURE_HIGH_ADDR. So here is the
++		 * workaround that increase system aperture high address (add 1)
++		 * to get rid of the VM fault and hardware hang.
++		 */
++		WREG32_SOC15(MMHUB, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
++			     max((adev->gmc.vram_end >> 18) + 0x1,
++				 adev->gmc.agp_end >> 18));
++	else
++		WREG32_SOC15(MMHUB, 0, mmMC_VM_SYSTEM_APERTURE_HIGH_ADDR,
++			     max(adev->gmc.vram_end, adev->gmc.agp_end) >> 18);
+ 
+ 	/* Set default page address. */
+ 	value = adev->vram_scratch.gpu_addr - adev->gmc.vram_start +
+-- 
+2.7.4
+

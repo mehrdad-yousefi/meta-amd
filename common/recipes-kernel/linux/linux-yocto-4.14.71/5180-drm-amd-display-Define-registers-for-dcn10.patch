@@ -1,0 +1,38 @@
+From 76ca45f0635ba94dce39617241552f0749d2e467 Mon Sep 17 00:00:00 2001
+From: Nikola Cornij <nikola.cornij@amd.com>
+Date: Fri, 13 Jul 2018 18:19:07 -0400
+Subject: [PATCH 5180/5725] drm/amd/display: Define registers for dcn10
+
+Define register for dcn10 for future changes
+
+Signed-off-by: Nikola Cornij <nikola.cornij@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_stream_encoder.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_stream_encoder.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_stream_encoder.h
+index 6b3e4de..67f3e4d 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_stream_encoder.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_stream_encoder.h
+@@ -260,6 +260,7 @@ struct dcn10_stream_enc_registers {
+ 	SE_SF(DP0_DP_SEC_CNTL, DP_SEC_GSP5_ENABLE, mask_sh),\
+ 	SE_SF(DP0_DP_SEC_CNTL, DP_SEC_GSP6_ENABLE, mask_sh),\
+ 	SE_SF(DP0_DP_SEC_CNTL, DP_SEC_GSP7_ENABLE, mask_sh),\
++	SE_SF(DP0_DP_SEC_CNTL2, DP_SEC_GSP7_SEND, mask_sh),\
+ 	SE_SF(DP0_DP_DB_CNTL, DP_DB_DISABLE, mask_sh),\
+ 	SE_SF(DP0_DP_MSA_COLORIMETRY, DP_MSA_MISC0, mask_sh),\
+ 	SE_SF(DP0_DP_MSA_TIMING_PARAM1, DP_MSA_HTOTAL, mask_sh),\
+@@ -364,6 +365,7 @@ struct dcn10_stream_enc_registers {
+ 	type DP_SEC_GSP5_ENABLE;\
+ 	type DP_SEC_GSP6_ENABLE;\
+ 	type DP_SEC_GSP7_ENABLE;\
++	type DP_SEC_GSP7_SEND;\
+ 	type DP_SEC_MPG_ENABLE;\
+ 	type DP_VID_STREAM_DIS_DEFER;\
+ 	type DP_VID_STREAM_ENABLE;\
+-- 
+2.7.4
+

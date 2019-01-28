@@ -1,0 +1,83 @@
+From 974fe593adb3b9c2b33fd8f587e90d90e32fe213 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Tue, 5 Jun 2018 12:56:26 -0400
+Subject: [PATCH 4801/5725] drm/amdgpu: Rename entity cleanup finctions.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Everything in the flush code path (i.e. waiting for SW queue
+to become empty) names with *_flush()
+and everything in the release code path names *_fini()
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Suggested-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h     | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c | 6 +++---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 3b456ce..da75fb2e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -702,8 +702,8 @@ int amdgpu_ctx_ioctl(struct drm_device *dev, void *data,
+ int amdgpu_ctx_wait_prev_fence(struct amdgpu_ctx *ctx, unsigned ring_id);
+ 
+ void amdgpu_ctx_mgr_init(struct amdgpu_ctx_mgr *mgr);
+-void amdgpu_ctx_mgr_entity_cleanup(struct amdgpu_ctx_mgr *mgr);
+ void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr);
++void amdgpu_ctx_mgr_entity_flush(struct amdgpu_ctx_mgr *mgr);
+ void amdgpu_ctx_mgr_fini(struct amdgpu_ctx_mgr *mgr);
+ 
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+index 6f6fdab..38903ea 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+@@ -460,7 +460,7 @@ void amdgpu_ctx_mgr_init(struct amdgpu_ctx_mgr *mgr)
+ 	idr_init(&mgr->ctx_handles);
+ }
+ 
+-void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr)
++void amdgpu_ctx_mgr_entity_flush(struct amdgpu_ctx_mgr *mgr)
+ {
+ 	struct amdgpu_ctx *ctx;
+ 	struct idr *idp;
+@@ -489,7 +489,7 @@ void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr)
+ 	mutex_unlock(&mgr->lock);
+ }
+ 
+-void amdgpu_ctx_mgr_entity_cleanup(struct amdgpu_ctx_mgr *mgr)
++void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr)
+ {
+ 	struct amdgpu_ctx *ctx;
+ 	struct idr *idp;
+@@ -522,7 +522,7 @@ void amdgpu_ctx_mgr_fini(struct amdgpu_ctx_mgr *mgr)
+ 	struct idr *idp;
+ 	uint32_t id;
+ 
+-	amdgpu_ctx_mgr_entity_cleanup(mgr);
++	amdgpu_ctx_mgr_entity_fini(mgr);
+ 
+ 	idp = &mgr->ctx_handles;
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index c41af58..b9b9850 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -866,7 +866,7 @@ static int amdgpu_flush(struct file *f, fl_owner_t id)
+ 	struct drm_file *file_priv = f->private_data;
+ 	struct amdgpu_fpriv *fpriv = file_priv->driver_priv;
+ 
+-	amdgpu_ctx_mgr_entity_fini(&fpriv->ctx_mgr);
++	amdgpu_ctx_mgr_entity_flush(&fpriv->ctx_mgr);
+ 
+ 	return 0;
+ }
+-- 
+2.7.4
+

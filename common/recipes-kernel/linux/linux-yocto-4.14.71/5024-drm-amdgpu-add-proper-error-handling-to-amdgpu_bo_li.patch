@@ -1,0 +1,116 @@
+From c9b633fc502fee8dda4cb23aee4b76269d3d71c2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 27 Jul 2018 15:32:04 +0200
+Subject: [PATCH 5024/5725] drm/amdgpu: add proper error handling to
+ amdgpu_bo_list_get
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Otherwise we silently don't use a BO list when the handle is invalid.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h         |  4 ++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c | 28 ++++++++++------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c      | 11 ++++++++---
+ 3 files changed, 20 insertions(+), 23 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 557c964..09d61b2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -736,8 +736,8 @@ struct amdgpu_bo_list {
+ 	struct amdgpu_bo_list_entry *array;
+ };
+ 
+-struct amdgpu_bo_list *
+-amdgpu_bo_list_get(struct amdgpu_fpriv *fpriv, int id);
++int amdgpu_bo_list_get(struct amdgpu_fpriv *fpriv, int id,
++		       struct amdgpu_bo_list **result);
+ void amdgpu_bo_list_get_list(struct amdgpu_bo_list *list,
+ 			     struct list_head *validated);
+ void amdgpu_bo_list_put(struct amdgpu_bo_list *list);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c
+index 6ad79dd6..7b4ce1d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c
+@@ -180,27 +180,20 @@ static int amdgpu_bo_list_set(struct amdgpu_device *adev,
+ 	return r;
+ }
+ 
+-struct amdgpu_bo_list *
+-amdgpu_bo_list_get(struct amdgpu_fpriv *fpriv, int id)
++int amdgpu_bo_list_get(struct amdgpu_fpriv *fpriv, int id,
++		       struct amdgpu_bo_list **result)
+ {
+-	struct amdgpu_bo_list *result;
+-
+ 	rcu_read_lock();
+-	result = idr_find(&fpriv->bo_list_handles, id);
++	*result = idr_find(&fpriv->bo_list_handles, id);
+ 
+-	if (result) {
+-		if (kref_get_unless_zero(&result->refcount)) {
+-			rcu_read_unlock();
+-			mutex_lock(&result->lock);
+-		} else {
+-			rcu_read_unlock();
+-			result = NULL;
+-		}
+-	} else {
++	if (*result && kref_get_unless_zero(&(*result)->refcount)) {
+ 		rcu_read_unlock();
++		mutex_lock(&(*result)->lock);
++		return 0;
+ 	}
+ 
+-	return result;
++	rcu_read_unlock();
++	return -ENOENT;
+ }
+ 
+ void amdgpu_bo_list_get_list(struct amdgpu_bo_list *list,
+@@ -334,9 +327,8 @@ int amdgpu_bo_list_ioctl(struct drm_device *dev, void *data,
+ 		break;
+ 
+ 	case AMDGPU_BO_LIST_OP_UPDATE:
+-		r = -ENOENT;
+-		list = amdgpu_bo_list_get(fpriv, handle);
+-		if (!list)
++		r = amdgpu_bo_list_get(fpriv, handle, &list);
++		if (r)
+ 			goto error_free;
+ 
+ 		r = amdgpu_bo_list_set(adev, filp, list, info,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 653c61f..5a466ce 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -572,11 +572,16 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
+ 	INIT_LIST_HEAD(&p->validated);
+ 
+ 	/* p->bo_list could already be assigned if AMDGPU_CHUNK_ID_BO_HANDLES is present */
+-	if (!p->bo_list)
+-		p->bo_list = amdgpu_bo_list_get(fpriv, cs->in.bo_list_handle);
+-	else
++	if (p->bo_list) {
+ 		mutex_lock(&p->bo_list->lock);
+ 
++	} else if (cs->in.bo_list_handle) {
++		r = amdgpu_bo_list_get(fpriv, cs->in.bo_list_handle,
++				       &p->bo_list);
++		if (r)
++			return r;
++	}
++
+ 	if (p->bo_list) {
+ 		amdgpu_bo_list_get_list(p->bo_list, &p->validated);
+ 		if (p->bo_list->first_userptr != p->bo_list->num_entries)
+-- 
+2.7.4
+

@@ -1,0 +1,36 @@
+From e38eca9b9a0401fb51f533c9830b9b671ae94085 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 27 Aug 2018 15:43:37 +0200
+Subject: [PATCH 5228/5725] drm/amdgpu: remove extra newline when printing VM
+ faults
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Looks like a copy&paste error to me.
+
+Change-Id: Ie9364e688d2adc8b76e4bcd46616bcad84f79d59
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 9e8b52c..bc815ebe 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -264,7 +264,7 @@ static int gmc_v9_0_process_interrupt(struct amdgpu_device *adev,
+ 		amdgpu_vm_get_task_info(adev, entry->pasid, &task_info);
+ 
+ 		dev_err(adev->dev,
+-			"[%s] VMC page fault (src_id:%u ring:%u vmid:%u pasid:%u, for process %s pid %d thread %s pid %d\n)\n",
++			"[%s] VMC page fault (src_id:%u ring:%u vmid:%u pasid:%u, for process %s pid %d thread %s pid %d)\n",
+ 			entry->vmid_src ? "mmhub" : "gfxhub",
+ 			entry->src_id, entry->ring_id, entry->vmid,
+ 			entry->pasid, task_info.process_name, task_info.tgid,
+-- 
+2.7.4
+

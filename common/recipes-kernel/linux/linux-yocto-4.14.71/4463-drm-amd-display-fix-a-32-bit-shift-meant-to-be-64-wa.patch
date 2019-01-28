@@ -1,0 +1,29 @@
+From 9c000464a9f5cb8ee6f6d7ffdb9bbc0f8e0c47f3 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Mon, 23 Apr 2018 14:39:23 -0400
+Subject: [PATCH 4463/5725] drm/amd/display: fix a 32 bit shift meant to be 64
+ warning
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/include/fixed31_32.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/include/fixed31_32.h b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+index bd8a304..76f64e9 100644
+--- a/drivers/gpu/drm/amd/display/include/fixed31_32.h
++++ b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+@@ -209,7 +209,7 @@ static inline struct fixed31_32 dc_fixpt_clamp(
+ static inline struct fixed31_32 dc_fixpt_shl(struct fixed31_32 arg, unsigned char shift)
+ {
+ 	ASSERT(((arg.value >= 0) && (arg.value <= LLONG_MAX >> shift)) ||
+-		((arg.value < 0) && (arg.value >= (LLONG_MIN / (1 << shift)))));
++		((arg.value < 0) && (arg.value >= (LLONG_MIN / (1LL << shift)))));
+ 
+ 	arg.value = arg.value << shift;
+ 
+-- 
+2.7.4
+

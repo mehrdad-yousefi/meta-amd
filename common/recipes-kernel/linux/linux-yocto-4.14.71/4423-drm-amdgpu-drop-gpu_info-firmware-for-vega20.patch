@@ -1,0 +1,76 @@
+From 758b3a555359a7b5dcafe83fc0b79d73e3744d87 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Wed, 18 Apr 2018 11:05:12 -0500
+Subject: [PATCH 4423/5725] drm/amdgpu: drop gpu_info firmware for vega20
+
+No longer required.
+
+Reviewed-by: Amber Lin <Amber.Lin@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 8 +-------
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c      | 8 +++-----
+ 2 files changed, 4 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index cfb66cc..8267990 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -60,7 +60,6 @@
+ 
+ MODULE_FIRMWARE("amdgpu/vega10_gpu_info.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_gpu_info.bin");
+-MODULE_FIRMWARE("amdgpu/vega20_gpu_info.bin");
+ MODULE_FIRMWARE("amdgpu/raven_gpu_info.bin");
+ 
+ #define AMDGPU_RESUME_MS		2000
+@@ -1439,6 +1438,7 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
+ 	case CHIP_KABINI:
+ 	case CHIP_MULLINS:
+ #endif
++    case CHIP_VEGA20:
+ 	default:
+ 		return 0;
+ 	case CHIP_VEGA10:
+@@ -1447,9 +1447,6 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 		chip_name = "vega12";
+ 		break;
+-	case CHIP_VEGA20:
+-		chip_name = "vega20";
+-		break;
+ 	case CHIP_RAVEN:
+ 		chip_name = "raven";
+ 		break;
+@@ -1508,9 +1505,6 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
+ 		goto out;
+ 	}
+ out:
+-	/* fall back to vbios tables for vega20 */
+-	if (adev->asic_type == CHIP_VEGA20)
+-		return 0;
+ 	return err;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index e6616e7..dcb916b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1150,11 +1150,9 @@ static int gfx_v9_0_gpu_early_init(struct amdgpu_device *adev)
+ 		gb_addr_config &= ~0xf3e777ff;
+ 		gb_addr_config |= 0x22014042;
+ 		/* check vbios table if gpu info is not available */
+-		if (!adev->gfx.config.max_shader_engines) {
+-			err = amdgpu_atomfirmware_get_gfx_info(adev);
+-			if (err)
+-				return err;
+-		}
++		err = amdgpu_atomfirmware_get_gfx_info(adev);
++		if (err)
++			return err;
+ 		break;
+ 	case CHIP_RAVEN:
+ 		adev->gfx.config.max_hw_contexts = 8;
+-- 
+2.7.4
+

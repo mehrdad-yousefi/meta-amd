@@ -1,0 +1,37 @@
+From 4d3b340f8350163912d14b88f007375bcc3b28ea Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 14 Sep 2018 11:32:52 +0800
+Subject: [PATCH 5422/5725] drm/amd/dc: Trigger set power state task when
+ display configuration changes
+
+Revert "drm/amd/display: Remove call to amdgpu_pm_compute_clocks"
+
+This reverts commit dcd473770e86517543691bdb227103d6c781cd0a.
+
+when display configuration changes, dc need to update the changes
+to powerplay, also need to trigger a power state task.
+amdgpu_pm_compute_clocks is the interface to set power state task
+either dpm enabled or powerplay enabled
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+index 6d16b4a..0fab64a 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+@@ -105,6 +105,8 @@ bool dm_pp_apply_display_requirements(
+ 			adev->powerplay.pp_funcs->display_configuration_change(
+ 				adev->powerplay.pp_handle,
+ 				&adev->pm.pm_display_cfg);
++
++		amdgpu_pm_compute_clocks(adev);
+ 	}
+ 
+ 	return true;
+-- 
+2.7.4
+

@@ -1,0 +1,36 @@
+From 65118457e9d0acd411250194b9c44e10559380c0 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 28 Jun 2018 12:48:10 -0500
+Subject: [PATCH 4830/5725] drm/amdgpu/pp: add missing byte swapping in
+ process_pptables_v1_0.c
+
+Values need to be swapped on big endian.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c b/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c
+index 35bd987..4e1fd53 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/process_pptables_v1_0.c
+@@ -183,10 +183,10 @@ static int get_vddc_lookup_table(
+ 					ATOM_Tonga_Voltage_Lookup_Record,
+ 					entries, vddc_lookup_pp_tables, i);
+ 		record->us_calculated = 0;
+-		record->us_vdd = atom_record->usVdd;
+-		record->us_cac_low = atom_record->usCACLow;
+-		record->us_cac_mid = atom_record->usCACMid;
+-		record->us_cac_high = atom_record->usCACHigh;
++		record->us_vdd = le16_to_cpu(atom_record->usVdd);
++		record->us_cac_low = le16_to_cpu(atom_record->usCACLow);
++		record->us_cac_mid = le16_to_cpu(atom_record->usCACMid);
++		record->us_cac_high = le16_to_cpu(atom_record->usCACHigh);
+ 	}
+ 
+ 	*lookup_table = table;
+-- 
+2.7.4
+

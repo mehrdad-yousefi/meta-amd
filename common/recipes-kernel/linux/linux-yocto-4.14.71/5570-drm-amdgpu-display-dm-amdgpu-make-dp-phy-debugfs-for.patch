@@ -1,0 +1,35 @@
+From 82c11dd37118a7e60b882e0b978786ed627b31d5 Mon Sep 17 00:00:00 2001
+From: hersen wu <hersenxs.wu@amd.com>
+Date: Thu, 4 Oct 2018 09:28:20 -0400
+Subject: [PATCH 5570/5725] drm/amdgpu/display: dm/amdgpu: make dp phy debugfs
+ for eDP
+
+[WHY] dp debugfs file does not exist for eDP under
+      /sys/kernel/debug/dri/0/eDP-1. the root is phy debugfs
+      is created for dp connector only.
+[HOW] for eDP connector, create phy debugfs too.
+
+Signed-off-by: Hersen Wu <hersenxs.wu@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c
+index 0ef4a40..9a7ac58 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c
+@@ -705,7 +705,8 @@ int connector_debugfs_init(struct amdgpu_dm_connector *connector)
+ 	int i;
+ 	struct dentry *ent, *dir = connector->base.debugfs_entry;
+ 
+-	if (connector->base.connector_type == DRM_MODE_CONNECTOR_DisplayPort) {
++	if (connector->base.connector_type == DRM_MODE_CONNECTOR_DisplayPort ||
++	    connector->base.connector_type == DRM_MODE_CONNECTOR_eDP) {
+ 		for (i = 0; i < ARRAY_SIZE(dp_debugfs_entries); i++) {
+ 			ent = debugfs_create_file(dp_debugfs_entries[i].name,
+ 						  0644,
+-- 
+2.7.4
+

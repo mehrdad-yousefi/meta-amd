@@ -1,0 +1,56 @@
+From 0230676eb4da2e340777783362fcc5d2cd38fc84 Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Wed, 22 Aug 2018 20:18:25 +0800
+Subject: [PATCH 5335/5725] amdgpu: fix multi-process hang issue
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+SWDEV-146499: hang during multi vulkan process testing
+
+cause:
+the second frame's PREAMBLE_IB have clear-state
+and LOAD actions, those actions ruin the pipeline
+that is still doing process in the previous frame's
+work-load IB.
+
+fix:
+need insert pipeline sync if have context switch for
+SRIOV (because only SRIOV will report PREEMPTION flag
+to UMD)
+
+Signed-off-by: Monk Liu <Monk.Liu@amd.com>
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+index a38daa3..1d86c3b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+@@ -171,8 +171,10 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
+ 		return r;
+ 	}
+ 
++	need_ctx_switch = ring->current_ctx != fence_ctx;
+ 	if (ring->funcs->emit_pipeline_sync && job &&
+ 	    ((tmp = amdgpu_sync_get_fence(&job->sched_sync, NULL)) ||
++	     (amdgpu_sriov_vf(adev) && need_ctx_switch) ||
+ 	     amdgpu_vm_need_pipeline_sync(ring, job))) {
+ 		need_pipe_sync = true;
+ 
+@@ -206,7 +208,6 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
+ 		amdgpu_ring_emit_hdp_flush(ring);
+ 
+ 	skip_preamble = ring->current_ctx == fence_ctx;
+-	need_ctx_switch = ring->current_ctx != fence_ctx;
+ 	if (job && ring->funcs->emit_cntxcntl) {
+ 		if (need_ctx_switch)
+ 			status |= AMDGPU_HAVE_CTX_SWITCH;
+-- 
+2.7.4
+

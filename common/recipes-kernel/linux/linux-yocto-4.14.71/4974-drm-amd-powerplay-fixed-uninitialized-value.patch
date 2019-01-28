@@ -1,0 +1,32 @@
+From 728782455a0f16da16dd99474f7b3a6999e74d73 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 19 Jul 2018 13:21:43 +0800
+Subject: [PATCH 4974/5725] drm/amd/powerplay: fixed uninitialized value
+
+The 'result' is not initialized correctly. It causes the API
+return an error code even on success.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Cc: stable@vger.kernel.org
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index 912d0d6..4ed218d 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -488,7 +488,7 @@ static int vega12_get_number_of_dpm_level(struct pp_hwmgr *hwmgr,
+ static int vega12_get_dpm_frequency_by_index(struct pp_hwmgr *hwmgr,
+ 		PPCLK_e clkID, uint32_t index, uint32_t *clock)
+ {
+-	int result;
++	int result = 0;
+ 
+ 	/*
+ 	 *SMU expects the Clock ID to be in the top 16 bits.
+-- 
+2.7.4
+

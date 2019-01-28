@@ -1,0 +1,32 @@
+From aab1cd9f80690889681c6d74f34f470d41d7ca04 Mon Sep 17 00:00:00 2001
+From: rex zhu <rex.zhu@amd.com>
+Date: Wed, 27 Jun 2018 17:35:40 +0800
+Subject: [PATCH 4804/5725] drm/amd/display: Drop unnecessary header file
+
+powerplay implement hwmgr_function table for all supported asics in
+order to conceal the asic's detail infomation. so no need to include
+the smu10_hwmgr.h.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+index ad96e2a..2acbcc7 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+@@ -34,7 +34,6 @@
+ #include "amdgpu_pm.h"
+ #include "dm_pp_smu.h"
+ #include "../../powerplay/inc/hwmgr.h"
+-#include "../../powerplay/hwmgr/smu10_hwmgr.h"
+ 
+ 
+ bool dm_pp_apply_display_requirements(
+-- 
+2.7.4
+

@@ -1,0 +1,33 @@
+From 3dc8e34ec7a31e9d5b62a6ca2cd79acd84f689b1 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 20 Sep 2018 22:36:38 -0500
+Subject: [PATCH 5443/5725] drm/amdgpu: implement ENABLED_SMC_FEATURES_MASK
+ sensor for vega20
+
+So we can query what features are enabled for debugging.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 260e0e4..2a554f9 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -1941,6 +1941,11 @@ static int vega20_read_sensor(struct pp_hwmgr *hwmgr, int idx,
+ 		*size = 16;
+ 		ret = vega20_get_gpu_power(hwmgr, (uint32_t *)value);
+ 		break;
++	case AMDGPU_PP_SENSOR_ENABLED_SMC_FEATURES_MASK:
++		ret = vega20_get_enabled_smc_features(hwmgr, (uint64_t *)value);
++		if (!ret)
++			*size = 8;
++		break;
+ 	default:
+ 		ret = -EINVAL;
+ 		break;
+-- 
+2.7.4
+

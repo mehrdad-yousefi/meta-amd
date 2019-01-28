@@ -1,0 +1,50 @@
+From a9c4a96846cd940fdea416cb7ca65cdb8e8e569c Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Tue, 13 Mar 2018 18:32:39 +0800
+Subject: [PATCH 4693/5725] drm/amd/powerplay: add control gfxoff enabling in
+ late init
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 76fc45f..46ffe04 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -180,7 +180,8 @@ static int pp_late_init(void *handle)
+ {
+ 	struct amdgpu_device *adev = handle;
+ 	struct pp_hwmgr *hwmgr = adev->powerplay.pp_handle;
+-
++	int ret;
++	
+ 	if (hwmgr && hwmgr->pm_en) {
+ 		mutex_lock(&hwmgr->smu_lock);
+ 		hwmgr_handle_task(hwmgr,
+@@ -191,6 +192,13 @@ static int pp_late_init(void *handle)
+ 	if (adev->pm.smu_prv_buffer_size != 0)
+ 		pp_reserve_vram_for_smu(adev);
+ 
++	if (hwmgr->hwmgr_func->gfx_off_control &&
++	    (hwmgr->feature_mask & PP_GFXOFF_MASK)) {
++		ret = hwmgr->hwmgr_func->gfx_off_control(hwmgr, true);
++		if (ret)
++			pr_err("gfx off enabling failed!\n");
++	}
++	
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

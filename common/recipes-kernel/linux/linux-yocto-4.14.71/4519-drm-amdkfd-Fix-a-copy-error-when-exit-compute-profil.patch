@@ -1,0 +1,33 @@
+From b54f5ca3b2774afa0564607fcac003f356d87df6 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 18 May 2018 11:39:45 +0800
+Subject: [PATCH 4519/5725] drm/amdkfd: Fix a copy error when exit compute
+ profile mode
+
+Change-Id: I75fe5d92cc9b0b5e442769f0dedb47c207913968
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index e2f2892..1fcc586 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2694,7 +2694,7 @@ void amdgpu_vm_fini(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 			/* Last KFD VM: enable graphics power profile */
+ 			if (adev->powerplay.pp_funcs->switch_power_profile)
+ 				amdgpu_dpm_switch_power_profile(adev,
+-						PP_SMC_POWER_PROFILE_COMPUTE, true);
++					PP_SMC_POWER_PROFILE_COMPUTE, false);
+ 		}
+ 		mutex_unlock(&id_mgr->lock);
+ 	}
+-- 
+2.7.4
+

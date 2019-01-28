@@ -1,0 +1,579 @@
+From 97b4e77e5035a3f452d1598a2f55ef206ce3ace2 Mon Sep 17 00:00:00 2001
+From: Ravi Kumar <ravi1.kumar@amd.com>
+Date: Mon, 5 Nov 2018 19:44:33 +0530
+Subject: [PATCH 5717/5725] Reverted: Update KFD-Thunk ioctl ABI to match
+ upstream patch
+
+Signed-off-by: Ravi Kumar <ravi1.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c |   4 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c         | 141 ++++++++++++++---------
+ drivers/gpu/drm/amd/amdkfd/kfd_flat_memory.c     |  10 ++
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h            |   2 +
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c         |  11 +-
+ drivers/gpu/drm/amd/include/kgd_kfd_interface.h  |  20 ++--
+ include/uapi/linux/kfd_ioctl.h                   |  82 ++++++-------
+ 7 files changed, 156 insertions(+), 114 deletions(-)
+ mode change 100644 => 100755 drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 15a64e8..3b305b3 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1288,9 +1288,9 @@ int amdgpu_amdkfd_gpuvm_alloc_memory_of_gpu(
+ 			VI_BO_SIZE_ALIGN : 1;
+ 
+ 	mapping_flags = AMDGPU_VM_PAGE_READABLE;
+-	if (flags & ALLOC_MEM_FLAGS_WRITABLE)
++	if (!(flags & ALLOC_MEM_FLAGS_READONLY))
+ 		mapping_flags |= AMDGPU_VM_PAGE_WRITEABLE;
+-	if (flags & ALLOC_MEM_FLAGS_EXECUTABLE)
++	if (flags & ALLOC_MEM_FLAGS_EXECUTE_ACCESS)
+ 		mapping_flags |= AMDGPU_VM_PAGE_EXECUTABLE;
+ 	if (flags & ALLOC_MEM_FLAGS_COHERENT)
+ 		mapping_flags |= AMDGPU_VM_MTYPE_UC;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+old mode 100644
+new mode 100755
+index 9d92522..d94727a
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1085,14 +1085,17 @@ static int kfd_ioctl_wait_events(struct file *filp, struct kfd_process *p,
+ 
+ 	return err;
+ }
+-static int kfd_ioctl_set_scratch_backing_va(struct file *filep,
++static int kfd_ioctl_alloc_scratch_memory(struct file *filep,
+ 					struct kfd_process *p, void *data)
+ {
+-	struct kfd_ioctl_set_scratch_backing_va_args *args = data;
++	struct kfd_ioctl_alloc_memory_of_scratch_args *args = data;
+ 	struct kfd_process_device *pdd;
+ 	struct kfd_dev *dev;
+ 	long err;
+ 
++	if (args->size == 0)
++		return -EINVAL;
++
+ 	dev = kfd_device_by_id(args->gpu_id);
+ 	if (!dev)
+ 		return -EINVAL;
+@@ -1458,7 +1461,7 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ 	void *mem;
+ 	struct kfd_dev *dev, *peer;
+ 	long err = 0;
+-	int i;
++	int i, num_dev = 0;
+ 	uint32_t *devices_arr = NULL;
+ 
+ 	trace_kfd_map_memory_to_gpu_start(p);
+@@ -1466,23 +1469,24 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ 	if (!dev)
+ 		return -EINVAL;
+ 
+-	if (!args->n_devices) {
+-		pr_debug("Device IDs array empty\n");
++        if (args->device_ids_array_size == 0) {
++                pr_debug("Device ID array size is 0\n");
+ 		return -EINVAL;
+ 	}
+-	if (args->n_success > args->n_devices) {
+-		pr_debug("n_success exceeds n_devices\n");
++
++        if (args->device_ids_array_size % sizeof(uint32_t)) {
++                pr_debug("Node IDs array size %u\n",
++                                args->device_ids_array_size);
+ 		return -EINVAL;
+ 	}
+ 
+-	devices_arr = kmalloc_array(args->n_devices, sizeof(*devices_arr),
+-				    GFP_KERNEL);
++	devices_arr = kmalloc(args->device_ids_array_size, GFP_KERNEL);
+ 	if (!devices_arr)
+ 		return -ENOMEM;
+ 
+ 	err = copy_from_user(devices_arr,
+-			     (void __user *)args->device_ids_array_ptr,
+-			     args->n_devices * sizeof(*devices_arr));
++                        (void __user *)args->device_ids_array_ptr,
++                        args->device_ids_array_size);
+ 	if (err != 0) {
+ 		err = -EFAULT;
+ 		goto copy_from_user_failed;
+@@ -1503,11 +1507,12 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ 		goto get_mem_obj_from_handle_failed;
+ 	}
+ 
+-	for (i = args->n_success; i < args->n_devices; i++) {
++	num_dev = args->device_ids_array_size / sizeof(uint32_t);
++	for (i = 0 ; i < num_dev; i++) {
+ 		peer = kfd_device_by_id(devices_arr[i]);
+ 		if (!peer) {
+ 			pr_debug("Getting device by id failed for 0x%x\n",
+-				 devices_arr[i]);
++					devices_arr[i]);
+ 			err = -EINVAL;
+ 			goto get_mem_obj_from_handle_failed;
+ 		}
+@@ -1518,13 +1523,12 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ 			goto get_mem_obj_from_handle_failed;
+ 		}
+ 		err = peer->kfd2kgd->map_memory_to_gpu(
+-			peer->kgd, (struct kgd_mem *)mem, peer_pdd->vm);
+-		if (err) {
+-			pr_err("Failed to map to gpu %d/%d\n",
+-			       i, args->n_devices);
++				peer->kgd, (struct kgd_mem *)mem, peer_pdd->vm);
++		if (err != 0) {
++			pr_err("Failed to map to gpu %d, num_dev=%d\n",
++					i, num_dev);
+ 			goto map_memory_to_gpu_failed;
+ 		}
+-		args->n_success = i+1;
+ 	}
+ 
+ 	mutex_unlock(&p->mutex);
+@@ -1536,7 +1540,7 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ 	}
+ 
+ 	/* Flush TLBs after waiting for the page table updates to complete */
+-	for (i = 0; i < args->n_devices; i++) {
++	for (i = 0; i < num_dev; i++) {
+ 		peer = kfd_device_by_id(devices_arr[i]);
+ 		if (WARN_ON_ONCE(!peer))
+ 			continue;
+@@ -1549,7 +1553,7 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ 	kfree(devices_arr);
+ 
+ 	trace_kfd_map_memory_to_gpu_end(p,
+-			args->n_devices * sizeof(*devices_arr), "Success");
++			num_dev * sizeof(*devices_arr), "Success");
+ 	return err;
+ 
+ bind_process_to_device_failed:
+@@ -1560,7 +1564,7 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ sync_memory_failed:
+ 	kfree(devices_arr);
+ 	trace_kfd_map_memory_to_gpu_end(p,
+-		args->n_devices * sizeof(*devices_arr), "Failed");
++		num_dev * sizeof(*devices_arr), "Failed");
+ 
+ 	return err;
+ }
+@@ -1573,29 +1577,30 @@ static int kfd_ioctl_unmap_memory_from_gpu(struct file *filep,
+ 	void *mem;
+ 	struct kfd_dev *dev, *peer;
+ 	long err = 0;
+-	uint32_t *devices_arr = NULL, i;
++	uint32_t *devices_arr = NULL, num_dev, i;
+ 
+ 	dev = kfd_device_by_id(GET_GPU_ID(args->handle));
+ 	if (!dev)
+ 		return -EINVAL;
+ 
+-	if (!args->n_devices) {
+-		pr_debug("Device IDs array empty\n");
++	if (args->device_ids_array_size == 0) {
++		pr_debug("Device ID array size is 0\n");
+ 		return -EINVAL;
+ 	}
+-	if (args->n_success > args->n_devices) {
+-		pr_debug("n_success exceeds n_devices\n");
++
++	if (args->device_ids_array_size % sizeof(uint32_t)) {
++		pr_debug("Node IDs array size %u\n",
++				args->device_ids_array_size);
+ 		return -EINVAL;
+ 	}
+ 
+-	devices_arr = kmalloc_array(args->n_devices, sizeof(*devices_arr),
+-				    GFP_KERNEL);
++	devices_arr = kmalloc(args->device_ids_array_size, GFP_KERNEL);
+ 	if (!devices_arr)
+ 		return -ENOMEM;
+ 
+ 	err = copy_from_user(devices_arr,
+-			     (void __user *)args->device_ids_array_ptr,
+-			     args->n_devices * sizeof(*devices_arr));
++			(void __user *)args->device_ids_array_ptr,
++			args->device_ids_array_size);
+ 	if (err != 0) {
+ 		err = -EFAULT;
+ 		goto copy_from_user_failed;
+@@ -1605,7 +1610,8 @@ static int kfd_ioctl_unmap_memory_from_gpu(struct file *filep,
+ 
+ 	pdd = kfd_get_process_device_data(dev, p);
+ 	if (!pdd) {
+-		err = -EINVAL;
++		pr_debug("Process device data doesn't exist\n");
++		err = -ENODEV;
+ 		goto bind_process_to_device_failed;
+ 	}
+ 
+@@ -1616,7 +1622,8 @@ static int kfd_ioctl_unmap_memory_from_gpu(struct file *filep,
+ 		goto get_mem_obj_from_handle_failed;
+ 	}
+ 
+-	for (i = args->n_success; i < args->n_devices; i++) {
++	num_dev = args->device_ids_array_size / sizeof(uint32_t);
++	for (i = 0 ; i < num_dev; i++) {
+ 		peer = kfd_device_by_id(devices_arr[i]);
+ 		if (!peer) {
+ 			err = -EINVAL;
+@@ -1632,10 +1639,9 @@ static int kfd_ioctl_unmap_memory_from_gpu(struct file *filep,
+ 			peer->kgd, (struct kgd_mem *)mem, peer_pdd->vm);
+ 		if (err) {
+ 			pr_err("Failed to unmap from gpu %d/%d\n",
+-			       i, args->n_devices);
++			       i, num_dev);
+ 			goto unmap_memory_from_gpu_failed;
+ 		}
+-		args->n_success = i+1;
+ 	}
+ 	kfree(devices_arr);
+ 
+@@ -1652,6 +1658,34 @@ static int kfd_ioctl_unmap_memory_from_gpu(struct file *filep,
+ 	return err;
+ }
+ 
++static int kfd_ioctl_set_process_dgpu_aperture(struct file *filep,
++		struct kfd_process *p, void *data)
++{
++	struct kfd_ioctl_set_process_dgpu_aperture_args *args = data;
++	struct kfd_dev *dev;
++	struct kfd_process_device *pdd;
++	long err;
++
++	dev = kfd_device_by_id(args->gpu_id);
++	if (!dev)
++		return -EINVAL;
++
++	mutex_lock(&p->mutex);
++
++	pdd = kfd_bind_process_to_device(dev, p);
++	if (IS_ERR(pdd)) {
++		err = PTR_ERR(pdd);
++		goto exit;
++	}
++
++	err = kfd_set_process_dgpu_aperture(pdd, args->dgpu_base,
++			args->dgpu_limit);
++
++exit:
++	mutex_unlock(&p->mutex);
++	return err;
++}
++
+ static int kfd_ioctl_get_dmabuf_info(struct file *filep,
+ 		struct kfd_process *p, void *data)
+ {
+@@ -1944,7 +1978,7 @@ static int kfd_create_cma_system_bo(struct kfd_dev *kdev, struct kfd_bo *bo,
+ 	uint64_t bo_size = 0;
+ 	struct dma_fence *f;
+ 
+-	uint32_t flags = ALLOC_MEM_FLAGS_GTT | ALLOC_MEM_FLAGS_WRITABLE |
++	uint32_t flags = ALLOC_MEM_FLAGS_GTT | ALLOC_MEM_FLAGS_NONPAGED |
+ 			 ALLOC_MEM_FLAGS_NO_SUBSTITUTE;
+ 
+ 	*cma_bo = NULL;
+@@ -2739,21 +2773,6 @@ static const struct amdkfd_ioctl_desc amdkfd_ioctls[] = {
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_DBG_WAVE_CONTROL,
+ 			kfd_ioctl_dbg_wave_control, 0),
+ 
+-	AMDKFD_IOCTL_DEF(AMDKFD_IOC_SET_SCRATCH_BACKING_VA,
+-			kfd_ioctl_set_scratch_backing_va, 0),
+-
+-	AMDKFD_IOCTL_DEF(AMDKFD_IOC_GET_TILE_CONFIG,
+-			kfd_ioctl_get_tile_config, 0),
+-
+-	AMDKFD_IOCTL_DEF(AMDKFD_IOC_SET_TRAP_HANDLER,
+-			kfd_ioctl_set_trap_handler, 0),
+-
+-	AMDKFD_IOCTL_DEF(AMDKFD_IOC_GET_PROCESS_APERTURES_NEW,
+-			kfd_ioctl_get_process_apertures_new, 0),
+-
+-	AMDKFD_IOCTL_DEF(AMDKFD_IOC_ACQUIRE_VM,
+-			kfd_ioctl_acquire_vm, 0),
+-
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_ALLOC_MEMORY_OF_GPU,
+ 			kfd_ioctl_alloc_memory_of_gpu, 0),
+ 
+@@ -2766,15 +2785,30 @@ static const struct amdkfd_ioctl_desc amdkfd_ioctls[] = {
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_UNMAP_MEMORY_FROM_GPU,
+ 			kfd_ioctl_unmap_memory_from_gpu, 0),
+ 
++	AMDKFD_IOCTL_DEF(AMDKFD_IOC_ALLOC_MEMORY_OF_SCRATCH,
++			kfd_ioctl_alloc_scratch_memory, 0),
++
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_SET_CU_MASK,
+ 			kfd_ioctl_set_cu_mask, 0),
+ 
++	AMDKFD_IOCTL_DEF(AMDKFD_IOC_SET_PROCESS_DGPU_APERTURE,
++			kfd_ioctl_set_process_dgpu_aperture, 0),
++
++	AMDKFD_IOCTL_DEF(AMDKFD_IOC_SET_TRAP_HANDLER,
++			kfd_ioctl_set_trap_handler, 0),
++
++	AMDKFD_IOCTL_DEF(AMDKFD_IOC_GET_PROCESS_APERTURES_NEW,
++				kfd_ioctl_get_process_apertures_new, 0),
++
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_GET_DMABUF_INFO,
+ 				kfd_ioctl_get_dmabuf_info, 0),
+ 
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_IMPORT_DMABUF,
+ 				kfd_ioctl_import_dmabuf, 0),
+ 
++	AMDKFD_IOCTL_DEF(AMDKFD_IOC_GET_TILE_CONFIG,
++				kfd_ioctl_get_tile_config, 0),
++
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_IPC_IMPORT_HANDLE,
+ 				kfd_ioctl_ipc_import_handle, 0),
+ 
+@@ -2787,8 +2821,11 @@ static const struct amdkfd_ioctl_desc amdkfd_ioctls[] = {
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_GET_QUEUE_WAVE_STATE,
+ 				kfd_ioctl_get_queue_wave_state, 0),
+ 
+-	AMDKFD_IOCTL_DEF(AMDKFD_IOC_DBG_TRAP,
+-				kfd_ioctl_dbg_set_debug_trap, 0),
++//	AMDKFD_IOCTL_DEF(AMDKFD_IOC_DBG_TRAP,
++//				kfd_ioctl_dbg_set_debug_trap, 0),
++
++	AMDKFD_IOCTL_DEF(AMDKFD_IOC_ACQUIRE_VM,
++				kfd_ioctl_acquire_vm, 0)
+ 
+ };
+ 
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_flat_memory.c b/drivers/gpu/drm/amd/amdkfd/kfd_flat_memory.c
+index 8f123a2..ebe721b 100755
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_flat_memory.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_flat_memory.c
+@@ -312,6 +312,16 @@
+ #define SVM_CWSR_BASE (SVM_USER_BASE - KFD_CWSR_TBA_TMA_SIZE)
+ #define SVM_IB_BASE   (SVM_CWSR_BASE - PAGE_SIZE)
+ 
++int kfd_set_process_dgpu_aperture(struct kfd_process_device *pdd,
++                                       uint64_t base, uint64_t limit)
++{
++       if (base < SVM_USER_BASE) {
++               pr_err("Set dgpu vm base 0x%llx failed.\n", base);
++               return -EINVAL;
++       }
++       return 0;
++}
++
+ static void kfd_init_apertures_vi(struct kfd_process_device *pdd, uint8_t id)
+ {
+ 	/*
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 1f0d558..34bef7e 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -957,6 +957,8 @@ int kgd2kfd_post_reset(struct kfd_dev *kfd);
+ 
+ /* amdkfd Apertures */
+ int kfd_init_apertures(struct kfd_process *process);
++int kfd_set_process_dgpu_aperture(struct kfd_process_device *pdd,
++				uint64_t base, uint64_t limit);
+ 
+ /* Queue Context Management */
+ int init_queue(struct queue **q, const struct queue_properties *properties);
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index 7b9e587..69815c3 100755
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -189,10 +189,8 @@ static int kfd_process_alloc_gpuvm(struct kfd_process_device *pdd,
+ static int kfd_process_device_reserve_ib_mem(struct kfd_process_device *pdd)
+ {
+ 	struct qcm_process_device *qpd = &pdd->qpd;
+-	uint32_t flags = ALLOC_MEM_FLAGS_GTT |
+-			 ALLOC_MEM_FLAGS_NO_SUBSTITUTE |
+-			 ALLOC_MEM_FLAGS_WRITABLE |
+-			 ALLOC_MEM_FLAGS_EXECUTABLE;
++	uint32_t flags = ALLOC_MEM_FLAGS_GTT | ALLOC_MEM_FLAGS_NONPAGED |
++		ALLOC_MEM_FLAGS_NO_SUBSTITUTE | ALLOC_MEM_FLAGS_EXECUTE_ACCESS;
+ 	void *kaddr;
+ 	int ret;
+ 
+@@ -518,8 +516,9 @@ static int kfd_process_device_init_cwsr_dgpu(struct kfd_process_device *pdd)
+ {
+ 	struct kfd_dev *dev = pdd->dev;
+ 	struct qcm_process_device *qpd = &pdd->qpd;
+-	uint32_t flags = ALLOC_MEM_FLAGS_GTT |
+-		ALLOC_MEM_FLAGS_NO_SUBSTITUTE | ALLOC_MEM_FLAGS_EXECUTABLE;
++	uint32_t flags = ALLOC_MEM_FLAGS_GTT | ALLOC_MEM_FLAGS_NONPAGED |
++		ALLOC_MEM_FLAGS_NO_SUBSTITUTE | ALLOC_MEM_FLAGS_READONLY |
++		ALLOC_MEM_FLAGS_EXECUTE_ACCESS;
+ 	void *kaddr;
+ 	int ret;
+ 
+diff --git a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+index e7ba62c..49a02e9 100755
+--- a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+@@ -191,22 +191,22 @@ struct tile_config {
+  * Allocation flag domains
+  * NOTE: This must match the corresponding definitions in kfd_ioctl.h.
+  */
+-#define ALLOC_MEM_FLAGS_VRAM		(1 << 0)
+-#define ALLOC_MEM_FLAGS_GTT		(1 << 1)
+-#define ALLOC_MEM_FLAGS_USERPTR		(1 << 2)
+-#define ALLOC_MEM_FLAGS_DOORBELL	(1 << 3)
+-
++#define ALLOC_MEM_FLAGS_VRAM            (1 << 0)
++#define ALLOC_MEM_FLAGS_GTT             (1 << 1)
++#define ALLOC_MEM_FLAGS_USERPTR         (1 << 2)
++#define ALLOC_MEM_FLAGS_DOORBELL        (1 << 3)
+ 
+ /*
+  * Allocation flags attributes/access options.
+  * NOTE: This must match the corresponding definitions in kfd_ioctl.h.
+  */
+-#define ALLOC_MEM_FLAGS_WRITABLE	(1 << 31)
+-#define ALLOC_MEM_FLAGS_EXECUTABLE	(1 << 30)
+-#define ALLOC_MEM_FLAGS_PUBLIC		(1 << 29)
+-#define ALLOC_MEM_FLAGS_NO_SUBSTITUTE	(1 << 28) /* TODO */
++#define ALLOC_MEM_FLAGS_NONPAGED               (1 << 31)
++#define ALLOC_MEM_FLAGS_READONLY               (1 << 30)
++#define ALLOC_MEM_FLAGS_PUBLIC                 (1 << 29)
++#define ALLOC_MEM_FLAGS_NO_SUBSTITUTE  (1 << 28)
+ #define ALLOC_MEM_FLAGS_AQL_QUEUE_MEM	(1 << 27)
+-#define ALLOC_MEM_FLAGS_COHERENT	(1 << 26) /* For GFXv9 or later */
++#define ALLOC_MEM_FLAGS_EXECUTE_ACCESS (1 << 26)
++#define ALLOC_MEM_FLAGS_COHERENT       (1 << 25)
+ 
+ /**
+  * struct kfd2kgd_calls
+diff --git a/include/uapi/linux/kfd_ioctl.h b/include/uapi/linux/kfd_ioctl.h
+index 7bef0e4..80640e69 100755
+--- a/include/uapi/linux/kfd_ioctl.h
++++ b/include/uapi/linux/kfd_ioctl.h
+@@ -320,12 +320,6 @@ struct kfd_ioctl_wait_events_args {
+ 	uint32_t wait_result;		/* from KFD */
+ };
+ 
+-struct kfd_ioctl_set_scratch_backing_va_args {
+-	__u64 va_addr;  /* to KFD */
+-	__u32 gpu_id;   /* to KFD */
+-	__u32 pad;
+-};
+-
+ struct kfd_ioctl_alloc_memory_of_scratch_args {
+ 	uint64_t va_addr;	/* to KFD */
+ 	uint64_t size;		/* to KFD */
+@@ -366,17 +360,17 @@ struct kfd_ioctl_free_memory_of_gpu_args {
+ };
+ 
+ struct kfd_ioctl_map_memory_to_gpu_args {
+-	uint64_t handle;			/* to KFD */
+-	uint64_t device_ids_array_ptr;		/* to KFD */
+-	uint32_t n_devices;                     /* to KFD */
+-	uint32_t n_success;                     /* to/from KFD */
++        uint64_t handle;                        /* to KFD */
++        uint64_t device_ids_array_ptr;          /* to KFD */
++        uint32_t device_ids_array_size;         /* to KFD */
++        uint32_t pad;
+ };
+ 
+ struct kfd_ioctl_unmap_memory_from_gpu_args {
+-	uint64_t handle;			/* to KFD */
+-	uint64_t device_ids_array_ptr;		/* to KFD */
+-	uint32_t n_devices;                     /* to KFD */
+-	uint32_t n_success;                     /* to/from KFD */
++        uint64_t handle;                        /* to KFD */
++        uint64_t device_ids_array_ptr;          /* to KFD */
++        uint32_t device_ids_array_size;         /* to KFD */
++        uint32_t pad;
+ };
+ 
+ struct kfd_ioctl_set_process_dgpu_aperture_args {
+@@ -535,57 +529,57 @@ struct kfd_ioctl_get_tile_config_args {
+ #define AMDKFD_IOC_DBG_WAVE_CONTROL             \
+                 AMDKFD_IOW(0x10, struct kfd_ioctl_dbg_wave_control_args)
+ 
+-#define AMDKFD_IOC_SET_SCRATCH_BACKING_VA       \
+-                AMDKFD_IOWR(0x11, struct kfd_ioctl_set_scratch_backing_va_args)
+-
+-#define AMDKFD_IOC_GET_TILE_CONFIG              \
+-                AMDKFD_IOWR(0x12, struct kfd_ioctl_get_tile_config_args)
+-
+-#define AMDKFD_IOC_SET_TRAP_HANDLER             \
+-                AMDKFD_IOW(0x13, struct kfd_ioctl_set_trap_handler_args)
+-
+-#define AMDKFD_IOC_GET_PROCESS_APERTURES_NEW    \
+-                AMDKFD_IOWR(0x14,               \
+-                        struct kfd_ioctl_get_process_apertures_new_args)
+-
+-#define AMDKFD_IOC_ACQUIRE_VM                   \
+-                AMDKFD_IOW(0x15, struct kfd_ioctl_acquire_vm_args)
+-
+ #define AMDKFD_IOC_ALLOC_MEMORY_OF_GPU          \
+-                AMDKFD_IOWR(0x16, struct kfd_ioctl_alloc_memory_of_gpu_args)
++                AMDKFD_IOWR(0x11, struct kfd_ioctl_alloc_memory_of_gpu_args)
+ 
+ #define AMDKFD_IOC_FREE_MEMORY_OF_GPU           \
+-                AMDKFD_IOW(0x17, struct kfd_ioctl_free_memory_of_gpu_args)
++                AMDKFD_IOW(0x12, struct kfd_ioctl_free_memory_of_gpu_args)
+ 
+ #define AMDKFD_IOC_MAP_MEMORY_TO_GPU            \
+-                AMDKFD_IOWR(0x18, struct kfd_ioctl_map_memory_to_gpu_args)
++                AMDKFD_IOWR(0x13, struct kfd_ioctl_map_memory_to_gpu_args)
+ 
+ #define AMDKFD_IOC_UNMAP_MEMORY_FROM_GPU        \
+-                AMDKFD_IOWR(0x19, struct kfd_ioctl_unmap_memory_from_gpu_args)
++                AMDKFD_IOWR(0x14, struct kfd_ioctl_unmap_memory_from_gpu_args)
++
++#define AMDKFD_IOC_ALLOC_MEMORY_OF_SCRATCH     \
++                AMDKFD_IOWR(0x15, struct kfd_ioctl_alloc_memory_of_scratch_args)
+ 
+ #define AMDKFD_IOC_SET_CU_MASK          \
+-                AMDKFD_IOW(0x1A, struct kfd_ioctl_set_cu_mask_args)
++                AMDKFD_IOW(0x16, struct kfd_ioctl_set_cu_mask_args)
++
++#define AMDKFD_IOC_SET_PROCESS_DGPU_APERTURE   \
++                AMDKFD_IOW(0x17,        \
++                struct kfd_ioctl_set_process_dgpu_aperture_args)
+ 
+-#define AMDKFD_IOC_GET_QUEUE_WAVE_STATE         \
+-                AMDKFD_IOWR(0x1B, struct kfd_ioctl_get_queue_wave_state_args)
++#define AMDKFD_IOC_SET_TRAP_HANDLER            \
++                AMDKFD_IOW(0x18, struct kfd_ioctl_set_trap_handler_args)
++
++#define AMDKFD_IOC_GET_PROCESS_APERTURES_NEW   \
++        AMDKFD_IOWR(0x19, struct kfd_ioctl_get_process_apertures_new_args)
+ 
+ #define AMDKFD_IOC_GET_DMABUF_INFO              \
+-                AMDKFD_IOWR(0x1C, struct kfd_ioctl_get_dmabuf_info_args)
++                AMDKFD_IOWR(0x1A, struct kfd_ioctl_get_dmabuf_info_args)
+ 
+ #define AMDKFD_IOC_IMPORT_DMABUF                \
+-                AMDKFD_IOWR(0x1D, struct kfd_ioctl_import_dmabuf_args)
++                AMDKFD_IOWR(0x1B, struct kfd_ioctl_import_dmabuf_args)
++
++#define AMDKFD_IOC_GET_TILE_CONFIG             \
++                AMDKFD_IOWR(0x1C, struct kfd_ioctl_get_tile_config_args)
+ 
+ #define AMDKFD_IOC_IPC_IMPORT_HANDLE            \
+-                AMDKFD_IOWR(0x1E, struct kfd_ioctl_ipc_import_handle_args)
++                AMDKFD_IOWR(0x1D, struct kfd_ioctl_ipc_import_handle_args)
+ 
+ #define AMDKFD_IOC_IPC_EXPORT_HANDLE            \
+-                AMDKFD_IOWR(0x1F, struct kfd_ioctl_ipc_export_handle_args)
++                AMDKFD_IOWR(0x1E, struct kfd_ioctl_ipc_export_handle_args)
+ 
+ #define AMDKFD_IOC_CROSS_MEMORY_COPY            \
+-                AMDKFD_IOWR(0x20, struct kfd_ioctl_cross_memory_copy_args)
++                AMDKFD_IOWR(0x1F, struct kfd_ioctl_cross_memory_copy_args)
++
++#define AMDKFD_IOC_GET_QUEUE_WAVE_STATE                \
++                AMDKFD_IOWR(0x20, struct kfd_ioctl_get_queue_wave_state_args)
+ 
+-#define AMDKFD_IOC_DBG_TRAP                     \
+-                AMDKFD_IOW(0x21, struct kfd_ioctl_dbg_trap_args)
++#define AMDKFD_IOC_ACQUIRE_VM                  \
++                AMDKFD_IOW(0x21, struct kfd_ioctl_acquire_vm_args)
+ 
+ #define AMDKFD_COMMAND_START            0x01
+ #define AMDKFD_COMMAND_END		0x22
+-- 
+2.7.4
+

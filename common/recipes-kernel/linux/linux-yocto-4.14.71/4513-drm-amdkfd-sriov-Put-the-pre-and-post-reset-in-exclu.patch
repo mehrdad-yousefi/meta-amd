@@ -1,0 +1,84 @@
+From 0a86052460bbe6b1d5b9d50455845ab77ade39da Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Fri, 25 May 2018 10:44:45 +0800
+Subject: [PATCH 4513/5725] drm/amdkfd/sriov:Put the pre and post reset in
+ exclusive mode v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+For sriov, need to put the amdkfd_pre_reset and amdkfd_post_reset
+in exlusive mode.
+
+v2: To unify the code path for sriov and bare metal, move
+the original pre and post reset into amdgpu_device_reset.
+
+Change-Id: Ic6f20e98fb5de1946b56d853b96d7271632d63c6
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 4d2637e..0e416d1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -3125,6 +3125,8 @@ static int amdgpu_device_reset(struct amdgpu_device *adev)
+         bool need_full_reset, vram_lost = 0;
+         int r;
+ 
++	amdgpu_amdkfd_pre_reset(adev);
++
+         need_full_reset = amdgpu_device_ip_need_full_reset(adev);
+ 
+         if (!need_full_reset) {
+@@ -3183,6 +3185,8 @@ static int amdgpu_device_reset(struct amdgpu_device *adev)
+                 }
+         }
+ 
++	amdgpu_amdkfd_post_reset(adev);
++
+ 	if (!r && ((need_full_reset && !(adev->flags & AMD_IS_APU)) || vram_lost))
+ 		r = amdgpu_device_handle_vram_lost(adev);
+ 
+@@ -3209,6 +3213,8 @@ static int amdgpu_device_reset_sriov(struct amdgpu_device *adev,
+         if (r)
+                 return r;
+ 
++	amdgpu_amdkfd_pre_reset(adev);
++
+         /* Resume IP prior to SMC */
+         r = amdgpu_device_ip_reinit_early_sriov(adev);
+         if (r)
+@@ -3224,6 +3230,7 @@ static int amdgpu_device_reset_sriov(struct amdgpu_device *adev,
+ 
+         amdgpu_irq_gpu_reset_resume_helper(adev);
+         r = amdgpu_ib_ring_tests(adev);
++	amdgpu_amdkfd_post_reset(adev);
+ 
+ error:
+ 	amdgpu_virt_release_full_gpu(adev, true);
+@@ -3267,9 +3274,6 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+         atomic_inc(&adev->gpu_reset_counter);
+ 	adev->in_gpu_reset = 1;
+ 	
+-	/* Block kfd */
+-	amdgpu_amdkfd_pre_reset(adev);
+-
+         /* block TTM */
+         resched = ttm_bo_lock_delayed_workqueue(&adev->mman.bdev);
+ 
+@@ -3326,8 +3330,6 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+                 dev_info(adev->dev, "GPU reset(%d) successed!\n",atomic_read(&adev->gpu_reset_counter));
+         }
+ 	
+-	/*unlock kfd */
+-	amdgpu_amdkfd_post_reset(adev);
+         amdgpu_vf_error_trans_all(adev);
+ 	adev->in_gpu_reset = 0;
+ 	mutex_unlock(&adev->lock_reset);
+-- 
+2.7.4
+

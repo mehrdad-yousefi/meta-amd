@@ -1,0 +1,39 @@
+From 242ab8f25bfe8264a4dd4c053aee43f3c0ff09f0 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 14:00:02 +0800
+Subject: [PATCH 4399/5725] drm/amdgpu/sdma4: Specify vega20 firmware
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+index f2a3800..3c10f54 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+@@ -42,6 +42,8 @@ MODULE_FIRMWARE("amdgpu/vega10_sdma.bin");
+ MODULE_FIRMWARE("amdgpu/vega10_sdma1.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_sdma.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_sdma1.bin");
++MODULE_FIRMWARE("amdgpu/vega20_sdma.bin");
++MODULE_FIRMWARE("amdgpu/vega20_sdma1.bin");
+ MODULE_FIRMWARE("amdgpu/raven_sdma.bin");
+ 
+ #define SDMA0_POWER_CNTL__ON_OFF_CONDITION_HOLD_TIME_MASK  0x000000F8L
+@@ -182,6 +184,9 @@ static int sdma_v4_0_init_microcode(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 		chip_name = "vega12";
+ 		break;
++	case CHIP_VEGA20:
++		chip_name = "vega20";
++		break;
+ 	case CHIP_RAVEN:
+ 		chip_name = "raven";
+ 		break;
+-- 
+2.7.4
+

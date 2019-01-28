@@ -1,0 +1,28 @@
+From 26942a38cff6381ebb868d8a7889b28506dc2049 Mon Sep 17 00:00:00 2001
+From: SivapiriyanKumarasamy <sivapiriyan.kumarasamy@amd.com>
+Date: Mon, 1 Oct 2018 14:45:05 -0400
+Subject: [PATCH 5593/5725] drm/amd/display: dc 3.2.02
+
+Signed-off-by: SivapiriyanKumarasamy <sivapiriyan.kumarasamy@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index f4db4d7..a3049f3 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -38,7 +38,7 @@
+ #include "inc/compressor.h"
+ #include "dml/display_mode_lib.h"
+ 
+-#define DC_VER "3.2.01"
++#define DC_VER "3.2.02"
+ 
+ #define MAX_SURFACES 3
+ #define MAX_STREAMS 6
+-- 
+2.7.4
+

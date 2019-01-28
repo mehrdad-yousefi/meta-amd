@@ -1,0 +1,45 @@
+From d483aef9196e297eb956aeb8e62946ccf70a0458 Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Wed, 25 Apr 2018 14:42:28 +0530
+Subject: [PATCH 4367/5725] drm/amd/display: disable FBC on underlay pipe
+
+FBC is not applicable for the underlay pipe,
+hence disallow enabling and disabling of the same.
+
+This also fixes the BUG hit of calling sleep in
+atomic context.
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Reviewed-by: Roman Li <Roman.Li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 6a0ae02..45578d4 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -2764,6 +2764,9 @@ static void dce110_program_front_end_for_pipe(
+ 	struct dc_plane_state *plane_state = pipe_ctx->plane_state;
+ 	struct xfm_grph_csc_adjustment adjust;
+ 	struct out_csc_color_matrix tbl_entry;
++#if defined(CONFIG_DRM_AMD_DC_FBC)
++	unsigned int underlay_idx = dc->res_pool->underlay_pipe_index;
++#endif
+ 	unsigned int i;
+ 	DC_LOGGER_INIT();
+ 	memset(&tbl_entry, 0, sizeof(tbl_entry));
+@@ -2805,7 +2808,9 @@ static void dce110_program_front_end_for_pipe(
+ 	program_scaler(dc, pipe_ctx);
+ 
+ #if defined(CONFIG_DRM_AMD_DC_FBC)
+-	if (dc->fbc_compressor && old_pipe->stream) {
++	/* fbc not applicable on Underlay pipe */
++	if (dc->fbc_compressor && old_pipe->stream &&
++	    pipe_ctx->pipe_idx != underlay_idx) {
+ 		if (plane_state->tiling_info.gfx8.array_mode == DC_ARRAY_LINEAR_GENERAL)
+ 			dc->fbc_compressor->funcs->disable_fbc(dc->fbc_compressor);
+ 		else
+-- 
+2.7.4
+

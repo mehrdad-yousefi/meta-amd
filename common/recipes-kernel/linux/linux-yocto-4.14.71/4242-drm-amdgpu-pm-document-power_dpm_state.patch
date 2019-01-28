@@ -1,0 +1,60 @@
+From ca54165717095b3d283a5d1ecd53ca480f8b4b30 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 19 Apr 2018 13:56:41 -0500
+Subject: [PATCH 4242/5725] drm/amdgpu/pm: document power_dpm_state
+
+This is a legacy file and is only provided for
+backwards compatibility.
+
+Acked-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index ef1eda4..05d701b0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -77,6 +77,37 @@ void amdgpu_pm_acpi_event_handler(struct amdgpu_device *adev)
+ 	}
+ }
+ 
++/**
++ * DOC: power_dpm_state
++ *
++ * This is a legacy interface and is only provided for backwards compatibility.
++ * The amdgpu driver provides a sysfs API for adjusting certain power
++ * related parameters.  The file power_dpm_state is used for this.
++ * It accepts the following arguments:
++ * - battery
++ * - balanced
++ * - performance
++ *
++ * battery
++ *
++ * On older GPUs, the vbios provided a special power state for battery
++ * operation.  Selecting battery switched to this state.  This is no
++ * longer provided on newer GPUs so the option does nothing in that case.
++ *
++ * balanced
++ *
++ * On older GPUs, the vbios provided a special power state for balanced
++ * operation.  Selecting balanced switched to this state.  This is no
++ * longer provided on newer GPUs so the option does nothing in that case.
++ *
++ * performance
++ *
++ * On older GPUs, the vbios provided a special power state for performance
++ * operation.  Selecting performance switched to this state.  This is no
++ * longer provided on newer GPUs so the option does nothing in that case.
++ *
++ */
++
+ static ssize_t amdgpu_get_dpm_state(struct device *dev,
+ 				    struct device_attribute *attr,
+ 				    char *buf)
+-- 
+2.7.4
+

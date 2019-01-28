@@ -1,0 +1,105 @@
+From 311c7aebbfb9fd57240286b9e6f9b16f62c1a77f Mon Sep 17 00:00:00 2001
+From: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+Date: Wed, 26 Sep 2018 14:41:00 +0530
+Subject: [PATCH 4685/5725] drm/amd/display: skip multisync redo for already
+ enabled displays
+
+[Why]
+During boot/hotplug Xorg calls modeset ioctl for the new displays being enabled
+ony by one. As of now even for already enabled displays multi sync is getting
+re-enabled. This is not required.
+
+[how]
+In enable_timing_multisync() function skip displays if it is already enabled.
+Also if there is a new master stream enumerated, then in
+enable_timing_multisync() function, redo multisync for already
+enabled displays.
+
+Signed-off-by: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 18 +++++++++++++-----
+ drivers/gpu/drm/amd/display/dc/core/dc.c          |  4 ++++
+ drivers/gpu/drm/amd/display/dc/inc/core_types.h   |  1 +
+ 3 files changed, 18 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 913e6c1..3448aa0 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -2570,10 +2570,12 @@ static void set_multisync_trigger_params(
+ 	}
+ }
+ 
+-static void set_master_stream(struct dc_stream_state *stream_set[],
++static void set_master_stream(struct dc_state *context,
++			      struct dc_stream_state *stream_set[],
+ 			      int stream_count)
+ {
+-	int j, highest_rfr = 0, master_stream = 0;
++	int j, highest_rfr = 0;
++	struct dc_stream_state *new_master_stream = NULL, *old_master_stream = NULL;
+ 
+ 	for (j = 0;  j < stream_count; j++) {
+ 		if (stream_set[j] && stream_set[j]->triggered_crtc_reset.enabled) {
+@@ -2583,14 +2585,20 @@ static void set_master_stream(struct dc_stream_state *stream_set[],
+ 				(stream_set[j]->timing.h_total*stream_set[j]->timing.v_total);
+ 			if (refresh_rate > highest_rfr) {
+ 				highest_rfr = refresh_rate;
+-				master_stream = j;
++				new_master_stream = stream_set[j];
+ 			}
++
++			if (stream_set[j]->triggered_crtc_reset.event_source)
++				old_master_stream = stream_set[j]->triggered_crtc_reset.event_source;
+ 		}
+ 	}
+ 	for (j = 0;  j < stream_count; j++) {
+ 		if (stream_set[j])
+-			stream_set[j]->triggered_crtc_reset.event_source = stream_set[master_stream];
++			stream_set[j]->triggered_crtc_reset.event_source = new_master_stream;
+ 	}
++
++	if (old_master_stream != new_master_stream)
++		context->mdvsync_master_changed = true;
+ }
+ 
+ bool dm_helpers_parse_amd_vsdb(struct edid *edid)
+@@ -2672,7 +2680,7 @@ static void dm_enable_per_frame_crtc_master_sync(struct dc_state *context)
+ 		*/
+ 		set_multisync_trigger_params(context->streams[i]);
+ 	}
+-	set_master_stream(context->streams, context->stream_count);
++	set_master_stream(context, context->streams, context->stream_count);
+ }
+ 
+ static struct dc_stream_state *
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 1f8f6446..7da1e88 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -675,6 +675,10 @@ static void enable_timing_multisync(
+ 			    ctx->res_ctx.pipe_ctx[i].stream,
+ 			    ctx->res_ctx.pipe_ctx[i].stream->triggered_crtc_reset.event_source))
+ 			continue;
++		if ((ctx->mdvsync_master_changed == false) &&
++		    ctx->res_ctx.pipe_ctx[i].stream_res.tg->funcs->is_blanked &&
++		    !ctx->res_ctx.pipe_ctx[i].stream_res.tg->funcs->is_blanked(ctx->res_ctx.pipe_ctx[i].stream_res.tg))
++			continue;
+ 
+ 		multisync_pipes[multisync_count] = &ctx->res_ctx.pipe_ctx[i];
+ 		multisync_count++;
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/core_types.h b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+index 4beddca0..a4640e4a 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/core_types.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+@@ -270,6 +270,7 @@ struct dc_state {
+ 	struct dc_stream_state *streams[MAX_PIPES];
+ 	struct dc_stream_status stream_status[MAX_PIPES];
+ 	uint8_t stream_count;
++	uint8_t mdvsync_master_changed;
+ 
+ 	struct resource_context res_ctx;
+ 
+-- 
+2.7.4
+

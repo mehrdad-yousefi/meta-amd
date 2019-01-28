@@ -1,0 +1,40 @@
+From ed0384b24c0391667d452d12676d500ef1ea2761 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Fri, 15 Jun 2018 12:19:00 -0400
+Subject: [PATCH 4897/5725] drm/amd/display: Move common GPIO registers into a
+ common define
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/gpio/ddc_regs.h | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/gpio/ddc_regs.h b/drivers/gpu/drm/amd/display/dc/gpio/ddc_regs.h
+index 9c4a56c..bf40725 100644
+--- a/drivers/gpu/drm/amd/display/dc/gpio/ddc_regs.h
++++ b/drivers/gpu/drm/amd/display/dc/gpio/ddc_regs.h
+@@ -82,13 +82,16 @@
+ 	DDC_GPIO_I2C_REG_LIST(cd),\
+ 	.ddc_setup = 0
+ 
+-#define DDC_MASK_SH_LIST(mask_sh) \
++#define DDC_MASK_SH_LIST_COMMON(mask_sh) \
+ 		SF_DDC(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_ENABLE, mask_sh),\
+ 		SF_DDC(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_EDID_DETECT_ENABLE, mask_sh),\
+ 		SF_DDC(DC_I2C_DDC1_SETUP, DC_I2C_DDC1_EDID_DETECT_MODE, mask_sh),\
+ 		SF_DDC(DC_GPIO_DDC1_MASK, DC_GPIO_DDC1DATA_PD_EN, mask_sh),\
+ 		SF_DDC(DC_GPIO_DDC1_MASK, DC_GPIO_DDC1CLK_PD_EN, mask_sh),\
+-		SF_DDC(DC_GPIO_DDC1_MASK, AUX_PAD1_MODE, mask_sh),\
++		SF_DDC(DC_GPIO_DDC1_MASK, AUX_PAD1_MODE, mask_sh)
++
++#define DDC_MASK_SH_LIST(mask_sh) \
++		DDC_MASK_SH_LIST_COMMON(mask_sh),\
+ 		SF_DDC(DC_GPIO_I2CPAD_MASK, DC_GPIO_SDA_PD_DIS, mask_sh),\
+ 		SF_DDC(DC_GPIO_I2CPAD_MASK, DC_GPIO_SCL_PD_DIS, mask_sh)
+ 
+-- 
+2.7.4
+

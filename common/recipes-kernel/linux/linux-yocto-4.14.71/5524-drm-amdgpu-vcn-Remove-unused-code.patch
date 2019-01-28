@@ -1,0 +1,30 @@
+From 76cb14f0d10e25bcccb421b3bef873c3257e8dec Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Mon, 1 Oct 2018 18:18:59 -0400
+Subject: [PATCH 5524/5725] drm/amdgpu/vcn:Remove unused code
+
+The following WREG32_SOC15_DPG_MODE will overwrite register
+mmUVD_CGC_CTRL. This code can be removed.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Leo Liu <leo.liu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 2eec119..9441ec4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -601,8 +601,6 @@ static void vcn_v1_0_clock_gating_dpg_mode(struct amdgpu_device *adev, uint8_t s
+ 		reg_data = 0 << UVD_CGC_CTRL__DYN_CLOCK_MODE__SHIFT;
+ 	reg_data |= 1 << UVD_CGC_CTRL__CLK_GATE_DLY_TIMER__SHIFT;
+ 	reg_data |= 4 << UVD_CGC_CTRL__CLK_OFF_DELAY__SHIFT;
+-	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_CGC_CTRL, reg_data, 0xFFFFFFFF, sram_sel);
+-
+ 	reg_data &= ~(UVD_CGC_CTRL__UDEC_RE_MODE_MASK |
+ 		 UVD_CGC_CTRL__UDEC_CM_MODE_MASK |
+ 		 UVD_CGC_CTRL__UDEC_IT_MODE_MASK |
+-- 
+2.7.4
+

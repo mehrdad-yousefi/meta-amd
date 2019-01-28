@@ -1,0 +1,28 @@
+From 3459fb42908937c9353f3ccb28ad96ca61677458 Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Fri, 27 Apr 2018 15:23:23 -0400
+Subject: [PATCH 4474/5725] drm/amd/display: fix bug with index check
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/modules/stats/stats.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/stats/stats.c b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+index 4b00bae..fe9e4b3 100644
+--- a/drivers/gpu/drm/amd/display/modules/stats/stats.c
++++ b/drivers/gpu/drm/amd/display/modules/stats/stats.c
+@@ -305,7 +305,7 @@ void mod_stats_update_event(struct mod_stats *mod_stats,
+ 
+ 	core_stats = MOD_STATS_TO_CORE(mod_stats);
+ 
+-	if (core_stats->index >= core_stats->entries)
++	if (core_stats->event_index >= core_stats->event_entries)
+ 		return;
+ 
+ 	events = core_stats->events;
+-- 
+2.7.4
+

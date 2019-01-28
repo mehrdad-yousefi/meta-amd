@@ -1,0 +1,94 @@
+From 3fff3ba44cbe607552c7c9c528cde3a4656aac40 Mon Sep 17 00:00:00 2001
+From: Chiawen Huang <chiawen.huang@amd.com>
+Date: Tue, 28 Aug 2018 13:38:34 +0800
+Subject: [PATCH 5363/5725] drm/amd/display: clean code for transition event
+ log.
+
+[Why]
+There are same purpose transition events.
+
+[How]
+remove the redundant event log.
+
+Change-Id: I90faf48f7c0c492b7b753ebbeb819a08c5f074e5
+Signed-off-by: Chiawen Huang <chiawen.huang@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dm_event_log.h         |  2 --
+ drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c    | 12 ------------
+ drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c | 15 ---------------
+ 3 files changed, 29 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dm_event_log.h b/drivers/gpu/drm/amd/display/dc/dm_event_log.h
+index c1ce2dd..00a275d 100644
+--- a/drivers/gpu/drm/amd/display/dc/dm_event_log.h
++++ b/drivers/gpu/drm/amd/display/dc/dm_event_log.h
+@@ -31,8 +31,6 @@
+ 
+ #define __DM_EVENT_LOG_H__
+ 
+-#define EVENT_LOG_I2CAUX_READ(transType, dcc, address, status, len, data)
+-#define EVENT_LOG_I2CAUX_WRITE(transType, dcc, address, status, len, data)
+ #define EVENT_LOG_AUX_REQ(dcc, type, action, address, len, data)
+ #define EVENT_LOG_AUX_Reply(dcc, type, swStatus, replyStatus, len, data)
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c b/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c
+index 03292c5..8cbf38b 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c
+@@ -297,12 +297,6 @@ static bool read_command(
+ 
+ 	if (request->payload.address_space ==
+ 		I2CAUX_TRANSACTION_ADDRESS_SPACE_DPCD) {
+-		EVENT_LOG_I2CAUX_READ(request->payload.address_space,
+-				engine->base.ddc->pin_data->en,
+-				request->payload.address,
+-				request->status,
+-				request->payload.length,
+-				request->payload.data);
+ 		DC_LOG_I2C_AUX("READ: addr:0x%x  value:0x%x Result:%d",
+ 				request->payload.address,
+ 				request->payload.data[0],
+@@ -519,12 +513,6 @@ static bool write_command(
+ 
+ 	if (request->payload.address_space ==
+ 		I2CAUX_TRANSACTION_ADDRESS_SPACE_DPCD) {
+-		EVENT_LOG_I2CAUX_WRITE(request->payload.address_space,
+-				engine->base.ddc->pin_data->en,
+-				request->payload.address,
+-				request->status,
+-				request->payload.length,
+-				request->payload.data);
+ 		DC_LOG_I2C_AUX("WRITE: addr:0x%x  value:0x%x Result:%d",
+ 				request->payload.address,
+ 				request->payload.data[0],
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c b/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
+index 1747b9f..c995ef4 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
+@@ -171,21 +171,6 @@ bool dal_i2c_hw_engine_submit_request(
+ 			process_channel_reply(&hw_engine->base, &reply);
+ 	}
+ 
+-	if (i2caux_request->operation == I2CAUX_TRANSACTION_READ) {
+-		EVENT_LOG_I2CAUX_READ(i2caux_request->payload.address_space,
+-							engine->ddc->pin_data->en,
+-							i2caux_request->payload.address,
+-							i2caux_request->status,
+-							i2caux_request->payload.length,
+-							i2caux_request->payload.data);
+-	} else if (i2caux_request->operation == I2CAUX_TRANSACTION_WRITE) {
+-		EVENT_LOG_I2CAUX_WRITE(i2caux_request->payload.address_space,
+-							engine->ddc->pin_data->en,
+-							i2caux_request->payload.address,
+-							i2caux_request->status,
+-							i2caux_request->payload.length,
+-							i2caux_request->payload.data);
+-	}
+ 
+ 
+ 	return result;
+-- 
+2.7.4
+

@@ -1,0 +1,38 @@
+From 581ee5525d899baf9185a9086264d4761aaf4e38 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Tue, 7 Aug 2018 11:44:26 -0400
+Subject: [PATCH 5391/5725] drm/amd/include: update the bitfield define for
+ PF_MAX_REGION
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Correct the definition based on vega20 register spec
+
+Change-Id: Ifde296134d00423cdf1078c8249d044f5b5cf5a5
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/include/asic_reg/gc/gc_9_2_1_sh_mask.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/asic_reg/gc/gc_9_2_1_sh_mask.h b/drivers/gpu/drm/amd/include/asic_reg/gc/gc_9_2_1_sh_mask.h
+index 6626fc2..76ea902 100644
+--- a/drivers/gpu/drm/amd/include/asic_reg/gc/gc_9_2_1_sh_mask.h
++++ b/drivers/gpu/drm/amd/include/asic_reg/gc/gc_9_2_1_sh_mask.h
+@@ -8241,9 +8241,9 @@
+ #define MC_VM_LOCAL_HBM_ADDRESS_LOCK_CNTL__LOCK_MASK                                                          0x00000001L
+ //MC_VM_XGMI_LFB_CNTL
+ #define MC_VM_XGMI_LFB_CNTL__PF_LFB_REGION__SHIFT                                                             0x0
+-#define MC_VM_XGMI_LFB_CNTL__PF_MAX_REGION__SHIFT                                                             0x3
++#define MC_VM_XGMI_LFB_CNTL__PF_MAX_REGION__SHIFT                                                             0x4
+ #define MC_VM_XGMI_LFB_CNTL__PF_LFB_REGION_MASK                                                               0x00000007L
+-#define MC_VM_XGMI_LFB_CNTL__PF_MAX_REGION_MASK                                                               0x00000038L
++#define MC_VM_XGMI_LFB_CNTL__PF_MAX_REGION_MASK                                                               0x00000070L
+ //MC_VM_XGMI_LFB_SIZE
+ #define MC_VM_XGMI_LFB_SIZE__PF_LFB_SIZE__SHIFT                                                               0x0
+ #define MC_VM_XGMI_LFB_SIZE__PF_LFB_SIZE_MASK                                                                 0x0000FFFFL
+-- 
+2.7.4
+

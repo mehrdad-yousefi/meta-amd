@@ -1,0 +1,35 @@
+From c35f262eb0648fe6f39eabc6ec487e33ace4a381 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 11 Jun 2018 15:10:02 +0200
+Subject: [PATCH 4721/5725] drm/amdgpu: allocate shared fence slot in VA IOCTL
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Per VM BOs share the reservation object with the PD and so need to
+reserve a shared fence slot for the update.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index a1d52c4..330c07a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -760,7 +760,7 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
+ 			return -ENOENT;
+ 		abo = gem_to_amdgpu_bo(gobj);
+ 		tv.bo = &abo->tbo;
+-		tv.shared = false;
++		tv.shared = !!(abo->flags & AMDGPU_GEM_CREATE_VM_ALWAYS_VALID);
+ 		list_add(&tv.head, &list);
+ 	} else {
+ 		gobj = NULL;
+-- 
+2.7.4
+

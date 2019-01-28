@@ -1,0 +1,65 @@
+From 2718cc2a7419aed3681a854feeb4ac8ad656ee70 Mon Sep 17 00:00:00 2001
+From: christian koenig <christian.koenig@amd.com>
+Date: Tue, 10 Apr 2018 13:42:29 +0200
+Subject: [PATCH 4196/5725] drm/amdgpu: revert "add new bo flag that indicates
+ BOs don't need fallback (v2)"
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This reverts commit 6f51d28bfe8e1a676de5cd877639245bed3cc818.
+
+Makes fallback handling to complicated. This is just a feature for the
+GEM interface and shouldn't leak into the core BO create function.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Chunming Zhou <david1.zhou@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c     | 5 ++---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 7 ++-----
+ 2 files changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 6a5534e..9aa47bd 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -384,9 +384,8 @@ static int amdgpu_cs_bo_validate(struct amdgpu_cs_parser *p,
+ 	if (adev->gmc.visible_vram_size < adev->gmc.real_vram_size &&
+ 	    amdgpu_bo_in_cpu_visible_vram(bo))
+ 		 p->bytes_moved_vis += ctx.bytes_moved;
+-
+-	if (unlikely(r == -ENOMEM) && domain != bo->allowed_domains &&
+-		!(bo->flags & AMDGPU_GEM_CREATE_NO_FALLBACK)) {
++	
++	if (unlikely(r == -ENOMEM) && domain != bo->allowed_domains) {
+ 		domain = bo->allowed_domains;
+ 		goto retry;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index bdffe43..c8d4278 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -413,8 +413,6 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev, unsigned long size,
+ 	drm_gem_private_object_init(adev->ddev, &bo->gem_base, size);
+ 	INIT_LIST_HEAD(&bo->shadow_list);
+ 	INIT_LIST_HEAD(&bo->va);flags;
+-	bo->preferred_domains = preferred_domains;
+-	bo->allowed_domains = allowed_domains;
+ 
+ 	bo->flags = flags;
+ #ifdef CONFIG_X86_32
+@@ -451,9 +449,8 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev, unsigned long size,
+ 	r = ttm_bo_init_reserved(&adev->mman.bdev, &bo->tbo, size, type,
+ 				 &bo->placement, page_align, &ctx, acc_size,
+ 				 NULL, resv, &amdgpu_ttm_bo_destroy);
+-
+-	if (unlikely(r && r != -ERESTARTSYS) && type == ttm_bo_type_device &&
+-		!(flags & AMDGPU_GEM_CREATE_NO_FALLBACK)) {
++	
++	if (unlikely(r && r != -ERESTARTSYS) && type == ttm_bo_type_device) {
+ 		if (flags & AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED) {
+                         flags &= ~AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
+                         goto retry;
+-- 
+2.7.4
+

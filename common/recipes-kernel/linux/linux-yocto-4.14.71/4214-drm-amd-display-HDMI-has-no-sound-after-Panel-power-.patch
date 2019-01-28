@@ -1,0 +1,30 @@
+From 8551dbb39be200f208d8bdab2e9a273830d05e12 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Fri, 6 Apr 2018 23:03:12 -0400
+Subject: [PATCH 4214/5725] drm/amd/display: HDMI has no sound after Panel
+ power off/on
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Cc: stable@vger.kernel.org
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c b/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
+index 07c3242..84e26c8 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_stream_encoder.c
+@@ -718,6 +718,8 @@ static void dce110_stream_encoder_update_hdmi_info_packets(
+ 		if (info_frame->avi.valid) {
+ 			const uint32_t *content =
+ 				(const uint32_t *) &info_frame->avi.sb[0];
++			/*we need turn on clock before programming AFMT block*/
++			REG_UPDATE(AFMT_CNTL, AFMT_AUDIO_CLOCK_EN, 1);
+ 
+ 			REG_WRITE(AFMT_AVI_INFO0, content[0]);
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,68 @@
+From ea179b97793cc28c2d7d4020d3c9ddd86b11bd28 Mon Sep 17 00:00:00 2001
+From: "Jerry (Fangzhi) Zuo" <Jerry.Zuo@amd.com>
+Date: Tue, 17 Apr 2018 15:36:15 -0400
+Subject: [PATCH 4172/5725] drm/amd/display: Check dc_sink every time in MST
+ hotplug
+
+Extended fix to: "Don't read EDID in atomic_check"
+
+Fix issue of missing dc_sink in .mode_valid in hot plug routine.
+
+Need to check dc_sink everytime in .get_modes hook after checking
+edid, since edid is not getting removed in hot unplug but dc_sink
+doesn't.
+
+Signed-off-by: Jerry (Fangzhi) Zuo <Jerry.Zuo@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ .../gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c  | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c
+index e57f690..a9b76fd 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c
+@@ -237,10 +237,6 @@ static int dm_dp_mst_get_modes(struct drm_connector *connector)
+ 
+ 	if (!aconnector->edid) {
+ 		struct edid *edid;
+-		struct dc_sink *dc_sink;
+-		struct dc_sink_init_data init_params = {
+-				.link = aconnector->dc_link,
+-				.sink_signal = SIGNAL_TYPE_DISPLAY_PORT_MST };
+ 		edid = drm_dp_mst_get_edid(connector, &aconnector->mst_port->mst_mgr, aconnector->port);
+ 
+ 		if (!edid) {
+@@ -251,11 +247,17 @@ static int dm_dp_mst_get_modes(struct drm_connector *connector)
+ 		}
+ 
+ 		aconnector->edid = edid;
++	}
+ 
++	if (!aconnector->dc_sink) {
++		struct dc_sink *dc_sink;
++		struct dc_sink_init_data init_params = {
++			.link = aconnector->dc_link,
++			.sink_signal = SIGNAL_TYPE_DISPLAY_PORT_MST };
+ 		dc_sink = dc_link_add_remote_sink(
+ 			aconnector->dc_link,
+-			(uint8_t *)edid,
+-			(edid->extensions + 1) * EDID_LENGTH,
++			(uint8_t *)aconnector->edid,
++			(aconnector->edid->extensions + 1) * EDID_LENGTH,
+ 			&init_params);
+ 
+ 		dc_sink->priv = aconnector;
+@@ -263,7 +265,7 @@ static int dm_dp_mst_get_modes(struct drm_connector *connector)
+ 
+ 		if (aconnector->dc_sink)
+ 			amdgpu_dm_update_freesync_caps(
+-					connector, edid);
++					connector, aconnector->edid);
+ 	}
+ 
+ 	drm_mode_connector_update_edid_property(
+-- 
+2.7.4
+

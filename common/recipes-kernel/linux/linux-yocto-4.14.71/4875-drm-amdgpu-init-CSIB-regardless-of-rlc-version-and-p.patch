@@ -1,0 +1,40 @@
+From 2db9f271f03ed6b27869338031d62b305a1049c8 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 5 Jul 2018 11:17:48 +0800
+Subject: [PATCH 4875/5725] drm/amdgpu: init CSIB regardless of rlc version and
+ pg status
+
+CSIB init has no relation with rlc version and pg status. It should be
+needed regardless of them.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index f424cb8..cfacec8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -2198,6 +2198,8 @@ static void gfx_v9_0_enable_gfx_dynamic_mg_power_gating(struct amdgpu_device *ad
+ 
+ static void gfx_v9_0_init_pg(struct amdgpu_device *adev)
+ {
++	gfx_v9_0_init_csb(adev);
++
+ 	if (!adev->gfx.rlc.is_rlc_v2_1)
+ 		return;
+ 
+@@ -2207,7 +2209,6 @@ static void gfx_v9_0_init_pg(struct amdgpu_device *adev)
+ 			      AMD_PG_SUPPORT_CP |
+ 			      AMD_PG_SUPPORT_GDS |
+ 			      AMD_PG_SUPPORT_RLC_SMU_HS)) {
+-		gfx_v9_0_init_csb(adev);
+ 		gfx_v9_1_init_rlc_save_restore_list(adev);
+ 		gfx_v9_0_enable_save_restore_machine(adev);
+ 
+-- 
+2.7.4
+

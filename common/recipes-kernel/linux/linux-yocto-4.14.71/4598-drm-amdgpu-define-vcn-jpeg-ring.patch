@@ -1,0 +1,33 @@
+From 86461a48b4a1ffb197cee9830890cada16335fe1 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Mon, 30 Apr 2018 16:35:34 -0400
+Subject: [PATCH 4598/5725] drm/amdgpu: define vcn jpeg ring
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add AMDGPU_RING_TYPE_VCN_JPEG ring define
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index dce4b82..df20b61 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -52,7 +52,8 @@ enum amdgpu_ring_type {
+ 	AMDGPU_RING_TYPE_KIQ,
+ 	AMDGPU_RING_TYPE_UVD_ENC,
+ 	AMDGPU_RING_TYPE_VCN_DEC,
+-	AMDGPU_RING_TYPE_VCN_ENC
++	AMDGPU_RING_TYPE_VCN_ENC,
++	AMDGPU_RING_TYPE_VCN_JPEG
+ };
+ 
+ struct amdgpu_device;
+-- 
+2.7.4
+

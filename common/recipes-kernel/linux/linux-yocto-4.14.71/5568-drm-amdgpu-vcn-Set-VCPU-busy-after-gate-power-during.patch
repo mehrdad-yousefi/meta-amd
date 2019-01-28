@@ -1,0 +1,33 @@
+From 91d597931959f494b800222a34ba6539fcdcf6ee Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Tue, 9 Oct 2018 16:59:57 -0400
+Subject: [PATCH 5568/5725] drm/amdgpu/vcn:Set VCPU busy after gate power
+ during vcn SPG start
+
+Set VCPU busy after gate power during vcn Static Power Gate start
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu <leo.liu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index a513518..9f650a3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -777,6 +777,10 @@ static int vcn_v1_0_start_spg_mode(struct amdgpu_device *adev)
+ 	lmi_swap_cntl = 0;
+ 
+ 	vcn_1_0_disable_static_power_gating(adev);
++
++	tmp = RREG32_SOC15(UVD, 0, mmUVD_STATUS) | UVD_STATUS__UVD_BUSY;
++	WREG32_SOC15(UVD, 0, mmUVD_STATUS, tmp);
++
+ 	/* disable clock gating */
+ 	vcn_v1_0_disable_clock_gating(adev);
+ 
+-- 
+2.7.4
+

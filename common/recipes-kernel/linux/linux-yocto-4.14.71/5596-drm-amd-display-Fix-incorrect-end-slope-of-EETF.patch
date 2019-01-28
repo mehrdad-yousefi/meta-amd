@@ -1,0 +1,32 @@
+From 74bc5d8dfd1da9b570159b1708c42273ef913e0f Mon Sep 17 00:00:00 2001
+From: SivapiriyanKumarasamy <sivapiriyan.kumarasamy@amd.com>
+Date: Tue, 2 Oct 2018 08:44:04 -0400
+Subject: [PATCH 5596/5725] drm/amd/display: Fix incorrect end slope of EETF
+
+Force the E2 to dc_fixpt_one when E1 exceeds that value. This is the
+correct thing to do to avoid corruption.
+
+Signed-off-by: SivapiriyanKumarasamy <sivapiriyan.kumarasamy@amd.com>
+Reviewed-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/modules/color/color_gamma.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+index 423e8c1..7b10c74 100644
+--- a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
++++ b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+@@ -791,7 +791,8 @@ static void hermite_spline_eetf(struct fixed31_32 input_x,
+ 		// (t^3 - 2t^2 + t) * (1-ks)
+ 		E2 = dc_fixpt_add(E2, dc_fixpt_mul(temp2,
+ 				dc_fixpt_add(t, dc_fixpt_sub(t3, temp1))));
+-	}
++	} else
++		E2 = dc_fixpt_one;
+ 
+ 	temp1 = dc_fixpt_sub(dc_fixpt_one, E2);
+ 	temp2 = dc_fixpt_mul(temp1, temp1);
+-- 
+2.7.4
+

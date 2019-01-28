@@ -1,0 +1,35 @@
+From d42de93980d102aba96d8dada7114e5835dfc93a Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Wed, 4 Jul 2018 13:35:56 -0400
+Subject: [PATCH 4872/5725] drm/amdgpu: get VCN start to process in the dpm
+ disabled case
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fixes: 22cc6c5e19 (drm/amdgpu: Add runtime VCN PG support)
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 9168d82..e5bcdbb 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -232,7 +232,7 @@ void amdgpu_vcn_ring_begin_use(struct amdgpu_ring *ring)
+ 	struct amdgpu_device *adev = ring->adev;
+ 	bool set_clocks = !cancel_delayed_work_sync(&adev->vcn.idle_work);
+ 
+-	if (set_clocks && adev->pm.dpm_enabled) {
++	if (set_clocks) {
+ 		if (adev->pm.dpm_enabled)
+ 			amdgpu_dpm_enable_uvd(adev, true);
+ 		else
+-- 
+2.7.4
+

@@ -1,0 +1,104 @@
+From a883ee193b437c4d252864401b533b2d313bacc4 Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Wed, 18 Jul 2018 13:36:26 +0530
+Subject: [PATCH 4981/5725] drm/amdgpu: lock and unlock console only for
+ amdgpu_fbdev_set_suspend [V5]
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+[Why]
+While the console_lock is held, console output will be buffered, till
+its unlocked it wont be emitted, hence its ideal to unlock sooner to enable
+debugging/detecting/fixing of any issue in the remaining sequence of events
+in resume path.
+The concern here is about consoles other than fbcon on the device,
+e.g. a serial console
+
+[How]
+This patch restructures the console_lock, console_unlock around
+amdgpu_fbdev_set_suspend() and moves this new block appropriately.
+
+V2: Kept amdgpu_fbdev_set_suspend after pci_set_power_state
+V3: Updated the commit message to clarify the real concern that this patch
+    addresses.
+V4: code clean-up.
+V5: fixed return value
+
+Signed-off-by: Shirish S <shirish.s@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 22 +++++++---------------
+ 1 file changed, 7 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 75d35b4..7ac4de2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -2772,15 +2772,12 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ 	if (dev->switch_power_state == DRM_SWITCH_POWER_OFF)
+ 		return 0;
+ 
+-	if (fbcon)
+-		console_lock();
+-
+ 	if (resume) {
+ 		pci_set_power_state(dev->pdev, PCI_D0);
+ 		pci_restore_state(dev->pdev);
+ 		r = pci_enable_device(dev->pdev);
+ 		if (r)
+-			goto unlock;
++			return r;
+ 	}
+ 
+ 	/* post card */
+@@ -2793,7 +2790,7 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ 	r = amdgpu_device_ip_resume(adev);
+ 	if (r) {
+ 		DRM_ERROR("amdgpu_device_ip_resume failed (%d).\n", r);
+-		goto unlock;
++		return r;	
+ 	}
+ 
+ 	amdgpu_fence_driver_resume(adev);
+@@ -2801,7 +2798,7 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ 
+ 	r = amdgpu_device_ip_late_init(adev);
+ 	if (r)
+-		goto unlock;
++		return r;
+ 
+ 	/* pin cursors */
+ 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+@@ -2839,6 +2836,9 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ 			}
+ 			drm_modeset_unlock_all(dev);
+ 		}
++		console_lock();
++		amdgpu_fbdev_set_suspend(adev, 0);
++		console_unlock();
+ 	}
+ 
+ 	drm_kms_helper_poll_enable(dev);
+@@ -2862,15 +2862,7 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ #ifdef CONFIG_PM
+ 	dev->dev->power.disable_depth--;
+ #endif
+-
+-	if (fbcon)
+-		amdgpu_fbdev_set_suspend(adev, 0);
+-
+-unlock:
+-	if (fbcon)
+-		console_unlock();
+-
+-	return r;
++	return 0;
+ }
+ 
+ /**
+-- 
+2.7.4
+

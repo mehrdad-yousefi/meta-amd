@@ -1,0 +1,29 @@
+From 334db8a60422b98ecc9b04f67494c7aff9c86490 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 27 Sep 2018 22:33:31 -0500
+Subject: [PATCH 5474/5725] drm/amdgpu: add default case to switch statement
+
+Fixes unhandled case warnings.  Trivial.
+
+Fixes: "drm/amdgpu: added vega20 LBPW support"
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 920f84e..17be234 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1190,6 +1190,8 @@ static int gfx_v9_0_rlc_init(struct amdgpu_device *adev)
+ 	case CHIP_VEGA20:
+ 		gfx_v9_4_init_lbpw(adev);
+ 		break;
++	default:
++		break;
+ 	}
+ 
+ 	return 0;
+-- 
+2.7.4
+

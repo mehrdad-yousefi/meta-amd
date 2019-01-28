@@ -1,0 +1,43 @@
+From 499b11527b5dc07df496e3533ae217b8992b2275 Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Thu, 2 Aug 2018 15:32:01 -0400
+Subject: [PATCH 5039/5725] drm/amd/display: Only require EDID read for HDMI
+ and DVI
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+[Why]
+VGA sometimes has trouble retrieving the EDID on very long cables, KVM
+switches, or old displays.
+
+[How]
+Only require EDID read for HDMI and DVI and exempt other types (DP,
+VGA). We currently don't support VGA but if anyone adds support in the
+future this might get overlooked.
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Suggested-by: Michel Dänzer <michel@daenzer.net>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index cbfb1ae..048b8c8 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -753,7 +753,8 @@ bool dc_link_detect(struct dc_link *link, enum dc_detect_reason reason)
+ 			 * even if we have no EDID in order to go to
+ 			 * fail-safe mode
+ 			 */
+-			if (!dc_is_dp_signal(link->connector_signal))
++			if (dc_is_hdmi_signal(link->connector_signal) ||
++			    dc_is_dvi_signal(link->connector_signal))
+ 				return false;
+ 		default:
+ 			break;
+-- 
+2.7.4
+

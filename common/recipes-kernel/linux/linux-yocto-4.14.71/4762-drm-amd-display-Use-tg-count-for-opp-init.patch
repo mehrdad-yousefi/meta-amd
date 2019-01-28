@@ -1,0 +1,32 @@
+From 07c16be1802e8399fbc7b111c3323d9e4a1aa225 Mon Sep 17 00:00:00 2001
+From: Yongqiang Sun <yongqiang.sun@amd.com>
+Date: Tue, 29 May 2018 07:18:27 -0700
+Subject: [PATCH 4762/5725] drm/amd/display: Use tg count for opp init.
+
+In case of tg count not equal to FE pipe count, if use pipe count to iterate
+the tgs, it will cause BSOD.
+
+Signed-off-by: Yongqiang Sun <yongqiang.sun@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 66ecb86..eae2fd7 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -1025,7 +1025,7 @@ static void dcn10_init_hw(struct dc *dc)
+ 	/* Reset all MPCC muxes */
+ 	dc->res_pool->mpc->funcs->mpc_init(dc->res_pool->mpc);
+ 
+-	for (i = 0; i < dc->res_pool->pipe_count; i++) {
++	for (i = 0; i < dc->res_pool->timing_generator_count; i++) {
+ 		struct timing_generator *tg = dc->res_pool->timing_generators[i];
+ 		struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[i];
+ 		struct hubp *hubp = dc->res_pool->hubps[i];
+-- 
+2.7.4
+

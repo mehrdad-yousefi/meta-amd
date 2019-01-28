@@ -1,0 +1,36 @@
+From c1b8da392e8418714a9ccd6389fdf92d4ba8bb3e Mon Sep 17 00:00:00 2001
+From: Wesley Chalmers <Wesley.Chalmers@amd.com>
+Date: Tue, 29 May 2018 17:45:05 -0400
+Subject: [PATCH 4779/5725] drm/amd/display: fix use of uninitialized memory
+
+DML does not calculate chroma values for RQ when surface is not YUV, but DC
+will unconditionally use the uninitialized values for HW programming.
+This does not cause visual corruption since HW will ignore garbage chroma
+values when surface is not YUV, but causes presubmission tests to fail
+golden value comparison.
+
+Signed-off-by: Wesley Chalmers <Wesley.Chalmers@amd.com>
+Signed-off-by: Eryk Brol <eryk.brol@amd.com>
+Reviewed-by: Wenjing Liu <Wenjing.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dml/dml1_display_rq_dlg_calc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dml/dml1_display_rq_dlg_calc.c b/drivers/gpu/drm/amd/display/dc/dml/dml1_display_rq_dlg_calc.c
+index c2037da..0efbf41 100644
+--- a/drivers/gpu/drm/amd/display/dc/dml/dml1_display_rq_dlg_calc.c
++++ b/drivers/gpu/drm/amd/display/dc/dml/dml1_display_rq_dlg_calc.c
+@@ -239,6 +239,8 @@ void dml1_extract_rq_regs(
+ 	extract_rq_sizing_regs(mode_lib, &(rq_regs->rq_regs_l), rq_param.sizing.rq_l);
+ 	if (rq_param.yuv420)
+ 		extract_rq_sizing_regs(mode_lib, &(rq_regs->rq_regs_c), rq_param.sizing.rq_c);
++	else
++		memset(&(rq_regs->rq_regs_c), 0, sizeof(rq_regs->rq_regs_c));
+ 
+ 	rq_regs->rq_regs_l.swath_height = dml_log2(rq_param.dlg.rq_l.swath_height);
+ 	rq_regs->rq_regs_c.swath_height = dml_log2(rq_param.dlg.rq_c.swath_height);
+-- 
+2.7.4
+

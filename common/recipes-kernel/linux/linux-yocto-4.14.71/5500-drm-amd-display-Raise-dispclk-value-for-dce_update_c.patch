@@ -1,0 +1,50 @@
+From d408874575d5a406bbbfa8f7e5706fd6891f73b3 Mon Sep 17 00:00:00 2001
+From: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Date: Fri, 21 Sep 2018 09:35:24 -0400
+Subject: [PATCH 5500/5725] drm/amd/display: Raise dispclk value for
+ dce_update_clocks
+
+[Why]
+
+The DISPCLK value was previously requested to be 15% higher for all
+ASICS that went through the dce110 bandwidth code path. As part of a
+refactoring of dce_clocks and dce110 set_bandwidth this was removed
+for power saving considerations.
+
+This changed caused corruption under certain display configurations.
+Originally thought to be Vega specific, it was also observed on Polaris.
+
+[How]
+
+The 15% is brought back but its placement differs from the original
+patch. This boost should only be enable while DFS bypass is inactive.
+
+This (like the Vega patch) is also a workaround that should be
+removed after the root cause is identified.
+
+Signed-off-by: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+index aa6bd41..fb962503 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+@@ -658,6 +658,11 @@ static void dce_update_clocks(struct dccg *dccg,
+ 			bool safe_to_lower)
+ {
+ 	struct dm_pp_power_level_change_request level_change_req;
++	struct dce_dccg *clk_dce = TO_DCE_CLOCKS(dccg);
++
++	/* TODO: Investigate why this is needed to fix display corruption. */
++	if (!clk_dce->dfs_bypass_active)
++		new_clocks->dispclk_khz = new_clocks->dispclk_khz * 115 / 100;
+ 
+ 	level_change_req.power_level = dce_get_required_clocks_state(dccg, new_clocks);
+ 	/* get max clock state from PPLIB */
+-- 
+2.7.4
+

@@ -1,0 +1,89 @@
+From a76486d145b8de2bcc111f14dc977671ed6b66c3 Mon Sep 17 00:00:00 2001
+From: Thomas Zimmermann <tzimmermann@suse.de>
+Date: Tue, 31 Jul 2018 09:12:36 +0200
+Subject: [PATCH 5035/5725] drm/amdgpu: Replace ttm_bo_unref with ttm_bo_put
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The function ttm_bo_put releases a reference to a TTM buffer object. The
+function's name is more aligned to the Linux kernel convention of naming
+ref-counting function _get and _put.
+
+A call to ttm_bo_unref takes the address of the TTM BO object's pointer and
+clears the pointer's value to NULL. This is not necessary in most cases and
+sometimes even worked around by the calling code. A call to ttm_bo_put only
+releases the reference without clearing the pointer.
+
+The current behaviour of cleaning the pointer is kept in the calling code,
+but should be removed if not required in a later patch.
+
+v2:
+ * set prefix to drm/amdgpu
+
+Signed-off-by: Thomas Zimmermann <tzimmermann@suse.de>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 5 ++---
+ drivers/gpu/drm/ttm/ttm_bo.c               | 6 ++++++
+ include/drm/ttm/ttm_bo_api.h               | 9 +++++++++
+ 3 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 961b848..4c26b94 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -884,9 +884,8 @@ void amdgpu_bo_unref(struct amdgpu_bo **bo)
+ 		return;
+ 
+ 	tbo = &((*bo)->tbo);
+-	ttm_bo_unref(&tbo);
+-	if (tbo == NULL)
+-		*bo = NULL;
++	ttm_bo_put(tbo);
++	*bo = NULL;
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/ttm/ttm_bo.c b/drivers/gpu/drm/ttm/ttm_bo.c
+index d741f18..3e74e63 100644
+--- a/drivers/gpu/drm/ttm/ttm_bo.c
++++ b/drivers/gpu/drm/ttm/ttm_bo.c
+@@ -591,6 +591,12 @@ static void ttm_bo_release(struct kref *kref)
+ 	kref_put(&bo->list_kref, ttm_bo_release_list);
+ }
+ 
++void ttm_bo_put(struct ttm_buffer_object *bo)
++{
++        kref_put(&bo->kref, ttm_bo_release);
++}
++EXPORT_SYMBOL(ttm_bo_put);
++
+ void ttm_bo_unref(struct ttm_buffer_object **p_bo)
+ {
+ 	struct ttm_buffer_object *bo = *p_bo;
+diff --git a/include/drm/ttm/ttm_bo_api.h b/include/drm/ttm/ttm_bo_api.h
+index e5a9866..a5f7e1c 100644
+--- a/include/drm/ttm/ttm_bo_api.h
++++ b/include/drm/ttm/ttm_bo_api.h
+@@ -357,6 +357,15 @@ int ttm_bo_validate(struct ttm_buffer_object *bo,
+                     struct ttm_operation_ctx *ctx);
+ 
+ /**
++ * ttm_bo_put
++ *
++ * @bo: The buffer object.
++ *
++ * Unreference a buffer object.
++ */
++void ttm_bo_put(struct ttm_buffer_object *bo);
++
++/**
+  * ttm_bo_unref
+  *
+  * @bo: The buffer object.
+-- 
+2.7.4
+

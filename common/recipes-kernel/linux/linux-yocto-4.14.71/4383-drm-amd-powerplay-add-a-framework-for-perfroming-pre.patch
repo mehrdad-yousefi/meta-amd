@@ -1,0 +1,77 @@
+From 65b30940581d3e841d8e34d987d2cc331bcbc79f Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Wed, 9 May 2018 11:08:29 +0800
+Subject: [PATCH 4383/5725] drm/amd/powerplay: add a framework for perfroming
+ pre display configuration change settings
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c | 10 ++++++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c          |  2 ++
+ drivers/gpu/drm/amd/powerplay/inc/hardwaremanager.h   |  1 +
+ drivers/gpu/drm/amd/powerplay/inc/hwmgr.h             |  1 +
+ 4 files changed, 14 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c b/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c
+index f5571e9f..a0bb921 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c
+@@ -170,6 +170,16 @@ int phm_disable_clock_power_gatings(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
++int phm_pre_display_configuration_changed(struct pp_hwmgr *hwmgr)
++{
++	PHM_FUNC_CHECK(hwmgr);
++
++	if (NULL != hwmgr->hwmgr_func->pre_display_config_changed)
++		hwmgr->hwmgr_func->pre_display_config_changed(hwmgr);
++
++	return 0;
++
++}
+ 
+ int phm_display_configuration_changed(struct pp_hwmgr *hwmgr)
+ {
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c b/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c
+index 2a2955c..0af13c1 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c
+@@ -272,6 +272,8 @@ int psm_adjust_power_state_dynamic(struct pp_hwmgr *hwmgr, bool skip,
+ 		 */
+ 		phm_apply_clock_adjust_rules(hwmgr);
+ 
++	phm_pre_display_configuration_changed(hwmgr);
++
+ 	phm_display_configuration_changed(hwmgr);
+ 
+ 	if (hwmgr->ps)
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hardwaremanager.h b/drivers/gpu/drm/amd/powerplay/inc/hardwaremanager.h
+index e029555..a202247 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hardwaremanager.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hardwaremanager.h
+@@ -413,6 +413,7 @@ extern int phm_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
+ extern int phm_apply_clock_adjust_rules(struct pp_hwmgr *hwmgr);
+ 
+ extern int phm_force_dpm_levels(struct pp_hwmgr *hwmgr, enum amd_dpm_forced_level level);
++extern int phm_pre_display_configuration_changed(struct pp_hwmgr *hwmgr);
+ extern int phm_display_configuration_changed(struct pp_hwmgr *hwmgr);
+ extern int phm_notify_smc_display_config_after_ps_adjustment(struct pp_hwmgr *hwmgr);
+ extern int phm_register_irq_handlers(struct pp_hwmgr *hwmgr);
+diff --git a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+index 9b6c6af..b99fb8a 100644
+--- a/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/inc/hwmgr.h
+@@ -254,6 +254,7 @@ struct pp_hwmgr_func {
+ 						const void *state);
+ 	int (*enable_clock_power_gating)(struct pp_hwmgr *hwmgr);
+ 	int (*notify_smc_display_config_after_ps_adjustment)(struct pp_hwmgr *hwmgr);
++	int (*pre_display_config_changed)(struct pp_hwmgr *hwmgr);
+ 	int (*display_config_changed)(struct pp_hwmgr *hwmgr);
+ 	int (*disable_clock_power_gating)(struct pp_hwmgr *hwmgr);
+ 	int (*update_clock_gatings)(struct pp_hwmgr *hwmgr,
+-- 
+2.7.4
+

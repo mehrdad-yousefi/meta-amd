@@ -1,0 +1,39 @@
+From 2a748120e151e9e51f60f26f1a2e2c7d400f0f60 Mon Sep 17 00:00:00 2001
+From: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+Date: Wed, 26 Sep 2018 10:41:32 +0530
+Subject: [PATCH 4683/5725] drm/amd/display: skip multisync for slave displays
+ having same timing as master
+
+[Why]
+In case if other displays has same timing as multisync master display, then
+no need to force vsync on those slave displays continously instead it can be
+force synced only once in program_timing_sync() function.
+
+[How]
+In enable_timing_multisync() function, skip displays which has same timing
+as master display.
+
+Signed-off-by: Yogesh Mohan Marimuthu <yogesh.mohanmarimuthu@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index a6a09b0..efddbf3 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -671,6 +671,11 @@ static void enable_timing_multisync(
+ 			continue;
+ 		if (ctx->res_ctx.pipe_ctx[i].stream == ctx->res_ctx.pipe_ctx[i].stream->triggered_crtc_reset.event_source)
+ 			continue;
++		if (resource_are_streams_timing_synchronizable(
++			    ctx->res_ctx.pipe_ctx[i].stream,
++			    ctx->res_ctx.pipe_ctx[i].stream->triggered_crtc_reset.event_source))
++			continue;
++
+ 		multisync_pipes[multisync_count] = &ctx->res_ctx.pipe_ctx[i];
+ 		multisync_count++;
+ 	}
+-- 
+2.7.4
+

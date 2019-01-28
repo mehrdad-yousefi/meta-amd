@@ -1,0 +1,76 @@
+From 88c448421d08af06b2a6c38a6e41b7f01f6ed55b Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Tue, 15 May 2018 14:12:21 -0400
+Subject: [PATCH 4444/5725] drm/amdgpu: Skip drm_sched_entity related ops for
+ KIQ ring.
+
+Following change 75fbed2 we never initialize or use the GPU
+scheduler for KIQ and hence we need to skip KIQ ring when iterating
+amdgpu_ctx's scheduler entites.
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c | 20 +++++++++++++++++---
+ 1 file changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+index eb82bbf..51fb09f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+@@ -190,9 +190,13 @@ static void amdgpu_ctx_do_release(struct kref *ref)
+ 
+ 	ctx = container_of(ref, struct amdgpu_ctx, refcount);
+ 
+-	for (i = 0; i < ctx->adev->num_rings; i++)
++	for (i = 0; i < ctx->adev->num_rings; i++) {
++		if (ctx->adev->rings[i] == &ctx->adev->gfx.kiq.ring)
++			continue;
++
+ 		drm_sched_entity_fini(&ctx->adev->rings[i]->sched,
+ 			&ctx->rings[i].entity);
++	}
+ 
+ 	amdgpu_ctx_fini(ref);
+ }
+@@ -469,12 +473,17 @@ void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr)
+ 		if (!ctx->adev)
+ 			return;
+ 
+-		for (i = 0; i < ctx->adev->num_rings; i++)
++		for (i = 0; i < ctx->adev->num_rings; i++) {
++
++			if (ctx->adev->rings[i] == &ctx->adev->gfx.kiq.ring)
++				continue;
++
+ 			if (kref_read(&ctx->refcount) == 1)
+ 				drm_sched_entity_do_release(&ctx->adev->rings[i]->sched,
+ 						  &ctx->rings[i].entity);
+ 			else
+ 				DRM_ERROR("ctx %p is still alive\n", ctx);
++		}
+ 	}
+ }
+ 
+@@ -491,12 +500,17 @@ void amdgpu_ctx_mgr_entity_cleanup(struct amdgpu_ctx_mgr *mgr)
+ 		if (!ctx->adev)
+ 			return;
+ 
+-		for (i = 0; i < ctx->adev->num_rings; i++)
++		for (i = 0; i < ctx->adev->num_rings; i++) {
++
++			if (ctx->adev->rings[i] == &ctx->adev->gfx.kiq.ring)
++				continue;
++
+ 			if (kref_read(&ctx->refcount) == 1)
+ 				drm_sched_entity_cleanup(&ctx->adev->rings[i]->sched,
+ 					&ctx->rings[i].entity);
+ 			else
+ 				DRM_ERROR("ctx %p is still alive\n", ctx);
++		}
+ 	}
+ }
+ 
+-- 
+2.7.4
+

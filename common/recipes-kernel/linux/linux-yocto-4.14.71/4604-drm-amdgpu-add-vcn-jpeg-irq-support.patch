@@ -1,0 +1,45 @@
+From 94d90b40394ec6814377f18589696e779ee131f6 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 30 May 2018 14:42:33 -0400
+Subject: [PATCH 4604/5725] drm/amdgpu: add vcn jpeg irq support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add vcn jpeg irq support.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 318c9fc..4426393 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -88,6 +88,11 @@ static int vcn_v1_0_sw_init(void *handle)
+ 			return r;
+ 	}
+ 
++	/* VCN JPEG TRAP */
++	r = amdgpu_irq_add_id(adev, SOC15_IH_CLIENTID_VCN, 126, &adev->vcn.irq);
++	if (r)
++		return r;
++
+ 	r = amdgpu_vcn_sw_init(adev);
+ 	if (r)
+ 		return r;
+@@ -1475,6 +1480,9 @@ static int vcn_v1_0_process_interrupt(struct amdgpu_device *adev,
+ 	case 120:
+ 		amdgpu_fence_process(&adev->vcn.ring_enc[1]);
+ 		break;
++	case 126:
++		amdgpu_fence_process(&adev->vcn.ring_jpeg);
++		break;
+ 	default:
+ 		DRM_ERROR("Unhandled interrupt: %d %d\n",
+ 			  entry->src_id, entry->src_data[0]);
+-- 
+2.7.4
+

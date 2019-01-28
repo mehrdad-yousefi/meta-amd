@@ -1,0 +1,72 @@
+From a40daa8382c1b9e282879e90ef32d75da3538b7c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 12:54:33 +0200
+Subject: [PATCH 5258/5725] drm/amdgpu: revert "stop using gart_start as offset
+ for the GTT domain"
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Turned out the commit is incomplete and since we remove using the AGP
+mapping from the GTT manager it is also not necessary any more.
+
+This reverts commit 22d8bfafcc12dfa17b91d2e8ae4e1898e782003a.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Acked-by: James Zhu <James.Zhu@amd.com>
+Tested-by: James Zhu <James.Zhu@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gtt_mgr.c | 3 +--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c     | 6 +++---
+ 2 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gtt_mgr.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gtt_mgr.c
+index 9d1d2fd..ee4b908 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gtt_mgr.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gtt_mgr.c
+@@ -144,8 +144,7 @@ static int amdgpu_gtt_mgr_alloc(struct ttm_mem_type_manager *man,
+ 	spin_unlock(&mgr->lock);
+ 
+ 	if (!r)
+-		mem->start = node->node.start +
+-			(adev->gmc.gart_start >> PAGE_SHIFT);
++		mem->start = node->node.start;
+ 
+ 	return r;
+ }
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 0916667..7c46a03f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -188,7 +188,7 @@ static int amdgpu_init_mem_type(struct ttm_bo_device *bdev, uint32_t type,
+ 	case TTM_PL_TT:
+ 		/* GTT memory  */
+ 		man->func = &amdgpu_gtt_mgr_func;
+-		man->gpu_offset = 0;
++		man->gpu_offset = adev->gmc.gart_start;
+ 		man->available_caching = TTM_PL_MASK_CACHING;
+ 		man->default_caching = TTM_PL_FLAG_CACHED;
+ 		man->flags = TTM_MEMTYPE_FLAG_MAPPABLE | TTM_MEMTYPE_FLAG_CMA;
+@@ -1095,7 +1095,7 @@ static int amdgpu_ttm_backend_bind(struct ttm_tt *ttm,
+ 	flags = amdgpu_ttm_tt_pte_flags(adev, ttm, bo_mem);
+ 	
+ 	/* bind pages into GART page tables */
+-	gtt->offset = ((u64)bo_mem->start << PAGE_SHIFT) - adev->gmc.gart_start;
++	gtt->offset = (u64)bo_mem->start << PAGE_SHIFT; 
+ 	r = amdgpu_gart_bind(adev, gtt->offset, ttm->num_pages,
+ 		ttm->pages, gtt->ttm.dma_address, flags);
+ 
+@@ -1143,7 +1143,7 @@ int amdgpu_ttm_alloc_gart(struct ttm_buffer_object *bo)
+ 	flags = amdgpu_ttm_tt_pte_flags(adev, bo->ttm, &tmp);
+ 
+ 	/* Bind pages */
+-	gtt->offset = ((u64)tmp.start << PAGE_SHIFT) - adev->gmc.gart_start;
++	gtt->offset = (u64)tmp.start << PAGE_SHIFT;
+ 	r = amdgpu_ttm_gart_bind(adev, bo, flags);
+ 	if (unlikely(r)) {
+ 		ttm_bo_mem_put(bo, &tmp);
+-- 
+2.7.4
+

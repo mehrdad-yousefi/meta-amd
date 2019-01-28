@@ -1,0 +1,80 @@
+From fa483a1f1886ec73160253b53f3fa330c941d8e1 Mon Sep 17 00:00:00 2001
+From: Thomas Zimmermann <contact@tzimmermann.org>
+Date: Thu, 28 Jun 2018 16:10:25 +0200
+Subject: [PATCH 4836/5725] drm/amd: Replace drm_dev_unref with drm_dev_put
+
+This patch unifies the naming of DRM functions for reference counting
+of struct drm_device. The resulting code is more aligned with the rest
+of the Linux kernel interfaces.
+
+Signed-off-by: Thomas Zimmermann <contact@tzimmermann.org>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c |  4 ++--
+ drivers/gpu/drm/drm_drv.c               | 14 ++++++++++++++
+ include/drm/drm_drv.h                   |  1 +
+ 3 files changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 19f1a74..d01d4f0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -669,7 +669,7 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
+ err_pci:
+ 	pci_disable_device(pdev);
+ err_free:
+-	drm_dev_unref(dev);
++	drm_dev_put(dev);
+ 	return ret;
+ }
+ 
+@@ -679,7 +679,7 @@ amdgpu_pci_remove(struct pci_dev *pdev)
+ 	struct drm_device *dev = pci_get_drvdata(pdev);
+ 
+ 	drm_dev_unregister(dev);
+-	drm_dev_unref(dev);
++	drm_dev_put(dev);
+ 	pci_disable_device(pdev);
+ 	pci_set_drvdata(pdev, NULL);
+ }
+diff --git a/drivers/gpu/drm/drm_drv.c b/drivers/gpu/drm/drm_drv.c
+index a7b6734..d5a25e6 100644
+--- a/drivers/gpu/drm/drm_drv.c
++++ b/drivers/gpu/drm/drm_drv.c
+@@ -670,6 +670,20 @@ static void drm_dev_release(struct kref *ref)
+ }
+ 
+ /**
++ * drm_dev_put - Drop reference of a DRM device
++ * @dev: device to drop reference of or NULL
++ *
++ * This decreases the ref-count of @dev by one. The device is destroyed if the
++ * ref-count drops to zero.
++ */
++void drm_dev_put(struct drm_device *dev)
++{
++	if (dev)
++		kref_put(&dev->ref, drm_dev_release);
++}
++EXPORT_SYMBOL(drm_dev_put);
++
++/**
+  * drm_dev_ref - Take reference of a DRM device
+  * @dev: device to take reference of or NULL
+  *
+diff --git a/include/drm/drm_drv.h b/include/drm/drm_drv.h
+index f08273c..5c3d3f7 100644
+--- a/include/drm/drm_drv.h
++++ b/include/drm/drm_drv.h
+@@ -614,6 +614,7 @@ struct drm_device *drm_dev_alloc(struct drm_driver *driver,
+ int drm_dev_register(struct drm_device *dev, unsigned long flags);
+ void drm_dev_unregister(struct drm_device *dev);
+ 
++void drm_dev_put(struct drm_device *dev);
+ void drm_dev_ref(struct drm_device *dev);
+ void drm_dev_unref(struct drm_device *dev);
+ void drm_put_dev(struct drm_device *dev);
+-- 
+2.7.4
+

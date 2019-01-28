@@ -1,0 +1,177 @@
+From f7766c20130673e6490a69c7ca3b76dda524f201 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Mon, 7 Jan 2019 16:39:15 +0530
+Subject: [PATCH 5708/5725] drm/amdkfd: Release an acquired process vm
+
+For compute vm acquired from amdgpu, vm.pasid is managed
+by kfd. Decouple pasid from such vm on process destroy
+to avoid duplicate pasid release.
+
+Signed-off-by: Oak Zeng <Oak.Zeng@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h        |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c  | 19 +++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c            | 20 ++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h            |  1 +
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c          |  4 +++-
+ drivers/gpu/drm/amd/include/kgd_kfd_interface.h   |  1 +
+ 9 files changed, 48 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
+index f9d21a6..7ffeb38 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
+@@ -179,6 +179,7 @@ int amdgpu_amdkfd_gpuvm_acquire_process_vm(struct kgd_dev *kgd,
+ void amdgpu_amdkfd_gpuvm_destroy_cb(struct amdgpu_device *adev,
+ 				    struct amdgpu_vm *vm);
+ void amdgpu_amdkfd_gpuvm_destroy_process_vm(struct kgd_dev *kgd, void *vm);
++void amdgpu_amdkfd_gpuvm_release_process_vm(struct kgd_dev *kgd, void *vm);
+ uint64_t amdgpu_amdkfd_gpuvm_get_process_page_dir(void *vm);
+ int amdgpu_amdkfd_gpuvm_alloc_memory_of_gpu(
+ 		struct kgd_dev *kgd, uint64_t va, uint64_t size,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+index ef482bc..29de7a7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
+@@ -182,6 +182,7 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.create_process_vm = amdgpu_amdkfd_gpuvm_create_process_vm,
+ 	.acquire_process_vm = amdgpu_amdkfd_gpuvm_acquire_process_vm,
+ 	.destroy_process_vm = amdgpu_amdkfd_gpuvm_destroy_process_vm,
++	.release_process_vm = amdgpu_amdkfd_gpuvm_release_process_vm,
+ 	.get_process_page_dir = amdgpu_amdkfd_gpuvm_get_process_page_dir,
+ 	.alloc_pasid = amdgpu_pasid_alloc,
+ 	.free_pasid = amdgpu_pasid_free,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+index e6cfa22..9388f6a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+@@ -154,6 +154,7 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.create_process_vm = amdgpu_amdkfd_gpuvm_create_process_vm,
+ 	.acquire_process_vm = amdgpu_amdkfd_gpuvm_acquire_process_vm,
+ 	.destroy_process_vm = amdgpu_amdkfd_gpuvm_destroy_process_vm,
++	.release_process_vm = amdgpu_amdkfd_gpuvm_release_process_vm,
+ 	.create_process_gpumem = create_process_gpumem,
+ 	.destroy_process_gpumem = destroy_process_gpumem,
+ 	.get_process_page_dir = amdgpu_amdkfd_gpuvm_get_process_page_dir,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+index eee3a3e..0409867 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+@@ -204,6 +204,7 @@ static const struct kfd2kgd_calls kfd2kgd = {
+ 	.create_process_vm = amdgpu_amdkfd_gpuvm_create_process_vm,
+ 	.acquire_process_vm = amdgpu_amdkfd_gpuvm_acquire_process_vm,
+ 	.destroy_process_vm = amdgpu_amdkfd_gpuvm_destroy_process_vm,
++	.release_process_vm = amdgpu_amdkfd_gpuvm_release_process_vm,
+ 	.create_process_gpumem = create_process_gpumem,
+ 	.destroy_process_gpumem = destroy_process_gpumem,
+ 	.get_process_page_dir = amdgpu_amdkfd_gpuvm_get_process_page_dir,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 1fd2b33..c8c00b4 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1160,6 +1160,25 @@ void amdgpu_amdkfd_gpuvm_destroy_process_vm(struct kgd_dev *kgd, void *vm)
+ 	kfree(vm);
+ }
+ 
++void amdgpu_amdkfd_gpuvm_release_process_vm(struct kgd_dev *kgd, void *vm)
++{
++	struct amdgpu_device *adev = get_amdgpu_device(kgd);
++	struct amdgpu_vm *avm = (struct amdgpu_vm *)vm;
++
++	if (WARN_ON(!kgd || !vm))
++		return;
++
++	pr_debug("Releasing process vm %p\n", vm);
++
++	/* The original pasid of amdgpu vm has already been
++	 * released during making a amdgpu vm to a compute vm
++	 * The current pasid is managed by kfd and will be
++	 * released on kfd process destroy. Set amdgpu pasid
++	 * to 0 to avoid duplicate release.
++	 */
++	amdgpu_vm_release_compute(adev, avm);
++}
++
+ uint64_t amdgpu_amdkfd_gpuvm_get_process_page_dir(void *vm)
+ {
+ 	struct amdgpu_vm *avm = (struct amdgpu_vm *)vm;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 50d5fa3..ef4f121 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -868,6 +868,26 @@ int amdgpu_vm_alloc_pts(struct amdgpu_device *adev,
+ }
+ 
+ /**
++ * amdgpu_vm_release_compute - release a compute vm
++ * @adev: amdgpu_device pointer
++ * @vm: a vm turned into compute vm by calling amdgpu_vm_make_compute
++ *
++ * This is a correspondant of amdgpu_vm_make_compute. It decouples compute
++ * pasid from vm. Compute should stop use of vm after this call.
++ */
++void amdgpu_vm_release_compute(struct amdgpu_device *adev, struct amdgpu_vm *vm)
++{
++       if (vm->pasid) {
++               unsigned long flags;
++
++               spin_lock_irqsave(&adev->vm_manager.pasid_lock, flags);
++               idr_remove(&adev->vm_manager.pasid_idr, vm->pasid);
++               spin_unlock_irqrestore(&adev->vm_manager.pasid_lock, flags);
++       }
++       vm->pasid = 0;
++}
++
++/**
+  * amdgpu_vm_free_pts - free PD/PT levels
+  *
+  * @adev: amdgpu device structure
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index ff711a4..233741f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -290,6 +290,7 @@ void amdgpu_vm_manager_fini(struct amdgpu_device *adev);
+ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 		   int vm_context, unsigned int pasid);
+ int amdgpu_vm_make_compute(struct amdgpu_device *adev, struct amdgpu_vm *vm, unsigned int pasid);
++void amdgpu_vm_release_compute(struct amdgpu_device *adev, struct amdgpu_vm *vm);
+ void amdgpu_vm_fini(struct amdgpu_device *adev, struct amdgpu_vm *vm);
+ bool amdgpu_vm_pasid_fault_credit(struct amdgpu_device *adev,
+ 				  unsigned int pasid);
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index 73a1adc..304c116 100755
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -353,8 +353,10 @@ static void kfd_process_destroy_pdds(struct kfd_process *p)
+ 		pr_debug("Releasing pdd (topology id %d) for process (pasid %d)\n",
+ 				pdd->dev->id, p->pasid);
+ 
+-		if (pdd->drm_file)
++		if (pdd->drm_file) {
++			pdd->dev->kfd2kgd->release_process_vm(pdd->dev->kgd, pdd->vm);
+ 			fput(pdd->drm_file);
++		}
+ 		else if (pdd->vm)
+ 			pdd->dev->kfd2kgd->destroy_process_vm(
+ 				pdd->dev->kgd, pdd->vm);
+diff --git a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+index 88dbade..20b403a 100755
+--- a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+@@ -276,6 +276,7 @@ struct kfd2kgd_calls {
+ 				  unsigned int pasid, void **vm, void **process_info,
+ 				  struct dma_fence **ef);
+ 	void (*destroy_process_vm)(struct kgd_dev *kgd, void *vm);
++	void (*release_process_vm)(struct kgd_dev *kgd, void *vm);
+ 
+ 	int (*create_process_gpumem)(struct kgd_dev *kgd, uint64_t va, size_t size, void *vm, struct kgd_mem **mem);
+ 	void (*destroy_process_gpumem)(struct kgd_dev *kgd, struct kgd_mem *mem);
+-- 
+2.7.4
+

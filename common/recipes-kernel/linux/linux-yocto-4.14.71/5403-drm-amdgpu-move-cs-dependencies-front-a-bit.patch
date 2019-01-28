@@ -1,0 +1,49 @@
+From 6136e70250fdb243f944b5f8d64ec220f36dde31 Mon Sep 17 00:00:00 2001
+From: Chunming Zhou <david1.zhou@amd.com>
+Date: Tue, 11 Sep 2018 17:22:40 +0800
+Subject: [PATCH 5403/5725] drm/amdgpu: move cs dependencies front a bit
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+cs dependencies handling doesn't need in vm resv
+
+Signed-off-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 151eba0..bac68ca 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1296,6 +1296,12 @@ int amdgpu_cs_ioctl(struct drm_device *dev, void *data, struct drm_file *filp)
+ 	if (r)
+ 		goto out;
+ 
++	r = amdgpu_cs_dependencies(adev, &parser);
++	if (r) {
++		DRM_ERROR("Failed in the dependencies handling %d!\n", r);
++		goto out;
++	}
++
+ 	r = amdgpu_cs_parser_bos(&parser, data);
+ 	if (r) {
+ 		if (r == -ENOMEM)
+@@ -1307,12 +1313,6 @@ int amdgpu_cs_ioctl(struct drm_device *dev, void *data, struct drm_file *filp)
+ 
+ 	reserved_buffers = true;
+ 
+-	r = amdgpu_cs_dependencies(adev, &parser);
+-	if (r) {
+-		DRM_ERROR("Failed in the dependencies handling %d!\n", r);
+-		goto out;
+-	}
+-
+ 	for (i = 0; i < parser.job->num_ibs; i++)
+ 		trace_amdgpu_cs(&parser, i);
+ 
+-- 
+2.7.4
+

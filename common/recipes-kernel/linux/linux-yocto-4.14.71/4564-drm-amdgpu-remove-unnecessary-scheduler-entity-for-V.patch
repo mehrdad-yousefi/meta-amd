@@ -1,0 +1,150 @@
+From 8c157e3b17b014c53856b9f949540a16eceb337c Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Fri, 25 May 2018 10:53:39 -0400
+Subject: [PATCH 4564/5725] drm/amdgpu: remove unnecessary scheduler entity for
+ VCN
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+It should be stateless, and no need for scheduler to take care specially.
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 51 +++++++--------------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h |  2 --
+ 2 files changed, 10 insertions(+), 43 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 21425669..41a189d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -49,8 +49,6 @@ static void amdgpu_vcn_idle_work_handler(struct work_struct *work);
+ 
+ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
+ {
+-	struct amdgpu_ring *ring;
+-	struct drm_sched_rq *rq;
+ 	unsigned long bo_size;
+ 	const char *fw_name;
+ 	const struct common_firmware_header *hdr;
+@@ -103,24 +101,6 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
+ 		return r;
+ 	}
+ 
+-	ring = &adev->vcn.ring_dec;
+-	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+-	r = drm_sched_entity_init(&ring->sched, &adev->vcn.entity_dec,
+-				  rq, NULL);
+-	if (r != 0) {
+-		DRM_ERROR("Failed setting up VCN dec run queue.\n");
+-		return r;
+-	}
+-
+-	ring = &adev->vcn.ring_enc[0];
+-	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+-	r = drm_sched_entity_init(&ring->sched, &adev->vcn.entity_enc,
+-				  rq, NULL);
+-	if (r != 0) {
+-		DRM_ERROR("Failed setting up VCN enc run queue.\n");
+-		return r;
+-	}
+-
+ 	return 0;
+ }
+ 
+@@ -130,10 +110,6 @@ int amdgpu_vcn_sw_fini(struct amdgpu_device *adev)
+ 
+ 	kfree(adev->vcn.saved_bo);
+ 
+-	drm_sched_entity_fini(&adev->vcn.ring_dec.sched, &adev->vcn.entity_dec);
+-
+-	drm_sched_entity_fini(&adev->vcn.ring_enc[0].sched, &adev->vcn.entity_enc);
+-
+ 	amdgpu_bo_free_kernel(&adev->vcn.vcpu_bo,
+ 			      &adev->vcn.gpu_addr,
+ 			      (void **)&adev->vcn.cpu_addr);
+@@ -281,7 +257,7 @@ int amdgpu_vcn_dec_ring_test_ring(struct amdgpu_ring *ring)
+ }
+ 
+ static int amdgpu_vcn_dec_send_msg(struct amdgpu_ring *ring,
+-					struct amdgpu_bo *bo, bool direct,
++					struct amdgpu_bo *bo,
+ 					struct dma_fence **fence)
+ {
+ 	struct amdgpu_device *adev = ring->adev;
+@@ -309,19 +285,12 @@ static int amdgpu_vcn_dec_send_msg(struct amdgpu_ring *ring,
+ 	}
+ 	ib->length_dw = 16;
+ 
+-	if (direct) {
+-		r = amdgpu_ib_schedule(ring, 1, ib, NULL, &f);
+-		job->fence = dma_fence_get(f);
+-		if (r)
+-			goto err_free;
++	r = amdgpu_ib_schedule(ring, 1, ib, NULL, &f);
++	job->fence = dma_fence_get(f);
++	if (r)
++		goto err_free;
+ 
+-		amdgpu_job_free(job);
+-	} else {
+-		r = amdgpu_job_submit(job, ring, &adev->vcn.entity_dec,
+-				      AMDGPU_FENCE_OWNER_UNDEFINED, &f);
+-		if (r)
+-			goto err_free;
+-	}
++	amdgpu_job_free(job);
+ 
+ 	amdgpu_bo_fence(bo, f, false);
+ 	amdgpu_bo_unreserve(bo);
+@@ -374,11 +343,11 @@ static int amdgpu_vcn_dec_get_create_msg(struct amdgpu_ring *ring, uint32_t hand
+ 	for (i = 14; i < 1024; ++i)
+ 		msg[i] = cpu_to_le32(0x0);
+ 
+-	return amdgpu_vcn_dec_send_msg(ring, bo, true, fence);
++	return amdgpu_vcn_dec_send_msg(ring, bo, fence);
+ }
+ 
+ static int amdgpu_vcn_dec_get_destroy_msg(struct amdgpu_ring *ring, uint32_t handle,
+-			       bool direct, struct dma_fence **fence)
++			       struct dma_fence **fence)
+ {
+ 	struct amdgpu_device *adev = ring->adev;
+ 	struct amdgpu_bo *bo = NULL;
+@@ -401,7 +370,7 @@ static int amdgpu_vcn_dec_get_destroy_msg(struct amdgpu_ring *ring, uint32_t han
+ 	for (i = 6; i < 1024; ++i)
+ 		msg[i] = cpu_to_le32(0x0);
+ 
+-	return amdgpu_vcn_dec_send_msg(ring, bo, direct, fence);
++	return amdgpu_vcn_dec_send_msg(ring, bo, fence);
+ }
+ 
+ int amdgpu_vcn_dec_ring_test_ib(struct amdgpu_ring *ring, long timeout)
+@@ -415,7 +384,7 @@ int amdgpu_vcn_dec_ring_test_ib(struct amdgpu_ring *ring, long timeout)
+ 		goto error;
+ 	}
+ 
+-	r = amdgpu_vcn_dec_get_destroy_msg(ring, 1, true, &fence);
++	r = amdgpu_vcn_dec_get_destroy_msg(ring, 1, &fence);
+ 	if (r) {
+ 		DRM_ERROR("amdgpu: failed to get destroy ib (%ld).\n", r);
+ 		goto error;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+index 181e6af..773010b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+@@ -67,8 +67,6 @@ struct amdgpu_vcn {
+ 	struct amdgpu_ring	ring_dec;
+ 	struct amdgpu_ring	ring_enc[AMDGPU_VCN_MAX_ENC_RINGS];
+ 	struct amdgpu_irq_src	irq;
+-	struct drm_sched_entity entity_dec;
+-	struct drm_sched_entity entity_enc;
+ 	unsigned		num_enc_rings;
+ };
+ 
+-- 
+2.7.4
+

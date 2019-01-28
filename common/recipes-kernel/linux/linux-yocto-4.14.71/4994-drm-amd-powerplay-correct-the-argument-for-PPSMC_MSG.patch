@@ -1,0 +1,46 @@
+From 48dccd684c2afe6272537e706d5dee3bd7b01d1a Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 16 Jul 2018 17:23:19 +0800
+Subject: [PATCH 4994/5725] drm/amd/powerplay: correct the argument for
+ PPSMC_MSG_SetUclkFastSwitch
+
+The argument was set wrongly. Fast/slow switch was asked when there is
+actually a slow/fast switch needed.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Rex Zhu <rex.zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 2 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 1ef9ab4..9e2281e 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -3724,7 +3724,7 @@ static void vega10_notify_smc_display_change(struct pp_hwmgr *hwmgr,
+ {
+ 	smum_send_msg_to_smc_with_parameter(hwmgr,
+ 			PPSMC_MSG_SetUclkFastSwitch,
+-			has_disp ? 0 : 1);
++			has_disp ? 1 : 0);
+ }
+ 
+ int vega10_display_clock_voltage_request(struct pp_hwmgr *hwmgr,
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index 4ed218d..35f96da 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -1334,7 +1334,7 @@ static int vega12_notify_smc_display_change(struct pp_hwmgr *hwmgr,
+ 	if (data->smu_features[GNLD_DPM_UCLK].enabled)
+ 		return smum_send_msg_to_smc_with_parameter(hwmgr,
+ 			PPSMC_MSG_SetUclkFastSwitch,
+-			has_disp ? 0 : 1);
++			has_disp ? 1 : 0);
+ 
+ 	return 0;
+ }
+-- 
+2.7.4
+

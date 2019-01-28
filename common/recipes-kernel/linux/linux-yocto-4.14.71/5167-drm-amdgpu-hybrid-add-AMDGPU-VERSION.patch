@@ -1,0 +1,38 @@
+From 096e342b55eb0ee4de15b6360658af1a61bffe1b Mon Sep 17 00:00:00 2001
+From: "Le.Ma" <Le.Ma@amd.com>
+Date: Thu, 14 Sep 2017 15:53:13 +0800
+Subject: [PATCH 5167/5725] drm/amdgpu: [hybrid] add AMDGPU VERSION
+
+Change-Id: Id211892a7812dd945d5449bbaa116af268f418c6
+Signed-off-by: Le.Ma <Le.Ma@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 549782d..66a7e9f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -76,7 +76,7 @@
+ #define KMS_DRIVER_MINOR	27
+ #define KMS_DRIVER_PATCHLEVEL	0
+ 
+-#define AMDGPU_VERSION		"18.30.2.15"
++#define AMDGPU_VERSION		"18.45.2.415"
+ 
+ int amdgpu_vram_limit = 0;
+ int amdgpu_vis_vram_limit = 0;
+@@ -1197,6 +1197,9 @@ static int __init amdgpu_init(void)
+ 
+ 	DRM_INFO("amdgpu kernel modesetting enabled.\n");
+ 	DRM_INFO("amdgpu version: %s\n", AMDGPU_VERSION);
++#if defined(DRM_VER) && defined(DRM_PATCH) && defined(DRM_SUB)
++	DRM_INFO("OS DRM version: %d.%d.%d\n", DRM_VER, DRM_PATCH, DRM_SUB);
++#endif	
+ 	driver = &kms_driver;
+ 	pdriver = &amdgpu_kms_pci_driver;
+ 	driver->num_ioctls = amdgpu_max_kms_ioctl;
+-- 
+2.7.4
+

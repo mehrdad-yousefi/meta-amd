@@ -1,0 +1,32 @@
+From 5613d0609063c4ffc7520f0e6bb2bd272a165a27 Mon Sep 17 00:00:00 2001
+From: Tony Cheng <tony.cheng@amd.com>
+Date: Sun, 17 Jun 2018 13:26:27 -0400
+Subject: [PATCH 4900/5725] drm/amd/display: fix incorrect check for atom table
+ size
+
+in case we have very few pins in the table, check fails and we can't boot
+
+Signed-off-by: Tony Cheng <tony.cheng@amd.com>
+Reviewed-by: Yongqiang Sun <yongqiang.sun@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/bios/bios_parser2.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/bios/bios_parser2.c b/drivers/gpu/drm/amd/display/dc/bios/bios_parser2.c
+index aeb56e4..eab007e 100644
+--- a/drivers/gpu/drm/amd/display/dc/bios/bios_parser2.c
++++ b/drivers/gpu/drm/amd/display/dc/bios/bios_parser2.c
+@@ -678,7 +678,7 @@ static enum bp_result bios_parser_get_gpio_pin_info(
+ 		return BP_RESULT_BADBIOSTABLE;
+ 
+ 	if (sizeof(struct atom_common_table_header) +
+-			sizeof(struct atom_gpio_pin_lut_v2_1)
++			sizeof(struct atom_gpio_pin_assignment)
+ 			> le16_to_cpu(header->table_header.structuresize))
+ 		return BP_RESULT_BADBIOSTABLE;
+ 
+-- 
+2.7.4
+

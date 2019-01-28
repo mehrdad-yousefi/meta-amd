@@ -1,0 +1,304 @@
+From f15e912ed9abc580a307ea08e74523ce124bc773 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Wed, 9 Jan 2019 20:31:14 +0530
+Subject: [PATCH 4977/5725] drm/amdgpu: clean up UVD instance handling v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The whole handle, filp and entity handling is superfluous here.
+
+We should have reviewed that more thoughtfully. It looks like somebody
+just made the code instance aware without knowing the background.
+
+v2: fix one more missed case in amdgpu_uvd_suspend
+
+Reviewed-by: Leo Liu <leo.liu@amd.com>
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Chunming  Zhou <david1.zhou@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c | 121 ++++++++++++++++----------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.h |  10 +--
+ 2 files changed, 66 insertions(+), 65 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index 2298571..9c665d5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -264,20 +264,21 @@ int amdgpu_uvd_sw_init(struct amdgpu_device *adev)
+ 			return r;
+ 		}
+ 
+-		ring = &adev->uvd.inst[j].ring;
+-		rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+-		r = drm_sched_entity_init(&ring->sched, &adev->uvd.inst[j].entity,
+-					  rq, NULL);
+-		if (r != 0) {
+-			DRM_ERROR("Failed setting up UVD(%d) run queue.\n", j);
+-			return r;
+-		}
++	}
++	ring = &adev->uvd.inst[0].ring;
++	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
++	r = drm_sched_entity_init(&ring->sched, &adev->uvd.inst[0].entity,
++			rq, NULL);
++	if (r != 0) {
++		DRM_ERROR("Failed setting up UVD kernel entity.\n");
++		return r;
++	}
+ 
+-		for (i = 0; i < adev->uvd.max_handles; ++i) {
+-			atomic_set(&adev->uvd.inst[j].handles[i], 0);
+-			adev->uvd.inst[j].filp[i] = NULL;
+-		}
++	for (i = 0; i < adev->uvd.max_handles; ++i) {
++		atomic_set(&adev->uvd.handles[i], 0);
++		adev->uvd.filp[i] = NULL;
+ 	}
++	
+ 	/* from uvd v5.0 HW addressing capacity increased to 64 bits */
+ 	if (!amdgpu_device_ip_block_version_cmp(adev, AMD_IP_BLOCK_TYPE_UVD, 5, 0))
+ 		adev->uvd.address_64_bit = true;
+@@ -306,11 +307,12 @@ int amdgpu_uvd_sw_fini(struct amdgpu_device *adev)
+ {
+ 	int i, j;
+ 
++	drm_sched_entity_fini(&adev->uvd.inst->ring.sched,
++			      &adev->uvd.entity);
++	
+ 	for (j = 0; j < adev->uvd.num_uvd_inst; ++j) {
+ 		kfree(adev->uvd.inst[j].saved_bo);
+ 
+-		drm_sched_entity_fini(&adev->uvd.inst[j].ring.sched, &adev->uvd.inst[j].entity);
+-
+ 		amdgpu_bo_free_kernel(&adev->uvd.inst[j].vcpu_bo,
+ 				      &adev->uvd.inst[j].gpu_addr,
+ 				      (void **)&adev->uvd.inst[j].cpu_addr);
+@@ -333,20 +335,22 @@ int amdgpu_uvd_suspend(struct amdgpu_device *adev)
+ 
+ 	cancel_delayed_work_sync(&adev->uvd.idle_work);
+ 
++       /* only valid for physical mode */
++        if (adev->asic_type < CHIP_POLARIS10) {
++                for (i = 0; i < adev->uvd.max_handles; ++i)
++                        if (atomic_read(&adev->uvd.handles[i]))
++                                break;
++
++                if (i == adev->uvd.max_handles)
++                        return 0;
++        }
++
++
+         for (j = 0; j < adev->uvd.num_uvd_inst; ++j) {
+                 if (adev->uvd.inst[j].vcpu_bo == NULL)
+                         continue;
+ 
+ 
+-                /* only valid for physical mode */
+-                if (adev->asic_type < CHIP_POLARIS10) {
+-                        for (i = 0; i < adev->uvd.max_handles; ++i)
+-                                if (atomic_read(&adev->uvd.inst[j].handles[i]))
+-                                        break;
+-
+-                        if (i == adev->uvd.max_handles)
+-                                continue;
+-                }
+ 
+                 size = amdgpu_bo_size(adev->uvd.inst[j].vcpu_bo);
+                 ptr = adev->uvd.inst[j].cpu_addr;
+@@ -399,30 +403,27 @@ int amdgpu_uvd_resume(struct amdgpu_device *adev)
+ 
+ void amdgpu_uvd_free_handles(struct amdgpu_device *adev, struct drm_file *filp)
+ {
+-	struct amdgpu_ring *ring;
+-	int i, j, r;
+-
+-	for (j = 0; j < adev->uvd.num_uvd_inst; j++) {
+-		ring = &adev->uvd.inst[j].ring;
++	struct amdgpu_ring *ring = &adev->uvd.inst[0].ring;
++	int i, r;
+ 
+-		for (i = 0; i < adev->uvd.max_handles; ++i) {
+-			uint32_t handle = atomic_read(&adev->uvd.inst[j].handles[i]);
+-			if (handle != 0 && adev->uvd.inst[j].filp[i] == filp) {
+-				struct dma_fence *fence;
+-
+-				r = amdgpu_uvd_get_destroy_msg(ring, handle,
+-							       false, &fence);
+-				if (r) {
+-					DRM_ERROR("Error destroying UVD(%d) %d!\n", j, r);
+-					continue;
+-				}
++	for (i = 0; i < adev->uvd.max_handles; ++i) {
++		uint32_t handle = atomic_read(&adev->uvd.handles[i]);
+ 
+-				dma_fence_wait(fence, false);
+-				dma_fence_put(fence);
++		if (handle != 0 && adev->uvd.filp[i] == filp) {
++			struct dma_fence *fence;
+ 
+-				adev->uvd.inst[j].filp[i] = NULL;
+-				atomic_set(&adev->uvd.inst[j].handles[i], 0);
++			r = amdgpu_uvd_get_destroy_msg(ring, handle, false,
++						       &fence);
++			if (r) {
++				DRM_ERROR("Error destroying UVD %d!\n", r);
++				continue;
+ 			}
++
++			dma_fence_wait(fence, false);
++			dma_fence_put(fence);
++
++			adev->uvd.filp[i] = NULL;
++			atomic_set(&adev->uvd.handles[i], 0);
+ 		}
+ 	}
+ }
+@@ -693,20 +694,19 @@ static int amdgpu_uvd_cs_msg(struct amdgpu_uvd_cs_ctx *ctx,
+ 			     struct amdgpu_bo *bo, unsigned offset)
+ {
+ 	struct amdgpu_device *adev = ctx->parser->adev;
+-	uint32_t ip_instance = ctx->parser->ring->me;
+ 	int32_t *msg, msg_type, handle;
+ 	void *ptr;
+ 	long r;
+ 	int i;
+ 
+ 	if (offset & 0x3F) {
+-		DRM_ERROR("UVD(%d) messages must be 64 byte aligned!\n", ip_instance);
++		DRM_ERROR("UVD messages must be 64 byte aligned!\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	r = amdgpu_bo_kmap(bo, &ptr);
+ 	if (r) {
+-		DRM_ERROR("Failed mapping the UVD(%d) message (%ld)!\n", ip_instance, r);
++		DRM_ERROR("Failed mapping the UVD) message (%ld)!\n", r);
+ 		return r;
+ 	}
+ 
+@@ -716,7 +716,7 @@ static int amdgpu_uvd_cs_msg(struct amdgpu_uvd_cs_ctx *ctx,
+ 	handle = msg[2];
+ 
+ 	if (handle == 0) {
+-		DRM_ERROR("Invalid UVD(%d) handle!\n", ip_instance);
++		DRM_ERROR("Invalid UVD handle!\n");
+ 		return -EINVAL;
+ 	}
+ 
+@@ -727,18 +727,19 @@ static int amdgpu_uvd_cs_msg(struct amdgpu_uvd_cs_ctx *ctx,
+ 
+ 		/* try to alloc a new handle */
+ 		for (i = 0; i < adev->uvd.max_handles; ++i) {
+-			if (atomic_read(&adev->uvd.inst[ip_instance].handles[i]) == handle) {
+-				DRM_ERROR("(%d)Handle 0x%x already in use!\n", ip_instance, handle);
++			if (atomic_read(&adev->uvd.handles[i]) == handle) {
++				DRM_ERROR(")Handle 0x%x already in use!\n",
++					  handle);
+ 				return -EINVAL;
+ 			}
+ 
+-			if (!atomic_cmpxchg(&adev->uvd.inst[ip_instance].handles[i], 0, handle)) {
+-				adev->uvd.inst[ip_instance].filp[i] = ctx->parser->filp;
++			if (!atomic_cmpxchg(&adev->uvd.handles[i], 0, handle)) {
++				adev->uvd.filp[i] = ctx->parser->filp;
+ 				return 0;
+ 			}
+ 		}
+ 
+-		DRM_ERROR("No more free UVD(%d) handles!\n", ip_instance);
++		DRM_ERROR("No more free UVD handles!\n");
+ 		return -ENOSPC;
+ 
+ 	case 1:
+@@ -750,27 +751,27 @@ static int amdgpu_uvd_cs_msg(struct amdgpu_uvd_cs_ctx *ctx,
+ 
+ 		/* validate the handle */
+ 		for (i = 0; i < adev->uvd.max_handles; ++i) {
+-			if (atomic_read(&adev->uvd.inst[ip_instance].handles[i]) == handle) {
+-				if (adev->uvd.inst[ip_instance].filp[i] != ctx->parser->filp) {
+-					DRM_ERROR("UVD(%d) handle collision detected!\n", ip_instance);
++			if (atomic_read(&adev->uvd.handles[i]) == handle) {
++				if (adev->uvd.filp[i] != ctx->parser->filp) {
++					DRM_ERROR("UVD handle collision detected!\n");
+ 					return -EINVAL;
+ 				}
+ 				return 0;
+ 			}
+ 		}
+ 
+-		DRM_ERROR("Invalid UVD(%d) handle 0x%x!\n", ip_instance, handle);
++		DRM_ERROR("Invalid UVD handle 0x%x!\n", handle);
+ 		return -ENOENT;
+ 
+ 	case 2:
+ 		/* it's a destroy msg, free the handle */
+ 		for (i = 0; i < adev->uvd.max_handles; ++i)
+-			atomic_cmpxchg(&adev->uvd.inst[ip_instance].handles[i], handle, 0);
++			atomic_cmpxchg(&adev->uvd.handles[i], handle, 0);
+ 		amdgpu_bo_kunmap(bo);
+ 		return 0;
+ 
+ 	default:
+-		DRM_ERROR("Illegal UVD(%d) message type (%d)!\n", ip_instance, msg_type);
++		DRM_ERROR("Illegal UVD message type (%d)!\n", msg_type);
+ 		return -EINVAL;
+ 	}
+ 	BUG();
+@@ -1073,7 +1074,7 @@ static int amdgpu_uvd_send_msg(struct amdgpu_ring *ring, struct amdgpu_bo *bo,
+ 		if (r)
+ 			goto err_free;
+ 
+-		r = amdgpu_job_submit(job, &adev->uvd.inst[ring->me].entity,
++		r = amdgpu_job_submit(job, &adev->uvd.entity,
+ 				      AMDGPU_FENCE_OWNER_UNDEFINED, &f);
+ 		if (r)
+ 			goto err_free;
+@@ -1277,7 +1278,7 @@ uint32_t amdgpu_uvd_used_handles(struct amdgpu_device *adev)
+ 		 * necessarily linear. So we need to count
+ 		 * all non-zero handles.
+ 		 */
+-		if (atomic_read(&adev->uvd.inst->handles[i]))
++		if (atomic_read(&adev->uvd.handles[i]))
+ 			used_handles++;
+ 	}
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.h
+index cae3f52..6687228 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.h
+@@ -42,12 +42,9 @@ struct amdgpu_uvd_inst {
+ 	void			*cpu_addr;
+ 	uint64_t		gpu_addr;
+ 	void			*saved_bo;
+-	atomic_t		handles[AMDGPU_MAX_UVD_HANDLES];
+-	struct drm_file		*filp[AMDGPU_MAX_UVD_HANDLES];
+ 	struct amdgpu_ring	ring;
+ 	struct amdgpu_ring	ring_enc[AMDGPU_MAX_UVD_ENC_RINGS];
+ 	struct amdgpu_irq_src	irq;
+-	struct drm_sched_entity entity;
+ 	uint32_t                srbm_soft_reset;
+ };
+ 
+@@ -56,10 +53,13 @@ struct amdgpu_uvd {
+ 	unsigned		fw_version;
+ 	unsigned		max_handles;
+ 	unsigned		num_enc_rings;
+-	uint8_t		num_uvd_inst;
++	uint8_t			num_uvd_inst;
+ 	bool			address_64_bit;
+ 	bool			use_ctx_buf;
+-	struct amdgpu_uvd_inst		inst[AMDGPU_MAX_UVD_INSTANCES];
++	struct amdgpu_uvd_inst	inst[AMDGPU_MAX_UVD_INSTANCES];
++	struct drm_file		*filp[AMDGPU_MAX_UVD_HANDLES];
++	atomic_t		handles[AMDGPU_MAX_UVD_HANDLES];
++	struct drm_sched_entity entity;
+ 	struct delayed_work	idle_work;
+ };
+ 
+-- 
+2.7.4
+

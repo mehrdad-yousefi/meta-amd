@@ -1,0 +1,44 @@
+From fef7cb1f3e8eea1b7cc7c410ea0e584861641b6e Mon Sep 17 00:00:00 2001
+From: "Leo (Sunpeng) Li" <sunpeng.li@amd.com>
+Date: Mon, 13 Aug 2018 17:45:05 -0400
+Subject: [PATCH 5250/5725] drm/amd/display: Use non-deprecated vblank handler
+
+[Why]
+drm_handle_vblank is deprecated. Use drm_crtc_handle_vblank instead.
+
+Signed-off-by: Leo (Sunpeng) Li <sunpeng.li@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 7dc0e7f..9b6dd67 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -312,16 +312,14 @@ static void dm_crtc_high_irq(void *interrupt_params)
+ {
+ 	struct common_irq_params *irq_params = interrupt_params;
+ 	struct amdgpu_device *adev = irq_params->adev;
+-	uint8_t crtc_index = 0;
+ 	struct amdgpu_crtc *acrtc;
+ 
+ 	acrtc = get_crtc_by_otg_inst(adev, irq_params->irq_src - IRQ_TYPE_VBLANK);
+ 
+-	if (acrtc)
+-		crtc_index = acrtc->crtc_id;
+-
+-	drm_handle_vblank(adev->ddev, crtc_index);
+-	amdgpu_dm_crtc_handle_crc_irq(&acrtc->base);
++	if (acrtc) {
++		drm_crtc_handle_vblank(&acrtc->base);
++		amdgpu_dm_crtc_handle_crc_irq(&acrtc->base);
++	}
+ }
+ 
+ static int dm_set_clockgating_state(void *handle,
+-- 
+2.7.4
+

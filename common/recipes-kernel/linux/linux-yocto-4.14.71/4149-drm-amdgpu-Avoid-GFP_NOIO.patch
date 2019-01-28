@@ -1,0 +1,59 @@
+From 2e383fd7906e921c6b5a680de88757f4d53b8b60 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Mon, 19 Mar 2018 16:10:38 -0400
+Subject: [PATCH 4149/5725] drm/amdgpu: Avoid GFP_NOIO
+
+Instead allocate the memory before taking the problematic lock and
+free it later if it's not needed.
+
+Change-Id: I2ab8af1d5071401447942cbc0968113b8d87ea68
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c
+index 3168565..3fc0917 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c
+@@ -412,7 +412,7 @@ int amdgpu_mn_register(struct amdgpu_bo *bo, unsigned long addr)
+ 	enum amdgpu_mn_type type =
+ 		bo->kfd_bo ? AMDGPU_MN_TYPE_HSA : AMDGPU_MN_TYPE_GFX;
+ 	struct amdgpu_mn *rmn;
+-	struct amdgpu_mn_node *node = NULL;
++	struct amdgpu_mn_node *node = NULL, *new_node;
+ 	struct list_head bos;
+ 	struct interval_tree_node *it;
+ 
+@@ -420,6 +420,10 @@ int amdgpu_mn_register(struct amdgpu_bo *bo, unsigned long addr)
+ 	if (IS_ERR(rmn))
+ 		return PTR_ERR(rmn);
+ 
++	new_node = kmalloc(sizeof(*new_node), GFP_KERNEL);
++	if (!new_node)
++		return -ENOMEM;
++
+ 	INIT_LIST_HEAD(&bos);
+ 
+ 	down_write(&rmn->lock);
+@@ -433,13 +437,10 @@ int amdgpu_mn_register(struct amdgpu_bo *bo, unsigned long addr)
+ 		list_splice(&node->bos, &bos);
+ 	}
+ 
+-	if (!node) {
+-		node = kmalloc(sizeof(struct amdgpu_mn_node), GFP_NOIO);
+-		if (!node) {
+-			up_write(&rmn->lock);
+-			return -ENOMEM;
+-		}
+-	}
++	if (!node)
++		node = new_node;
++	else
++		kfree(new_node);
+ 
+ 	bo->mn = rmn;
+ 
+-- 
+2.7.4
+

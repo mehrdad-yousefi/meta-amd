@@ -1,0 +1,56 @@
+From 9b64c81216570451e37d6b3787101fc12c06b76b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 24 Aug 2018 10:48:12 +0200
+Subject: [PATCH 5239/5725] drm/amdgpu: put GART away from VRAM v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Always try to put the GART away from where VRAM is.
+
+v2: correctly handle the 4GB limitation
+
+Change-Id: I9be1a460283753a976ba4489fdcff4f131384555
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+index 265ec68..c6bcc47 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+@@ -116,6 +116,7 @@ void amdgpu_gmc_vram_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc,
+  */
+ void amdgpu_gmc_gart_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc)
+ {
++	const uint64_t four_gb = 0x100000000ULL;
+ 	u64 size_af, size_bf;
+ 
+ 	mc->gart_size += adev->pm.smu_prv_buffer_size;
+@@ -124,8 +125,7 @@ void amdgpu_gmc_gart_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc)
+ 	 * the GART base on a 4GB boundary as well.
+ 	 */
+ 	size_bf = mc->vram_start;
+-	size_af = adev->gmc.mc_mask + 1 -
+-		ALIGN(mc->vram_end + 1, 0x100000000ULL);
++	size_af = adev->gmc.mc_mask + 1 - ALIGN(mc->vram_end + 1, four_gb);
+ 
+ 	if (mc->gart_size > max(size_bf, size_af)) {
+ 		dev_warn(adev->dev, "limiting GART\n");
+@@ -136,7 +136,9 @@ void amdgpu_gmc_gart_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc)
+ 	    (size_af < mc->gart_size))
+ 		mc->gart_start = 0;
+ 	else
+-		mc->gart_start = ALIGN(mc->vram_end + 1, 0x100000000ULL);
++		mc->gart_start = mc->mc_mask - mc->gart_size + 1;
++
++	mc->gart_start &= four_gb - 1;
+ 	mc->gart_end = mc->gart_start + mc->gart_size - 1;
+ 	dev_info(adev->dev, "GART: %lluM 0x%016llX - 0x%016llX\n",
+ 			mc->gart_size >> 20, mc->gart_start, mc->gart_end);
+-- 
+2.7.4
+

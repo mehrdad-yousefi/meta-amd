@@ -1,0 +1,60 @@
+From 73a89d9f5a76214b75d6f2b5aff445c85cf7994a Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Thu, 5 Jul 2018 14:49:34 -0400
+Subject: [PATCH 4717/5725] drm/amdgpu: Verify root PD is mapped into kernel
+ address space (v4)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Problem: When PD/PT update made by CPU root PD was not yet mapped causing
+page fault.
+
+Fix: Verify root PD is mapped into CPU address space.
+
+v2:
+Make sure that we add the root PD to the relocated list
+since then it's get mapped into CPU address space bt default
+in amdgpu_vm_update_directories.
+
+v3:
+Drop change to not move kernel type BOs to evicted list.
+
+v4:
+Remove redundant bo move to relocated list.
+
+Link: https://bugs.freedesktop.org/show_bug.cgi?id=107065
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Cc: stable@vger.kernel.org
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index fcd52d8..9d4dfb2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -156,6 +156,9 @@ static void amdgpu_vm_bo_base_init(struct amdgpu_vm_bo_base *base,
+ 		return;
+ 	list_add_tail(&base->bo_list, &bo->va);
+ 
++	if (bo->tbo.type == ttm_bo_type_kernel)
++		list_move(&base->vm_status, &vm->relocated);
++
+ 	if (bo->tbo.resv != vm->root.base.bo->tbo.resv)
+ 		return;
+ 
+@@ -527,7 +530,6 @@ static int amdgpu_vm_alloc_levels(struct amdgpu_device *adev,
+ 			pt->parent = amdgpu_bo_ref(parent->base.bo);
+ 
+ 			amdgpu_vm_bo_base_init(&entry->base, vm, pt);
+-			list_move(&entry->base.vm_status, &vm->relocated);
+ 		}
+ 
+ 		if (level < AMDGPU_VM_PTB) {
+-- 
+2.7.4
+

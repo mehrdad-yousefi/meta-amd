@@ -1,0 +1,86 @@
+From 0c4faa0700e18d0e07cbe14b7acc89a4182d5447 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Tue, 25 Sep 2018 10:24:16 -0400
+Subject: [PATCH 5456/5725] drm/amdgpu: Move fence SW fallback warning v3
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Only print the warning if there was actually some fence processed
+from the SW fallback timer.
+
+v2: Add return value to amdgpu_fence_process to let
+amdgpu_fence_fallback know fences were actually
+processed and then print the warning.
+
+v3: Always return true if seq != last_seq
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c | 12 ++++++++----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h  |  2 +-
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+index d169840..5952db9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+@@ -216,8 +216,10 @@ static void amdgpu_fence_schedule_fallback(struct amdgpu_ring *ring)
+  * Checks the current fence value and calculates the last
+  * signalled fence value. Wakes the fence queue if the
+  * sequence number has increased.
++ *
++ * Returns true if fence was processed
+  */
+-void amdgpu_fence_process(struct amdgpu_ring *ring)
++bool amdgpu_fence_process(struct amdgpu_ring *ring)
+ {
+ 	struct amdgpu_fence_driver *drv = &ring->fence_drv;
+ 	uint32_t seq, last_seq;
+@@ -233,7 +235,7 @@ void amdgpu_fence_process(struct amdgpu_ring *ring)
+ 		amdgpu_fence_schedule_fallback(ring);
+ 
+ 	if (unlikely(seq == last_seq))
+-		return;
++		return false;
+ 
+ 	last_seq &= drv->num_fences_mask;
+ 	seq &= drv->num_fences_mask;
+@@ -260,6 +262,8 @@ void amdgpu_fence_process(struct amdgpu_ring *ring)
+ 
+ 		dma_fence_put(fence);
+ 	} while (last_seq != seq);
++
++	return true;
+ }
+ 
+ /**
+@@ -274,8 +278,8 @@ static void amdgpu_fence_fallback(struct timer_list *t)
+ 	struct amdgpu_ring *ring = from_timer(ring, t,
+ 					      fence_drv.fallback_timer);
+ 
+-	DRM_WARN("Fence fallback timer expired on ring %s\n", ring->name);
+-	amdgpu_fence_process(ring);
++	if (amdgpu_fence_process(ring))
++		DRM_WARN("Fence fallback timer expired on ring %s\n", ring->name);
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index a42130e..53d5168 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -98,7 +98,7 @@ void amdgpu_fence_driver_resume(struct amdgpu_device *adev);
+ int amdgpu_fence_emit(struct amdgpu_ring *ring, struct dma_fence **fence,
+ 		      unsigned flags);
+ int amdgpu_fence_emit_polling(struct amdgpu_ring *ring, uint32_t *s);
+-void amdgpu_fence_process(struct amdgpu_ring *ring);
++bool amdgpu_fence_process(struct amdgpu_ring *ring);
+ int amdgpu_fence_wait_empty(struct amdgpu_ring *ring);
+ signed long amdgpu_fence_wait_polling(struct amdgpu_ring *ring,
+ 				      uint32_t wait_seq,
+-- 
+2.7.4
+

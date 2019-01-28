@@ -1,0 +1,75 @@
+From 3590cde3de2f22ceb930666c3f59a58d81f2a458 Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Fri, 20 Apr 2018 15:45:02 -0400
+Subject: [PATCH 4269/5725] drm/amdkfd: Introduce kfd kernel module parameter
+ halt_if_hws_hang
+
+The parameter will enable developers to do scandumps without the need to
+change, rebuild and redeploy the kernel.
+
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdkfd/kfd_module.c
+      drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+
+Change-Id: Iefe34cbaafb3831c3f008ca81bcbd0a3304e692a
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c | 7 +++++++
+ drivers/gpu/drm/amd/amdkfd/kfd_module.c               | 4 ++++
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h                 | 5 +++++
+ 3 files changed, 16 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index 82c7dbe..e60aaf8 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -1230,6 +1230,13 @@ int amdkfd_fence_wait_timeout(unsigned int *fence_addr,
+ 	while (*fence_addr != fence_value) {
+ 		if (time_after(jiffies, end_jiffies)) {
+ 			pr_err("qcm fence wait loop timeout expired\n");
++			/* In HWS case, this is used to halt the driver thread
++			 * in order not to mess up CP states before doing
++			 * scandumps for FW debugging.
++			 */
++			while (halt_if_hws_hang)
++				schedule();
++
+ 			return -ETIME;
+ 		}
+ 		schedule();
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_module.c b/drivers/gpu/drm/amd/amdkfd/kfd_module.c
+index 34d44ff..ab0bb2d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_module.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_module.c
+@@ -97,6 +97,10 @@ module_param(priv_cp_queues, int, 0644);
+ MODULE_PARM_DESC(priv_cp_queues,
+ 	"Enable privileged mode for CP queues (0 = off (default), 1 = on)");
+ 
++int halt_if_hws_hang;
++module_param(halt_if_hws_hang, int, 0644);
++MODULE_PARM_DESC(halt_if_hws_hang, "Halt if HWS hang is detected (0 = off (default), 1 = on)");
++
+ int kgd2kfd_init(unsigned int interface_version,
+ 		const struct kgd2kfd_calls **g2f)
+ {
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 3f77bab..f721b99 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -152,6 +152,11 @@ extern int vega10_noretry;
+  */
+ extern int priv_cp_queues;
+ 
++/*
++ * Halt if HWS hang is detected
++ */
++extern int halt_if_hws_hang;
++
+ /**
+  * enum kfd_sched_policy
+  *
+-- 
+2.7.4
+

@@ -1,0 +1,191 @@
+From 69887e2ebbbe763f81de64ac68a71d930315d477 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Sat, 9 Jun 2018 19:33:14 -0400
+Subject: [PATCH 4798/5725] drm/amd/display: add valid regoffset and NULL
+ pointer check
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c      |  8 ++++---
+ drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c   |  9 ++++----
+ .../amd/display/dc/dce110/dce110_hw_sequencer.c    |  7 +++---
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c    |  5 +++++
+ .../drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c  | 26 ++++++++++++++++------
+ 5 files changed, 38 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index 27ee9bf..e88dc58 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -33,6 +33,7 @@
+ #include "dc_link_dp.h"
+ #include "dc_link_ddc.h"
+ #include "link_hwss.h"
++#include "opp.h"
+ 
+ #include "link_encoder.h"
+ #include "hw_sequencer.h"
+@@ -2416,9 +2417,10 @@ void core_link_enable_stream(
+ 	core_dc->hwss.enable_audio_stream(pipe_ctx);
+ 
+ 	/* turn off otg test pattern if enable */
+-	pipe_ctx->stream_res.tg->funcs->set_test_pattern(pipe_ctx->stream_res.tg,
+-			CONTROLLER_DP_TEST_PATTERN_VIDEOMODE,
+-			COLOR_DEPTH_UNDEFINED);
++	if (pipe_ctx->stream_res.tg->funcs->set_test_pattern)
++		pipe_ctx->stream_res.tg->funcs->set_test_pattern(pipe_ctx->stream_res.tg,
++				CONTROLLER_DP_TEST_PATTERN_VIDEOMODE,
++				COLOR_DEPTH_UNDEFINED);
+ 
+ 	core_dc->hwss.enable_stream(pipe_ctx);
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+index d14b543..dcac527 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+@@ -3,6 +3,7 @@
+ #include "dc.h"
+ #include "dc_link_dp.h"
+ #include "dm_helpers.h"
++#include "opp.h"
+ 
+ #include "inc/core_types.h"
+ #include "link_hwss.h"
+@@ -2512,8 +2513,8 @@ static void set_crtc_test_pattern(struct dc_link *link,
+ 		pipe_ctx->stream->bit_depth_params = params;
+ 		pipe_ctx->stream_res.opp->funcs->
+ 			opp_program_bit_depth_reduction(pipe_ctx->stream_res.opp, &params);
+-
+-		pipe_ctx->stream_res.tg->funcs->set_test_pattern(pipe_ctx->stream_res.tg,
++		if (pipe_ctx->stream_res.tg->funcs->set_test_pattern)
++			pipe_ctx->stream_res.tg->funcs->set_test_pattern(pipe_ctx->stream_res.tg,
+ 				controller_test_pattern, color_depth);
+ 	}
+ 	break;
+@@ -2525,8 +2526,8 @@ static void set_crtc_test_pattern(struct dc_link *link,
+ 		pipe_ctx->stream->bit_depth_params = params;
+ 		pipe_ctx->stream_res.opp->funcs->
+ 			opp_program_bit_depth_reduction(pipe_ctx->stream_res.opp, &params);
+-
+-		pipe_ctx->stream_res.tg->funcs->set_test_pattern(pipe_ctx->stream_res.tg,
++		if (pipe_ctx->stream_res.tg->funcs->set_test_pattern)
++			pipe_ctx->stream_res.tg->funcs->set_test_pattern(pipe_ctx->stream_res.tg,
+ 				CONTROLLER_DP_TEST_PATTERN_VIDEOMODE,
+ 				color_depth);
+ 	}
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 6c2b4cc..4059a4c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -1449,7 +1449,7 @@ static void power_down_controllers(struct dc *dc)
+ {
+ 	int i;
+ 
+-	for (i = 0; i < dc->res_pool->pipe_count; i++) {
++	for (i = 0; i < dc->res_pool->timing_generator_count; i++) {
+ 		dc->res_pool->timing_generators[i]->funcs->disable_crtc(
+ 				dc->res_pool->timing_generators[i]);
+ 	}
+@@ -1489,12 +1489,13 @@ static void disable_vga_and_power_gate_all_controllers(
+ 	struct timing_generator *tg;
+ 	struct dc_context *ctx = dc->ctx;
+ 
+-	for (i = 0; i < dc->res_pool->pipe_count; i++) {
++	for (i = 0; i < dc->res_pool->timing_generator_count; i++) {
+ 		tg = dc->res_pool->timing_generators[i];
+ 
+ 		if (tg->funcs->disable_vga)
+ 			tg->funcs->disable_vga(tg);
+-
++	}
++	for (i = 0; i < dc->res_pool->pipe_count; i++) {
+ 		/* Enable CLOCK gating for each pipe BEFORE controller
+ 		 * powergating. */
+ 		enable_display_pipe_clock_gating(ctx,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c
+index 623db09..1ea91e1 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubbub.c
+@@ -483,6 +483,11 @@ void hubbub1_update_dchub(
+ 	struct hubbub *hubbub,
+ 	struct dchub_init_data *dh_data)
+ {
++	if (REG(DCHUBBUB_SDPIF_FB_TOP) == 0) {
++		ASSERT(false);
++		/*should not come here*/
++		return;
++	}
+ 	/* TODO: port code from dal2 */
+ 	switch (dh_data->fb_mode) {
+ 	case FRAME_BUFFER_MODE_ZFB_ONLY:
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index da82c6a..12cb828 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -415,6 +415,8 @@ static void dpp_pg_control(
+ 
+ 	if (hws->ctx->dc->debug.disable_dpp_power_gate)
+ 		return;
++	if (REG(DOMAIN1_PG_CONFIG) == 0)
++		return;
+ 
+ 	switch (dpp_inst) {
+ 	case 0: /* DPP0 */
+@@ -465,6 +467,8 @@ static void hubp_pg_control(
+ 
+ 	if (hws->ctx->dc->debug.disable_hubp_power_gate)
+ 		return;
++	if (REG(DOMAIN0_PG_CONFIG) == 0)
++		return;
+ 
+ 	switch (hubp_inst) {
+ 	case 0: /* DCHUBP0 */
+@@ -880,7 +884,8 @@ void hwss1_plane_atomic_disconnect(struct dc *dc, struct pipe_ctx *pipe_ctx)
+ 		return;
+ 
+ 	mpc->funcs->remove_mpcc(mpc, mpc_tree_params, mpcc_to_remove);
+-	opp->mpcc_disconnect_pending[pipe_ctx->plane_res.mpcc_inst] = true;
++	if (opp != NULL)
++		opp->mpcc_disconnect_pending[pipe_ctx->plane_res.mpcc_inst] = true;
+ 
+ 	dc->optimized_required = true;
+ 
+@@ -1358,10 +1363,11 @@ static void dcn10_enable_per_frame_crtc_position_reset(
+ 
+ 	DC_SYNC_INFO("Setting up\n");
+ 	for (i = 0; i < group_size; i++)
+-		grouped_pipes[i]->stream_res.tg->funcs->enable_crtc_reset(
+-				grouped_pipes[i]->stream_res.tg,
+-				grouped_pipes[i]->stream->triggered_crtc_reset.event_source->status.primary_otg_inst,
+-				&grouped_pipes[i]->stream->triggered_crtc_reset);
++		if (grouped_pipes[i]->stream_res.tg->funcs->enable_crtc_reset)
++			grouped_pipes[i]->stream_res.tg->funcs->enable_crtc_reset(
++					grouped_pipes[i]->stream_res.tg,
++					grouped_pipes[i]->stream->triggered_crtc_reset.event_source->status.primary_otg_inst,
++					&grouped_pipes[i]->stream->triggered_crtc_reset);
+ 
+ 	DC_SYNC_INFO("Waiting for trigger\n");
+ 
+@@ -2519,8 +2525,14 @@ static void dcn10_update_pending_status(struct pipe_ctx *pipe_ctx)
+ 
+ static void dcn10_update_dchub(struct dce_hwseq *hws, struct dchub_init_data *dh_data)
+ {
+-	if (hws->ctx->dc->res_pool->hubbub != NULL)
+-		hubbub1_update_dchub(hws->ctx->dc->res_pool->hubbub, dh_data);
++	if (hws->ctx->dc->res_pool->hubbub != NULL) {
++		struct hubp *hubp = hws->ctx->dc->res_pool->hubps[0];
++
++		if (hubp->funcs->hubp_update_dchub)
++			hubp->funcs->hubp_update_dchub(hubp, dh_data);
++		else
++			hubbub1_update_dchub(hws->ctx->dc->res_pool->hubbub, dh_data);
++	}
+ }
+ 
+ static void dcn10_set_cursor_position(struct pipe_ctx *pipe_ctx)
+-- 
+2.7.4
+

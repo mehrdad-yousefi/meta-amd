@@ -1,0 +1,35 @@
+From f1ffe31f8cc1af9e53ffffc6b06ad0ce81be974c Mon Sep 17 00:00:00 2001
+From: Jim Qu <Jim.Qu@amd.com>
+Date: Thu, 21 Jun 2018 10:18:32 +0800
+Subject: [PATCH 4655/5725] drm/amdgpu: band aid validating VM PTs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Always validating the VM PTs takes to much time. Only always validate
+the per VM BOs for now.
+
+Change-Id: I1dfa9c75966769c4bba6da7441a2333ec6d63e37
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Jim Qu <Jim.Qu@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 3fb0340..a74cd1d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1081,7 +1081,7 @@ int amdgpu_vm_update_directories(struct amdgpu_device *adev,
+ 					   struct amdgpu_vm_bo_base,
+ 					   vm_status);
+ 		bo_base->moved = false;
+-		list_move(&bo_base->vm_status, &vm->idle);
++		list_del_init(&bo_base->vm_status);
+ 
+ 		bo = bo_base->bo->parent;
+ 		if (!bo)
+-- 
+2.7.4
+

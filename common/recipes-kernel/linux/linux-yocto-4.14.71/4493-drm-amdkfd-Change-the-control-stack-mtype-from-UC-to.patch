@@ -1,0 +1,106 @@
+From 3d01b50aca2efb3e89c4412d7f1f390c423681f3 Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Mon, 14 May 2018 12:19:22 -0400
+Subject: [PATCH 4493/5725] drm/amdkfd: Change the control stack mtype from UC
+ to NC on GFX9
+
+Due to a HW bug on GFX9, the mtype of control stack buffers, which are
+allocated in mqd BOs on VMID 0 gart and are one page offset from mqd
+starting addresses, should be set to NC rather than the default gart
+mtype UC.
+
+Fix: KFD-381
+
+Change-Id: I865756efb038512ecb5d4071b2e3d3784db5d4ff
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c      | 7 ++++++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h      | 2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c         | 3 ++-
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c | 2 +-
+ drivers/gpu/drm/amd/include/kgd_kfd_interface.h | 2 +-
+ 5 files changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index 99ef4ee..6a5d236 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -278,7 +278,7 @@ u32 pool_to_domain(enum kgd_memory_pool p)
+ 
+ int alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
+ 			void **mem_obj, uint64_t *gpu_addr,
+-			void **cpu_ptr)
++			void **cpu_ptr, bool mqd_gfx9)
+ {
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)kgd;
+ 	struct amdgpu_bo *bo = NULL;
+@@ -294,7 +294,12 @@ int alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
+ 	bp.flags = AMDGPU_GEM_CREATE_CPU_GTT_USWC;
+ 	bp.type = ttm_bo_type_kernel;
+ 	bp.resv = NULL;
++
++	if (mqd_gfx9)
++		bp.flags |= AMDGPU_GEM_CREATE_MQD_GFX9;
++	
+ 	r = amdgpu_bo_create(adev, &bp, &bo);	
++
+ 	if (r) {
+ 		dev_err(adev->dev,
+ 			"failed to allocate BO for amdkfd (%d)\n", r);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
+index 5c785ac..c7116f6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
+@@ -137,7 +137,7 @@ void amdgpu_amdkfd_gpu_reset(struct kgd_dev *kgd);
+ /* Shared API */
+ int alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
+ 			void **mem_obj, uint64_t *gpu_addr,
+-			void **cpu_ptr);
++			void **cpu_ptr, bool mqd_gfx9);
+ void free_gtt_mem(struct kgd_dev *kgd, void *mem_obj);
+ void get_local_mem_info(struct kgd_dev *kgd,
+ 			struct kfd_local_mem_info *mem_info);
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index 8fb7580..4ae2b07 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -462,7 +462,8 @@ bool kgd2kfd_device_init(struct kfd_dev *kfd,
+ 
+ 	if (kfd->kfd2kgd->init_gtt_mem_allocation(
+ 			kfd->kgd, size, &kfd->gtt_mem,
+-			&kfd->gtt_start_gpu_addr, &kfd->gtt_start_cpu_ptr)){
++			&kfd->gtt_start_gpu_addr, &kfd->gtt_start_cpu_ptr,
++			false)) {
+ 		dev_err(kfd_device, "Could not allocate %d bytes\n", size);
+ 		goto out;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+index cc2c3fb..58ea1fe 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+@@ -115,7 +115,7 @@ static int init_mqd(struct mqd_manager *mm, void **mqd,
+ 				ALIGN(sizeof(struct v9_mqd), PAGE_SIZE),
+ 			&((*mqd_mem_obj)->gtt_mem),
+ 			&((*mqd_mem_obj)->gpu_addr),
+-			(void *)&((*mqd_mem_obj)->cpu_ptr));
++			(void *)&((*mqd_mem_obj)->cpu_ptr), true);
+ 	} else
+ 		retval = kfd_gtt_sa_allocate(mm->dev, sizeof(struct v9_mqd),
+ 				mqd_mem_obj);
+diff --git a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+index dd0b3c7..d26bba5 100644
+--- a/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_kfd_interface.h
+@@ -255,7 +255,7 @@ struct tile_config {
+ struct kfd2kgd_calls {
+ 	int (*init_gtt_mem_allocation)(struct kgd_dev *kgd, size_t size,
+ 					void **mem_obj, uint64_t *gpu_addr,
+-					void **cpu_ptr);
++					void **cpu_ptr, bool mqd_gfx9);
+ 
+ 	void (*free_gtt_mem)(struct kgd_dev *kgd, void *mem_obj);
+ 
+-- 
+2.7.4
+

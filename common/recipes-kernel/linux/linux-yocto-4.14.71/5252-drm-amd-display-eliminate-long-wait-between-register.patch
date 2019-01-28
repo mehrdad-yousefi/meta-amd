@@ -1,0 +1,59 @@
+From 4ee2b584e0c376e3221ebeee23ec66e51e600d99 Mon Sep 17 00:00:00 2001
+From: Ken Chalmers <ken.chalmers@amd.com>
+Date: Fri, 10 Aug 2018 15:51:59 -0400
+Subject: [PATCH 5252/5725] drm/amd/display: eliminate long wait between
+ register polls on Maximus
+
+[Why]
+Now that we "scale" time delays correctly on Maximus (as of diags svn
+r170115), the forced "35 ms" wait time now becomes 35 ms * 500 = 17.5
+seconds, which is far too long.  Even having to repeat polling a
+register once causes excessive delays on Maximus.
+
+[How]
+Just use the regular wait time passed to the generic_reg_wait()
+function.  This is sufficient for Maximus now, and it also means that
+there's one less "Maximus-only" code path in DAL.
+
+Also disable the "REG_WAIT taking a while:" message on Maximus, since
+things do take a while longer there and 1-2ms delays are not uncommon
+(and nothing to worry about).
+
+Signed-off-by: Ken Chalmers <ken.chalmers@amd.com>
+Reviewed-by: Eric Bernstein <Eric.Bernstein@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc_helper.c | 9 ++-------
+ 1 file changed, 2 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_helper.c b/drivers/gpu/drm/amd/display/dc/dc_helper.c
+index e68077e..fcfd50b 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_helper.c
++++ b/drivers/gpu/drm/amd/display/dc/dc_helper.c
+@@ -219,12 +219,6 @@ uint32_t generic_reg_wait(const struct dc_context *ctx,
+ 	/* something is terribly wrong if time out is > 200ms. (5Hz) */
+ 	ASSERT(delay_between_poll_us * time_out_num_tries <= 200000);
+ 
+-	if (IS_FPGA_MAXIMUS_DC(ctx->dce_environment)) {
+-		/* 35 seconds */
+-		delay_between_poll_us = 35000;
+-		time_out_num_tries = 1000;
+-	}
+-
+ 	for (i = 0; i <= time_out_num_tries; i++) {
+ 		if (i) {
+ 			if (delay_between_poll_us >= 1000)
+@@ -238,7 +232,8 @@ uint32_t generic_reg_wait(const struct dc_context *ctx,
+ 		field_value = get_reg_field_value_ex(reg_val, mask, shift);
+ 
+ 		if (field_value == condition_value) {
+-			if (i * delay_between_poll_us > 1000)
++			if (i * delay_between_poll_us > 1000 &&
++					!IS_FPGA_MAXIMUS_DC(ctx->dce_environment))
+ 				dm_output_to_console("REG_WAIT taking a while: %dms in %s line:%d\n",
+ 						delay_between_poll_us * i / 1000,
+ 						func_name, line);
+-- 
+2.7.4
+

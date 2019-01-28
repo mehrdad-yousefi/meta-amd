@@ -1,0 +1,31 @@
+From 0d9ed94ed2cd751bcf5d579b68b2677778a69f5f Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Wed, 8 Nov 2017 18:07:12 -0500
+Subject: [PATCH 4311/5725] drm/amdgpu: add VEGAM dc support check
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index f18252b..30e607e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -2204,9 +2204,10 @@ bool amdgpu_device_asic_has_dc_support(enum amd_asic_type asic_type)
+ 	case CHIP_MULLINS:
+ 	case CHIP_CARRIZO:
+ 	case CHIP_STONEY:
+-	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS10:
++	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS12:
++	case CHIP_VEGAM:
+ 	case CHIP_TONGA:
+ 	case CHIP_FIJI:
+ 	case CHIP_VEGA10:
+-- 
+2.7.4
+

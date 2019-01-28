@@ -1,0 +1,46 @@
+From 7d915a79568896e3f9a9d53a98a9f43571124a87 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Tue, 9 Oct 2018 16:43:32 -0400
+Subject: [PATCH 5563/5725] drm/amdgpu/vcn:Update SPG mode VCN global tiling
+
+Update Static Power Gate mode VCN global tiling
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu <leo.liu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index e1df632..d21c242 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -325,6 +325,24 @@ static void vcn_v1_0_mc_resume_spg_mode(struct amdgpu_device *adev)
+ 			adev->gfx.config.gb_addr_config);
+ 	WREG32_SOC15(UVD, 0, mmUVD_UDEC_DBW_ADDR_CONFIG,
+ 			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_UDEC_DBW_UV_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_MIF_CURR_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_MIF_CURR_UV_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_MIF_RECON1_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_MIF_RECON1_UV_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_MIF_REF_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_MIF_REF_UV_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_JPEG_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
++	WREG32_SOC15(UVD, 0, mmUVD_JPEG_UV_ADDR_CONFIG,
++			adev->gfx.config.gb_addr_config);
+ }
+ 
+ static void vcn_v1_0_mc_resume_dpg_mode(struct amdgpu_device *adev)
+-- 
+2.7.4
+

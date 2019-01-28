@@ -1,0 +1,80 @@
+From 9542776d2b5d87c4c6e736867ef4254d58d2e041 Mon Sep 17 00:00:00 2001
+From: christian koenig <christian.koenig@amd.com>
+Date: Thu, 19 Apr 2018 11:08:24 +0200
+Subject: [PATCH 4507/5725] drm/amdgpu: further optimize amdgpu_vm_handle_moved
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Splice the moved list to a local one to avoid taking the lock over and
+over again.
+
+Change-Id: I690a56f9ef5914f781aa584407d9abff2c77f99f
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 29 +++++++++++++++--------------
+ 1 file changed, 15 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 47dfcdb..a8dbd20 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1811,19 +1811,18 @@ int amdgpu_vm_clear_freed(struct amdgpu_device *adev,
+ int amdgpu_vm_handle_moved(struct amdgpu_device *adev,
+ 			   struct amdgpu_vm *vm)
+ {
++	struct amdgpu_bo_va *bo_va, *tmp;
++	struct list_head moved;
+ 	bool clear;
+-	int r = 0;
++	int r;
+ 
++	INIT_LIST_HEAD(&moved);
+ 	spin_lock(&vm->moved_lock);
+-	while (!list_empty(&vm->moved)) {
+-		struct amdgpu_bo_va *bo_va;
+-		struct reservation_object *resv;
+-
+-		bo_va = list_first_entry(&vm->moved,
+-			struct amdgpu_bo_va, base.vm_status);
+-		spin_unlock(&vm->moved_lock);
++	list_splice_init(&vm->moved, &moved);
++	spin_unlock(&vm->moved_lock);
+ 
+-		resv = bo_va->base.bo->tbo.resv;
++	list_for_each_entry_safe(bo_va, tmp, &moved, base.vm_status) {
++		struct reservation_object *resv = bo_va->base.bo->tbo.resv;
+ 
+ 		/* Per VM BOs never need to bo cleared in the page tables */
+ 		if (resv == vm->root.base.bo->tbo.resv)
+@@ -1836,17 +1835,19 @@ int amdgpu_vm_handle_moved(struct amdgpu_device *adev,
+ 			clear = true;
+ 
+ 		r = amdgpu_vm_bo_update(adev, bo_va, clear);
+-		if (r)
+-			return r;
++		if (r) {
++			spin_lock(&vm->moved_lock);
++			list_splice(&moved, &vm->moved);
++			spin_unlock(&vm->moved_lock);
++                        return r;
++		}
+ 
+ 		if (!clear && resv != vm->root.base.bo->tbo.resv)
+ 			reservation_object_unlock(resv);
+ 
+-		spin_lock(&vm->moved_lock);
+ 	}
+-	spin_unlock(&vm->moved_lock);
+ 
+-	return r;
++	return 0;
+ }
+ 
+ /**
+-- 
+2.7.4
+

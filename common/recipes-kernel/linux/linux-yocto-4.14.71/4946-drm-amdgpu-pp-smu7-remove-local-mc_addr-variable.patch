@@ -1,0 +1,64 @@
+From 38bba920a4685cd26f781f661c7ebdef0a2f6184 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Wed, 11 Jul 2018 13:43:40 -0500
+Subject: [PATCH 4946/5725] drm/amdgpu/pp/smu7: remove local mc_addr variable
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+use the structure member directly.
+
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+index e35ea99..a29ffe4 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+@@ -573,7 +573,6 @@ int smu7_setup_pwr_virus(struct pp_hwmgr *hwmgr)
+ int smu7_init(struct pp_hwmgr *hwmgr)
+ {
+ 	struct smu7_smumgr *smu_data;
+-	uint64_t mc_addr = 0;
+ 	int r;
+ 	/* Allocate memory for backend private data */
+ 	smu_data = (struct smu7_smumgr *)(hwmgr->smu_backend);
+@@ -587,14 +586,12 @@ int smu7_init(struct pp_hwmgr *hwmgr)
+ 		PAGE_SIZE,
+ 		AMDGPU_GEM_DOMAIN_VRAM,
+ 		&smu_data->header_buffer.handle,
+-		&mc_addr,
++		&smu_data->header_buffer.mc_addr,
+ 		&smu_data->header_buffer.kaddr);
+ 
+ 	if (r)
+ 		return -EINVAL;
+ 
+-	smu_data->header_buffer.mc_addr = mc_addr;
+-
+ 	if (!hwmgr->not_vf)
+ 		return 0;
+ 
+@@ -604,7 +601,7 @@ int smu7_init(struct pp_hwmgr *hwmgr)
+ 		PAGE_SIZE,
+ 		AMDGPU_GEM_DOMAIN_VRAM,
+ 		&smu_data->smu_buffer.handle,
+-		&mc_addr,
++		&smu_data->smu_buffer.mc_addr,
+ 		&smu_data->smu_buffer.kaddr);
+ 
+ 	if (r) {
+@@ -613,7 +610,6 @@ int smu7_init(struct pp_hwmgr *hwmgr)
+ 					&smu_data->header_buffer.kaddr);
+ 		return -EINVAL;
+ 	}
+-	smu_data->smu_buffer.mc_addr = mc_addr;
+ 
+ 	if (smum_is_hw_avfs_present(hwmgr))
+ 		hwmgr->avfs_supported = true;
+-- 
+2.7.4
+

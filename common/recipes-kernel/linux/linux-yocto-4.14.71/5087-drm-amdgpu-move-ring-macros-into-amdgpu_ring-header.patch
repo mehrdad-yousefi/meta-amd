@@ -1,0 +1,107 @@
+From 9fde34aebb330c9953e7c570bd1fef3d76e5151b Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Fri, 3 Aug 2018 18:33:06 +0800
+Subject: [PATCH 5087/5725] drm/amdgpu: move ring macros into amdgpu_ring
+ header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Demangle amdgpu.h.
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h      | 24 ------------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c   |  2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h | 24 ++++++++++++++++++++++++
+ 3 files changed, 25 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 048a8ed..0cc153c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -1310,30 +1310,6 @@ int emu_soc_asic_init(struct amdgpu_device *adev);
+ #define amdgpu_vm_copy_pte(adev, ib, pe, src, count) ((adev)->vm_manager.vm_pte_funcs->copy_pte((ib), (pe), (src), (count)))
+ #define amdgpu_vm_write_pte(adev, ib, pe, value, count, incr) ((adev)->vm_manager.vm_pte_funcs->write_pte((ib), (pe), (value), (count), (incr)))
+ #define amdgpu_vm_set_pte_pde(adev, ib, pe, addr, count, incr, flags) ((adev)->vm_manager.vm_pte_funcs->set_pte_pde((ib), (pe), (addr), (count), (incr), (flags)))
+-#define amdgpu_ring_parse_cs(r, p, ib) ((r)->funcs->parse_cs((p), (ib)))
+-#define amdgpu_ring_patch_cs_in_place(r, p, ib) ((r)->funcs->patch_cs_in_place((p), (ib)))
+-#define amdgpu_ring_test_ring(r) (r)->funcs->test_ring((r))
+-#define amdgpu_ring_test_ib(r, t) (r)->funcs->test_ib((r), (t))
+-#define amdgpu_ring_get_rptr(r) (r)->funcs->get_rptr((r))
+-#define amdgpu_ring_get_wptr(r) (r)->funcs->get_wptr((r))
+-#define amdgpu_ring_set_wptr(r) (r)->funcs->set_wptr((r))
+-#define amdgpu_ring_emit_ib(r, ib, vmid, c) (r)->funcs->emit_ib((r), (ib), (vmid), (c))
+-#define amdgpu_ring_emit_pipeline_sync(r) (r)->funcs->emit_pipeline_sync((r))
+-#define amdgpu_ring_emit_vm_flush(r, vmid, addr) (r)->funcs->emit_vm_flush((r), (vmid), (addr))
+-#define amdgpu_ring_emit_fence(r, addr, seq, flags) (r)->funcs->emit_fence((r), (addr), (seq), (flags))
+-#define amdgpu_ring_emit_gds_switch(r, v, db, ds, wb, ws, ab, as) (r)->funcs->emit_gds_switch((r), (v), (db), (ds), (wb), (ws), (ab), (as))
+-#define amdgpu_ring_emit_hdp_flush(r) (r)->funcs->emit_hdp_flush((r))
+-#define amdgpu_ring_emit_hdp_invalidate(r) (r)->funcs->emit_hdp_invalidate((r))
+-#define amdgpu_ring_emit_switch_buffer(r) (r)->funcs->emit_switch_buffer((r))
+-#define amdgpu_ring_emit_cntxcntl(r, d) (r)->funcs->emit_cntxcntl((r), (d))
+-#define amdgpu_ring_emit_rreg(r, d) (r)->funcs->emit_rreg((r), (d))
+-#define amdgpu_ring_emit_wreg(r, d, v) (r)->funcs->emit_wreg((r), (d), (v))
+-#define amdgpu_ring_emit_reg_wait(r, d, v, m) (r)->funcs->emit_reg_wait((r), (d), (v), (m))
+-#define amdgpu_ring_emit_reg_write_reg_wait(r, d0, d1, v, m) (r)->funcs->emit_reg_write_reg_wait((r), (d0), (d1), (v), (m))
+-#define amdgpu_ring_emit_tmz(r, b) (r)->funcs->emit_tmz((r), (b))
+-#define amdgpu_ring_pad_ib(r, ib) ((r)->funcs->pad_ib((r), (ib)))
+-#define amdgpu_ring_init_cond_exec(r) (r)->funcs->init_cond_exec((r))
+-#define amdgpu_ring_patch_cond_exec(r,o) (r)->funcs->patch_cond_exec((r),(o))
+ #define amdgpu_display_vblank_get_counter(adev, crtc) (adev)->mode_info.funcs->vblank_get_counter((adev), (crtc))
+ #define amdgpu_display_backlight_set_level(adev, e, l) (adev)->mode_info.funcs->backlight_set_level((e), (l))
+ #define amdgpu_display_backlight_get_level(adev, e) (adev)->mode_info.funcs->backlight_get_level((e))
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+index 96f69eb..a38daa3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+@@ -238,7 +238,7 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
+ 	    && !(adev->flags & AMD_IS_APU)
+ #endif
+ 	   )
+-		amdgpu_ring_emit_hdp_invalidate(ring);
++		amdgpu_asic_invalidate_hdp(adev, ring);
+ 
+ 	if (ib->flags & AMDGPU_IB_FLAG_TC_WB_NOT_INVALIDATE)
+ 		fence_flags |= AMDGPU_FENCE_FLAG_TC_WB_ONLY;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index 7bec0be..1f5fcfd 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -221,6 +221,30 @@ struct amdgpu_ring {
+ #endif
+ };
+ 
++#define amdgpu_ring_parse_cs(r, p, ib) ((r)->funcs->parse_cs((p), (ib)))
++#define amdgpu_ring_patch_cs_in_place(r, p, ib) ((r)->funcs->patch_cs_in_place((p), (ib)))
++#define amdgpu_ring_test_ring(r) (r)->funcs->test_ring((r))
++#define amdgpu_ring_test_ib(r, t) (r)->funcs->test_ib((r), (t))
++#define amdgpu_ring_get_rptr(r) (r)->funcs->get_rptr((r))
++#define amdgpu_ring_get_wptr(r) (r)->funcs->get_wptr((r))
++#define amdgpu_ring_set_wptr(r) (r)->funcs->set_wptr((r))
++#define amdgpu_ring_emit_ib(r, ib, vmid, c) (r)->funcs->emit_ib((r), (ib), (vmid), (c))
++#define amdgpu_ring_emit_pipeline_sync(r) (r)->funcs->emit_pipeline_sync((r))
++#define amdgpu_ring_emit_vm_flush(r, vmid, addr) (r)->funcs->emit_vm_flush((r), (vmid), (addr))
++#define amdgpu_ring_emit_fence(r, addr, seq, flags) (r)->funcs->emit_fence((r), (addr), (seq), (flags))
++#define amdgpu_ring_emit_gds_switch(r, v, db, ds, wb, ws, ab, as) (r)->funcs->emit_gds_switch((r), (v), (db), (ds), (wb), (ws), (ab), (as))
++#define amdgpu_ring_emit_hdp_flush(r) (r)->funcs->emit_hdp_flush((r))
++#define amdgpu_ring_emit_switch_buffer(r) (r)->funcs->emit_switch_buffer((r))
++#define amdgpu_ring_emit_cntxcntl(r, d) (r)->funcs->emit_cntxcntl((r), (d))
++#define amdgpu_ring_emit_rreg(r, d) (r)->funcs->emit_rreg((r), (d))
++#define amdgpu_ring_emit_wreg(r, d, v) (r)->funcs->emit_wreg((r), (d), (v))
++#define amdgpu_ring_emit_reg_wait(r, d, v, m) (r)->funcs->emit_reg_wait((r), (d), (v), (m))
++#define amdgpu_ring_emit_reg_write_reg_wait(r, d0, d1, v, m) (r)->funcs->emit_reg_write_reg_wait((r), (d0), (d1), (v), (m))
++#define amdgpu_ring_emit_tmz(r, b) (r)->funcs->emit_tmz((r), (b))
++#define amdgpu_ring_pad_ib(r, ib) ((r)->funcs->pad_ib((r), (ib)))
++#define amdgpu_ring_init_cond_exec(r) (r)->funcs->init_cond_exec((r))
++#define amdgpu_ring_patch_cond_exec(r,o) (r)->funcs->patch_cond_exec((r),(o))
++
+ int amdgpu_ring_alloc(struct amdgpu_ring *ring, unsigned ndw);
+ void amdgpu_ring_insert_nop(struct amdgpu_ring *ring, uint32_t count);
+ void amdgpu_ring_generic_pad_ib(struct amdgpu_ring *ring, struct amdgpu_ib *ib);
+-- 
+2.7.4
+

@@ -1,0 +1,159 @@
+From a9c2b51cc3d75fb871bcc685e203027ca6779f3a Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Tue, 12 Sep 2017 15:58:20 -0400
+Subject: [PATCH 4137/5725] drm/amd/dc: Add dc display driver (v3)
+
+Supported DCE versions: 8.0, 10.0, 11.0, 11.2
+
+Added functions get_norm_pix_clk & calculate_phy_pix_clks and
+No need to keep track of unreffedclk sources.
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 91 ++++++++++++++---------
+ 1 file changed, 57 insertions(+), 34 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 4ab04c7..81c6de7 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -265,30 +265,23 @@ bool resource_construct(
+ 
+ 	return true;
+ }
+-static int find_matching_clock_source(
+-		const struct resource_pool *pool,
+-		struct clock_source *clock_source)
+-{
+-
+-	int i;
+-
+-	for (i = 0; i < pool->clk_src_count; i++) {
+-		if (pool->clock_sources[i] == clock_source)
+-			return i;
+-	}
+-	return -1;
+-}
+ 
+ void resource_unreference_clock_source(
+ 		struct resource_context *res_ctx,
+ 		const struct resource_pool *pool,
+ 		struct clock_source *clock_source)
+ {
+-	int i = find_matching_clock_source(pool, clock_source);
++	int i;
+ 
+-	if (i > -1)
++	for (i = 0; i < pool->clk_src_count; i++) {
++		if (pool->clock_sources[i] != clock_source)
++			continue;
++		
+ 		res_ctx->clock_source_ref_count[i]--;
+ 
++		break;
++	}
++	
+ 	if (pool->dp_clock_source == clock_source)
+ 		res_ctx->dp_clock_source_ref_count--;
+ }
+@@ -298,31 +291,19 @@ void resource_reference_clock_source(
+ 		const struct resource_pool *pool,
+ 		struct clock_source *clock_source)
+ {
+-	int i = find_matching_clock_source(pool, clock_source);
+-
+-	if (i > -1)
++	int i;
++	for (i = 0; i < pool->clk_src_count; i++) {
++		if (pool->clock_sources[i] != clock_source)
++			continue;
++	
+ 		res_ctx->clock_source_ref_count[i]++;
++		break;
++	}
+ 
+ 	if (pool->dp_clock_source == clock_source)
+ 		res_ctx->dp_clock_source_ref_count++;
+ }
+ 
+-int resource_get_clock_source_reference(
+-		struct resource_context *res_ctx,
+-		const struct resource_pool *pool,
+-		struct clock_source *clock_source)
+-{
+-	int i = find_matching_clock_source(pool, clock_source);
+-
+-	if (i > -1)
+-		return res_ctx->clock_source_ref_count[i];
+-
+-	if (pool->dp_clock_source == clock_source)
+-		return res_ctx->dp_clock_source_ref_count;
+-
+-	return -1;
+-}
+-
+ bool resource_are_streams_timing_synchronizable(
+ 	struct dc_stream_state *stream1,
+ 	struct dc_stream_state *stream2)
+@@ -1648,6 +1629,46 @@ static struct dc_stream_state *find_pll_sharable_stream(
+ 	return NULL;
+ }
+ 
++static int get_norm_pix_clk(const struct dc_crtc_timing *timing)
++{
++	uint32_t pix_clk = timing->pix_clk_khz;
++	uint32_t normalized_pix_clk = pix_clk;
++
++	if (timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
++		pix_clk /= 2;
++	if (timing->pixel_encoding != PIXEL_ENCODING_YCBCR422) {
++		switch (timing->display_color_depth) {
++		case COLOR_DEPTH_888:
++			normalized_pix_clk = pix_clk;
++			break;
++		case COLOR_DEPTH_101010:
++			normalized_pix_clk = (pix_clk * 30) / 24;
++			break;
++		case COLOR_DEPTH_121212:
++			normalized_pix_clk = (pix_clk * 36) / 24;
++		break;
++		case COLOR_DEPTH_161616:
++			normalized_pix_clk = (pix_clk * 48) / 24;
++		break;
++		default:
++			ASSERT(0);
++		break;
++		}
++	}
++	return normalized_pix_clk;
++}
++
++static void calculate_phy_pix_clks(struct dc_stream_state *stream)
++{
++	/* update actual pixel clock on all streams */
++	if (dc_is_hdmi_signal(stream->signal))
++		stream->phy_pix_clk = get_norm_pix_clk(
++			&stream->timing);
++	else
++		stream->phy_pix_clk =
++			stream->timing.pix_clk_khz;
++}
++
+ enum dc_status resource_map_pool_resources(
+ 		const struct dc  *dc,
+ 		struct dc_state *context,
+@@ -2550,6 +2571,8 @@ enum dc_status dc_validate_stream(struct dc *dc, struct dc_stream_state *stream)
+ 	struct timing_generator *tg = core_dc->res_pool->timing_generators[0];
+ 	enum dc_status res = DC_OK;
+ 
++	calculate_phy_pix_clks(stream);
++
+ 	if (!tg->funcs->validate_timing(tg, &stream->timing))
+ 		res = DC_FAIL_CONTROLLER_VALIDATE;
+ 
+-- 
+2.7.4
+

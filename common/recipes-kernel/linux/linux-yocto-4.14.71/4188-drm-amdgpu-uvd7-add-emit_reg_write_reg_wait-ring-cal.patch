@@ -1,0 +1,34 @@
+From 84a6a2a15806a827991ea194e8c75ba5ae894906 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 27 Mar 2018 17:05:19 -0500
+Subject: [PATCH 4188/5725] drm/amdgpu/uvd7: add emit_reg_write_reg_wait ring
+ callback
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This adds support for writing and reading back using the
+helper since the engines doesn't have a oneshot packet.
+
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c b/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c
+index 4a4fd4b..31e339c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c
+@@ -1735,6 +1735,7 @@ static const struct amdgpu_ring_funcs uvd_v7_0_enc_ring_vm_funcs = {
+ 	.end_use = amdgpu_uvd_ring_end_use,
+ 	.emit_wreg = uvd_v7_0_enc_ring_emit_wreg,
+ 	.emit_reg_wait = uvd_v7_0_enc_ring_emit_reg_wait,
++	.emit_reg_write_reg_wait = amdgpu_ring_emit_reg_write_reg_wait_helper,
+ };
+ 
+ static void uvd_v7_0_set_ring_funcs(struct amdgpu_device *adev)
+-- 
+2.7.4
+

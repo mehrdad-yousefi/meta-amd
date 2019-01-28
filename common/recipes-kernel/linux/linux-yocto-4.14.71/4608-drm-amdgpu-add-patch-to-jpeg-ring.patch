@@ -1,0 +1,40 @@
+From 9c0b1624cf606ed507741592a2be3f1eb14b6036 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 30 May 2018 15:19:52 -0400
+Subject: [PATCH 4608/5725] drm/amdgpu: add patch to jpeg ring
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add patch commands to jepg ring by calling set patch ring function.
+
+v2: remove modifications on max_dw, buf_mask and ptr_mask, since we are
+now using extra_dw for jpeg ring.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 24a869f..a7a166f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -782,6 +782,13 @@ static int vcn_v1_0_start(struct amdgpu_device *adev)
+ 	WREG32_SOC15(UVD, 0, mmUVD_JRBC_RB_WPTR, 0);
+ 	WREG32_SOC15(UVD, 0, mmUVD_JRBC_RB_CNTL, 0x00000002L);
+ 
++	/* initialize wptr */
++	ring->wptr = RREG32_SOC15(UVD, 0, mmUVD_JRBC_RB_WPTR);
++
++	/* copy patch commands to the jpeg ring */
++	vcn_v1_0_jpeg_ring_set_patch_ring(ring,
++		(ring->wptr + ring->max_dw * amdgpu_sched_hw_submission));
++
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

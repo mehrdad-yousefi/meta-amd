@@ -1,0 +1,33 @@
+From cab6afb9f10ebe54445508755424b9193a03dc7b Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.king@canonical.com>
+Date: Wed, 2 May 2018 15:43:16 +0100
+Subject: [PATCH 4372/5725] drm/amd/display: clean up assignment of amdgpu_crtc
+
+The declaration of pointer amdgpu_crtc has a redundant assignment to
+amdgpu_crtc. Clean this up by removing it.
+
+Detected by CoverityScan, CID#1460299 ("Evaluation order violation")
+
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Colin Ian King <colin.king@canonical.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 11b9601..17d9675 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3931,7 +3931,7 @@ static void remove_stream(struct amdgpu_device *adev,
+ static int get_cursor_position(struct drm_plane *plane, struct drm_crtc *crtc,
+ 			       struct dc_cursor_position *position)
+ {
+-	struct amdgpu_crtc *amdgpu_crtc = amdgpu_crtc = to_amdgpu_crtc(crtc);
++	struct amdgpu_crtc *amdgpu_crtc = to_amdgpu_crtc(crtc);
+ 	int x, y;
+ 	int xorigin = 0, yorigin = 0;
+ 
+-- 
+2.7.4
+

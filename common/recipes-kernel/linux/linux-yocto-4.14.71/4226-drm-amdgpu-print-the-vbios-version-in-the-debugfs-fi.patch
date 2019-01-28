@@ -1,0 +1,48 @@
+From 74f559a43ff5801db2b0f37e278da1f7dc38710c Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 17 Apr 2018 08:55:44 -0500
+Subject: [PATCH 4226/5725] drm/amdgpu: print the vbios version in the debugfs
+ firmware info
+
+Useful for info gathering about what firmwares are in use in
+the driver.
+
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 79d1060..73c2f7a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -31,6 +31,7 @@
+ #include "amdgpu_sched.h"
+ #include "amdgpu_uvd.h"
+ #include "amdgpu_vce.h"
++#include "atom.h"
+ 
+ #include <linux/vga_switcheroo.h>
+ #include <linux/slab.h>
+@@ -1143,6 +1144,7 @@ static int amdgpu_debugfs_firmware_info(struct seq_file *m, void *data)
+ 	struct amdgpu_device *adev = dev->dev_private;
+ 	struct drm_amdgpu_info_firmware fw_info;
+ 	struct drm_amdgpu_query_fw query_fw;
++	struct atom_context *ctx = adev->mode_info.atom_context;
+ 	int ret, i;
+ 
+ 	/* VCE */
+@@ -1289,6 +1291,9 @@ static int amdgpu_debugfs_firmware_info(struct seq_file *m, void *data)
+ 	seq_printf(m, "VCN feature version: %u, firmware version: 0x%08x\n",
+ 		   fw_info.feature, fw_info.ver);
+ 
++
++	seq_printf(m, "VBIOS version: %s\n", ctx->vbios_version);
++
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,43 @@
+From 0aa34248c3b24a8f52e3e5d7320afd779d7d3bcc Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Wed, 5 Sep 2018 10:03:13 +0800
+Subject: [PATCH 5389/5725] drm/amd/powerplay: fix compile warning for wrong
+ data type V2
+
+do_div expects the 1st argument in 64bit instead of 32bit.
+Drop the usage of do_div as it seems unnecessary.
+
+V2: drop usage of do_div completely
+
+Change-Id: Id2032a43727e7f1fa5163333d3565354d412a561
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 7dcfc79..d45cbfe 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -1307,7 +1307,7 @@ static int vega20_set_sclk_od(
+ 	int ret = 0;
+ 
+ 	od_sclk = golden_sclk_table->dpm_levels[golden_sclk_table->count - 1].value * value;
+-	do_div(od_sclk, 100);
++	od_sclk /= 100;
+ 	od_sclk += golden_sclk_table->dpm_levels[golden_sclk_table->count - 1].value;
+ 
+ 	ret = vega20_od8_set_settings(hwmgr, OD8_SETTING_GFXCLK_FMAX, od_sclk);
+@@ -1352,7 +1352,7 @@ static int vega20_set_mclk_od(
+ 	int ret = 0;
+ 
+ 	od_mclk = golden_mclk_table->dpm_levels[golden_mclk_table->count - 1].value * value;
+-	do_div(od_mclk, 100);
++	od_mclk /= 100;
+ 	od_mclk += golden_mclk_table->dpm_levels[golden_mclk_table->count - 1].value;
+ 
+ 	ret = vega20_od8_set_settings(hwmgr, OD8_SETTING_UCLK_FMAX, od_mclk);
+-- 
+2.7.4
+

@@ -1,0 +1,44 @@
+From 111a8c79f79e31c709ddc626c64eb8fc31c4726c Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Wed, 14 Mar 2018 14:44:58 -0400
+Subject: [PATCH 4624/5725] drm/amdgpu: Fix NULL pointer when PP block is
+ disabled
+
+When PP block is disabled, return a fix value(100M) for mclk and sclk
+on bare-metal mode, This will cover the emulation mode as well.
+
+Change-Id: Ibf4153544090ef6ec51b28d6625fa18c7ea3c58b
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 7dfb239..651acca 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2408,7 +2408,8 @@ static void amdgpu_inc_compute_vms(struct amdgpu_device *adev)
+ 	if ((adev->vm_manager.n_compute_vms++ == 0) &&
+ 	    (!amdgpu_sriov_vf(adev))) {
+ 		/* First Compute VM: enable compute power profile */
+-		if (adev->powerplay.pp_funcs->switch_power_profile)
++		if (adev->powerplay.pp_funcs &&
++			adev->powerplay.pp_funcs->switch_power_profile)
+ 			amdgpu_dpm_switch_power_profile(adev,
+ 							PP_SMC_POWER_PROFILE_COMPUTE, true);
+ 	}
+@@ -2697,7 +2698,8 @@ void amdgpu_vm_fini(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 		if ((--adev->vm_manager.n_compute_vms == 0) &&
+ 			(!amdgpu_sriov_vf(adev))) {
+ 			/* Last KFD VM: enable graphics power profile */
+-			if (adev->powerplay.pp_funcs->switch_power_profile)
++			if (adev->powerplay.pp_funcs &&
++				adev->powerplay.pp_funcs->switch_power_profile)
+ 				amdgpu_dpm_switch_power_profile(adev,
+ 					PP_SMC_POWER_PROFILE_COMPUTE, false);
+ 		}
+-- 
+2.7.4
+

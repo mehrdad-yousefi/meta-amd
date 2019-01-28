@@ -1,0 +1,55 @@
+From ce637a95634a90c4cee56685e2866d337d225e1a Mon Sep 17 00:00:00 2001
+From: Rex Zhu <rex.zhu@amd.com>
+Date: Tue, 17 Jul 2018 18:31:50 +0800
+Subject: [PATCH 4982/5725] drm/amd/pp: Set Max clock level to display by
+ default
+
+avoid the error in dmesg:
+[drm:dm_pp_get_static_clocks]
+*ERROR* DM_PPLIB: invalid powerlevel state: 0!
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 2a479fa..6ef06a4 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -1008,7 +1008,7 @@ static int pp_get_display_power_level(void *handle,
+ static int pp_get_current_clocks(void *handle,
+ 		struct amd_pp_clock_info *clocks)
+ {
+-	struct amd_pp_simple_clock_info simple_clocks;
++	struct amd_pp_simple_clock_info simple_clocks = { 0 };
+ 	struct pp_clock_info hw_clocks;
+ 	struct pp_hwmgr *hwmgr = handle;
+ 	int ret = 0;
+@@ -1044,7 +1044,10 @@ static int pp_get_current_clocks(void *handle,
+ 	clocks->max_engine_clock_in_sr = hw_clocks.max_eng_clk;
+ 	clocks->min_engine_clock_in_sr = hw_clocks.min_eng_clk;
+ 
+-	clocks->max_clocks_state = simple_clocks.level;
++	if (simple_clocks.level == 0)
++		clocks->max_clocks_state = PP_DAL_POWERLEVEL_7;
++	else
++		clocks->max_clocks_state = simple_clocks.level;
+ 
+ 	if (0 == phm_get_current_shallow_sleep_clocks(hwmgr, &hwmgr->current_ps->hardware, &hw_clocks)) {
+ 		clocks->max_engine_clock_in_sr = hw_clocks.max_eng_clk;
+@@ -1147,6 +1150,8 @@ static int pp_get_display_mode_validation_clocks(void *handle,
+ 	if (!hwmgr || !hwmgr->pm_en ||!clocks)
+ 		return -EINVAL;
+ 
++	clocks->level = PP_DAL_POWERLEVEL_7;
++
+ 	mutex_lock(&hwmgr->smu_lock);
+ 
+ 	if (phm_cap_enabled(hwmgr->platform_descriptor.platformCaps, PHM_PlatformCaps_DynamicPatchPowerState))
+-- 
+2.7.4
+

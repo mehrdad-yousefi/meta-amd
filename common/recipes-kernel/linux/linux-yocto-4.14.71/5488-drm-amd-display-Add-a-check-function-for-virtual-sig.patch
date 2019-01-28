@@ -1,0 +1,35 @@
+From 39b7969a617d0efa3a08f5428bd0f21d1d8fbd5f Mon Sep 17 00:00:00 2001
+From: Nikola Cornij <nikola.cornij@amd.com>
+Date: Wed, 12 Sep 2018 15:17:51 -0400
+Subject: [PATCH 5488/5725] drm/amd/display: Add a check-function for virtual
+ signal type
+
+[why]
+Same functions exist for all other signal types.
+
+[how]
+Add a function that checks against virtual signal type.
+
+Signed-off-by: Nikola Cornij <nikola.cornij@amd.com>
+Reviewed-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/include/signal_types.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/include/signal_types.h b/drivers/gpu/drm/amd/display/include/signal_types.h
+index 03476b1..f56d289 100644
+--- a/drivers/gpu/drm/amd/display/include/signal_types.h
++++ b/drivers/gpu/drm/amd/display/include/signal_types.h
+@@ -102,4 +102,9 @@ static inline bool dc_is_audio_capable_signal(enum signal_type signal)
+ 		dc_is_hdmi_signal(signal));
+ }
+ 
++static inline bool dc_is_virtual_signal(enum signal_type signal)
++{
++	return (signal == SIGNAL_TYPE_VIRTUAL);
++}
++
+ #endif
+-- 
+2.7.4
+

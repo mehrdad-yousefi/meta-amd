@@ -1,0 +1,30 @@
+From a9d5020a6579694bba7db5c283525fe9c7082118 Mon Sep 17 00:00:00 2001
+From: Hersen Wu <hersenxs.wu@amd.com>
+Date: Tue, 8 May 2018 16:35:09 -0400
+Subject: [PATCH 4537/5725] drm/amd/display: Fix indentation in dcn10 resource
+ constructor
+
+Signed-off-by: Hersen Wu <hersenxs.wu@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index df5cb2d..99c223b 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -1004,7 +1004,8 @@ static bool construct(
+ 
+ 	ctx->dc_bios->regs = &bios_regs;
+ 
+-	pool->base.res_cap = &res_cap;
++		pool->base.res_cap = &res_cap;
++
+ 	pool->base.funcs = &dcn10_res_pool_funcs;
+ 
+ 	/*
+-- 
+2.7.4
+

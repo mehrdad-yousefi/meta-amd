@@ -1,0 +1,27 @@
+From f2a5b53782ab5e25e9a3f080f6fb39e2a22d64de Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Thu, 9 Nov 2017 13:18:24 -0500
+Subject: [PATCH 4305/5725] drm/amdgpu: add VEGAM ASIC type
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 0ece1c3..f2abcf1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -83,6 +83,7 @@ static const char *amdgpu_asic_name[] = {
+ 	"POLARIS10",
+ 	"POLARIS11",
+ 	"POLARIS12",
++	"VEGAM",
+ 	"VEGA10",
+ 	"VEGA12",
+ 	"RAVEN",
+-- 
+2.7.4
+

@@ -1,0 +1,43 @@
+From c9f834e307c51b24706f80e4d9d4c4d6c98247f6 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 28 Sep 2018 16:01:48 +0800
+Subject: [PATCH 5506/5725] drm/amdgpu: Disable sysfs pwm1 if not in manual fan
+ control
+
+Following lm-sensors 3.0.0,
+Only enable pwm1 sysfs when fan control mode(pwm1_enable)
+in manual
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index 486ac6e..9a487d2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -1120,12 +1120,19 @@ static ssize_t amdgpu_hwmon_set_pwm1(struct device *dev,
+ 	struct amdgpu_device *adev = dev_get_drvdata(dev);
+ 	int err;
+ 	u32 value;
++	u32 pwm_mode;
+ 
+ 	/* Can't adjust fan when the card is off */
+ 	if  ((adev->flags & AMD_IS_PX) &&
+ 	     (adev->ddev->switch_power_state != DRM_SWITCH_POWER_ON))
+ 		return -EINVAL;
+ 
++	pwm_mode = amdgpu_dpm_get_fan_control_mode(adev);
++	if (pwm_mode != AMD_FAN_CTRL_MANUAL) {
++		pr_info("manual fan speed control should be enabled first\n");
++		return -EINVAL;
++	}
++
+ 	err = kstrtou32(buf, 10, &value);
+ 	if (err)
+ 		return err;
+-- 
+2.7.4
+

@@ -1,0 +1,36 @@
+From 948decc05f43acba3a626a85db237111598c0064 Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Tue, 5 Sep 2017 15:50:48 -0400
+Subject: [PATCH 4138/5725] drm/amd/display: No need to keep track of unreffed
+ clk sources V2
+
+This simplifies clock source reprogramming a bit.
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <Harry.Wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 858edb3..b17afcf 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -1939,10 +1939,7 @@ static void dce110_reset_hw_ctx_wrap(
+ 			pipe_ctx_old->stream_res.tg->funcs->disable_crtc(pipe_ctx_old->stream_res.tg);
+ 			pipe_ctx_old->plane_res.mi->funcs->free_mem_input(
+ 					pipe_ctx_old->plane_res.mi, dc->current_state->stream_count);
+-
+-			if (old_clk && 0 == resource_get_clock_source_reference(&context->res_ctx,
+-										dc->res_pool,
+-										old_clk))
++			if (old_clk)
+ 				old_clk->funcs->cs_power_down(old_clk);
+ 
+ 			dc->hwss.disable_plane(dc, pipe_ctx_old);
+-- 
+2.7.4
+

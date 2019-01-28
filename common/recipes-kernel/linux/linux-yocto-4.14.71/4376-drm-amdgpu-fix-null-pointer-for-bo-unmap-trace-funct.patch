@@ -1,0 +1,32 @@
+From 39e9fa4b960848e21f3a6b59ae5edc6ff1af963b Mon Sep 17 00:00:00 2001
+From: Junwei Zhang <Jerry.Zhang@amd.com>
+Date: Fri, 11 May 2018 14:54:31 +0800
+Subject: [PATCH 4376/5725] drm/amdgpu: fix null pointer for bo unmap trace
+ function
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Change-Id: Ib1e901ec7f3c5449f23f7ec0e5ae9c50510180d8
+Signed-off-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+index 532263a..e96e26d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace.h
+@@ -275,7 +275,7 @@ TRACE_EVENT(amdgpu_vm_bo_unmap,
+ 			     ),
+ 
+ 	    TP_fast_assign(
+-			   __entry->bo = bo_va->base.bo;
++			   __entry->bo = bo_va ? bo_va->base.bo : NULL;
+ 			   __entry->start = mapping->start;
+ 			   __entry->last = mapping->last;
+ 			   __entry->offset = mapping->offset;
+-- 
+2.7.4
+

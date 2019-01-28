@@ -1,0 +1,62 @@
+From 5a9f238063389fac83862d05fff2ff5a46bf90a8 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Thu, 13 Sep 2018 15:37:50 -0400
+Subject: [PATCH 5325/5725] drm/amdgpu: Add DMCU to firmware query interface
+
+DMCU firmware version can be read using the AMDGPU_INFO ioctl
+or the amdgpu_firmware_info debugfs entry
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c | 12 ++++++++++++
+ include/uapi/drm/amdgpu_drm.h           |  2 ++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 37b6416..bca3e2c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -254,6 +254,10 @@ static int amdgpu_firmware_info(struct drm_amdgpu_info_firmware *fw_info,
+ 		fw_info->ver = adev->psp.asd_fw_version;
+ 		fw_info->feature = adev->psp.asd_feature_version;
+ 		break;
++	case AMDGPU_INFO_FW_DMCU:
++		fw_info->ver = adev->dm.dmcu_fw_version;
++		fw_info->feature = 0;
++		break;
+ 	default:
+ 		return -EINVAL;
+ 	}
+@@ -1322,6 +1326,14 @@ static int amdgpu_debugfs_firmware_info(struct seq_file *m, void *data)
+ 	seq_printf(m, "VCN feature version: %u, firmware version: 0x%08x\n",
+ 		   fw_info.feature, fw_info.ver);
+ 
++	/* DMCU */
++	query_fw.fw_type = AMDGPU_INFO_FW_DMCU;
++	ret = amdgpu_firmware_info(&fw_info, &query_fw, adev);
++	if (ret)
++		return ret;
++	seq_printf(m, "DMCU feature version: %u, firmware version: 0x%08x\n",
++		   fw_info.feature, fw_info.ver);
++
+ 
+ 	seq_printf(m, "VBIOS version: %s\n", ctx->vbios_version);
+ 
+diff --git a/include/uapi/drm/amdgpu_drm.h b/include/uapi/drm/amdgpu_drm.h
+index a0c3286..b1dd9cb 100644
+--- a/include/uapi/drm/amdgpu_drm.h
++++ b/include/uapi/drm/amdgpu_drm.h
+@@ -708,6 +708,8 @@ struct drm_amdgpu_cs_chunk_data {
+         #define AMDGPU_INFO_FW_GFX_RLC_RESTORE_LIST_GPM_MEM 0x10
+         /* Subquery id: Query GFX RLC SRLS firmware version */
+         #define AMDGPU_INFO_FW_GFX_RLC_RESTORE_LIST_SRM_MEM 0x11
++	/* Subquery id: Query DMCU firmware version */
++	#define AMDGPU_INFO_FW_DMCU             0x12
+ /* number of bytes moved for TTM migration */
+ #define AMDGPU_INFO_NUM_BYTES_MOVED		0x0f
+ /* the used VRAM size */
+-- 
+2.7.4
+

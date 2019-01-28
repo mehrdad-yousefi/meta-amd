@@ -1,0 +1,31 @@
+From fd8759636d8963b50c77452946d53cd27172a73b Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Wed, 11 Jul 2018 14:40:18 -0400
+Subject: [PATCH 5095/5725] drm/amdgpu: add emit reg write reg wait for vcn
+ jpeg
+
+The emit_reg_write_reg_wait function was not assigned for vcn jpeg.
+This patch adds it back.
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Leo Liu <leo.liu at amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 90103b0..284b99d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -1770,6 +1770,7 @@ static const struct amdgpu_ring_funcs vcn_v1_0_jpeg_ring_vm_funcs = {
+ 	.end_use = amdgpu_vcn_ring_end_use,
+ 	.emit_wreg = vcn_v1_0_jpeg_ring_emit_wreg,
+ 	.emit_reg_wait = vcn_v1_0_jpeg_ring_emit_reg_wait,
++	.emit_reg_write_reg_wait = amdgpu_ring_emit_reg_write_reg_wait_helper,
+ };
+ 
+ static void vcn_v1_0_set_dec_ring_funcs(struct amdgpu_device *adev)
+-- 
+2.7.4
+

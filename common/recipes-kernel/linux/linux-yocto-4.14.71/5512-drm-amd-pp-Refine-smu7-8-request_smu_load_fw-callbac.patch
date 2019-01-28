@@ -1,0 +1,228 @@
+From 9b5db2f7d3c0c3e2408b9a4999721b242fe36f4f Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sat, 29 Sep 2018 13:54:33 +0800
+Subject: [PATCH 5512/5725] drm/amd/pp: Refine smu7/8 request_smu_load_fw
+ callback function
+
+The request_smu_load_fw of VI is used to load gfx/sdma
+ip's firmware.
+
+Check whether the gfx/sdma firmware have been loaded successfully
+in this callback function.
+if failed, driver can exit to avoid gpu hard hung.
+if successful, clean the flag reload_fw to avoid duplicated fw load.
+when suspend/resume, driver need to reload fw.
+so in suspend, reset the reload_fw flag to true to enable load fw when
+resume.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c        |  1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c | 55 ++++-----------------
+ drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c | 56 +++++++++++-----------
+ 3 files changed, 39 insertions(+), 73 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+index 7500a3e..d552af2 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+@@ -301,6 +301,7 @@ int hwmgr_suspend(struct pp_hwmgr *hwmgr)
+ 	if (!hwmgr || !hwmgr->pm_en)
+ 		return 0;
+ 
++	hwmgr->reload_fw = true;
+ 	phm_disable_smc_firmware_ctf(hwmgr);
+ 	ret = psm_set_boot_states(hwmgr);
+ 	if (ret)
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+index 1234400..80a567a 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+@@ -304,44 +304,6 @@ int smu7_write_smc_sram_dword(struct pp_hwmgr *hwmgr, uint32_t smc_addr, uint32_
+ 	return 0;
+ }
+ 
+-/* Convert the firmware type to SMU type mask. For MEC, we need to check all MEC related type */
+-
+-static uint32_t smu7_get_mask_for_firmware_type(uint32_t fw_type)
+-{
+-	uint32_t result = 0;
+-
+-	switch (fw_type) {
+-	case UCODE_ID_SDMA0:
+-		result = UCODE_ID_SDMA0_MASK;
+-		break;
+-	case UCODE_ID_SDMA1:
+-		result = UCODE_ID_SDMA1_MASK;
+-		break;
+-	case UCODE_ID_CP_CE:
+-		result = UCODE_ID_CP_CE_MASK;
+-		break;
+-	case UCODE_ID_CP_PFP:
+-		result = UCODE_ID_CP_PFP_MASK;
+-		break;
+-	case UCODE_ID_CP_ME:
+-		result = UCODE_ID_CP_ME_MASK;
+-		break;
+-	case UCODE_ID_CP_MEC:
+-	case UCODE_ID_CP_MEC_JT1:
+-	case UCODE_ID_CP_MEC_JT2:
+-		result = UCODE_ID_CP_MEC_MASK;
+-		break;
+-	case UCODE_ID_RLC_G:
+-		result = UCODE_ID_RLC_G_MASK;
+-		break;
+-	default:
+-		pr_info("UCode type is out of range! \n");
+-		result = 0;
+-	}
+-
+-	return result;
+-}
+-
+ static int smu7_populate_single_firmware_entry(struct pp_hwmgr *hwmgr,
+ 						uint32_t fw_type,
+ 						struct SMU_Entry *entry)
+@@ -383,10 +345,8 @@ int smu7_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 	uint32_t fw_to_load;
+ 	int r = 0;
+ 
+-	if (!hwmgr->reload_fw) {
+-		pr_info("skip reloading...\n");
++	if (!hwmgr->reload_fw)
+ 		return 0;
+-	}
+ 
+ 	if (smu_data->soft_regs_start)
+ 		cgs_write_ind_register(hwmgr->device, CGS_IND_REG__SMC,
+@@ -469,10 +429,14 @@ int smu7_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 	smu7_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_DRV_DRAM_ADDR_HI, upper_32_bits(smu_data->header_buffer.mc_addr));
+ 	smu7_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_DRV_DRAM_ADDR_LO, lower_32_bits(smu_data->header_buffer.mc_addr));
+ 
+-	if (smu7_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_LoadUcodes, fw_to_load))
+-		pr_err("Fail to Request SMU Load uCode");
++	smu7_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_LoadUcodes, fw_to_load);
+ 
+-	return r;
++	r = smu7_check_fw_load_finish(hwmgr, fw_to_load);
++	if (!r) {
++		hwmgr->reload_fw = 0;
++		return 0;
++	}
++	pr_err("SMU load firmware failed\n");
+ 
+ failed:
+ 	kfree(smu_data->toc);
+@@ -484,13 +448,12 @@ int smu7_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ int smu7_check_fw_load_finish(struct pp_hwmgr *hwmgr, uint32_t fw_type)
+ {
+ 	struct smu7_smumgr *smu_data = (struct smu7_smumgr *)(hwmgr->smu_backend);
+-	uint32_t fw_mask = smu7_get_mask_for_firmware_type(fw_type);
+ 	uint32_t ret;
+ 
+ 	ret = phm_wait_on_indirect_register(hwmgr, mmSMC_IND_INDEX_11,
+ 					smu_data->soft_regs_start + smum_get_offsetof(hwmgr,
+ 					SMU_SoftRegisters, UcodeLoadStatus),
+-					fw_mask, fw_mask);
++					fw_type, fw_type);
+ 	return ret;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+index a74c5be..7b3b66d 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+@@ -658,11 +658,11 @@ static int smu8_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ {
+ 	struct smu8_smumgr *smu8_smu = hwmgr->smu_backend;
+ 	uint32_t smc_address;
++	uint32_t fw_to_check = 0;
++	int ret;
+ 
+-	if (!hwmgr->reload_fw) {
+-		pr_info("skip reloading...\n");
++	if (!hwmgr->reload_fw)
+ 		return 0;
+-	}
+ 
+ 	smu8_smu_populate_firmware_entries(hwmgr);
+ 
+@@ -689,28 +689,9 @@ static int smu8_request_smu_load_fw(struct pp_hwmgr *hwmgr)
+ 	smu8_send_msg_to_smc_with_parameter(hwmgr, PPSMC_MSG_ExecuteJob,
+ 				smu8_smu->toc_entry_power_profiling_index);
+ 
+-	return smu8_send_msg_to_smc_with_parameter(hwmgr,
++	smu8_send_msg_to_smc_with_parameter(hwmgr,
+ 					PPSMC_MSG_ExecuteJob,
+ 					smu8_smu->toc_entry_initialize_index);
+-}
+-
+-static int smu8_start_smu(struct pp_hwmgr *hwmgr)
+-{
+-	int ret = 0;
+-	uint32_t fw_to_check = 0;
+-	struct amdgpu_device *adev = hwmgr->adev;
+-
+-	uint32_t index = SMN_MP1_SRAM_START_ADDR +
+-			 SMU8_FIRMWARE_HEADER_LOCATION +
+-			 offsetof(struct SMU8_Firmware_Header, Version);
+-
+-
+-	if (hwmgr == NULL || hwmgr->device == NULL)
+-		return -EINVAL;
+-
+-	cgs_write_register(hwmgr->device, mmMP0PUB_IND_INDEX, index);
+-	hwmgr->smu_version = cgs_read_register(hwmgr->device, mmMP0PUB_IND_DATA);
+-	adev->pm.fw_version = hwmgr->smu_version >> 8;
+ 
+ 	fw_to_check = UCODE_ID_RLC_G_MASK |
+ 			UCODE_ID_SDMA0_MASK |
+@@ -724,8 +705,6 @@ static int smu8_start_smu(struct pp_hwmgr *hwmgr)
+ 	if (hwmgr->chip_id == CHIP_STONEY)
+ 		fw_to_check &= ~(UCODE_ID_SDMA1_MASK | UCODE_ID_CP_MEC_JT2_MASK);
+ 
+-	smu8_request_smu_load_fw(hwmgr);
+-
+ 	ret = smu8_check_fw_load_finish(hwmgr, fw_to_check);
+ 	if (ret) {
+ 		pr_err("SMU firmware load failed\n");
+@@ -733,10 +712,33 @@ static int smu8_start_smu(struct pp_hwmgr *hwmgr)
+ 	}
+ 
+ 	ret = smu8_load_mec_firmware(hwmgr);
+-	if (ret)
++	if (ret) {
+ 		pr_err("Mec Firmware load failed\n");
++		return ret;
++	}
+ 
+-	return ret;
++	hwmgr->reload_fw = 0;
++
++	return 0;
++}
++
++static int smu8_start_smu(struct pp_hwmgr *hwmgr)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++
++	uint32_t index = SMN_MP1_SRAM_START_ADDR +
++			 SMU8_FIRMWARE_HEADER_LOCATION +
++			 offsetof(struct SMU8_Firmware_Header, Version);
++
++
++	if (hwmgr == NULL || hwmgr->device == NULL)
++		return -EINVAL;
++
++	cgs_write_register(hwmgr->device, mmMP0PUB_IND_INDEX, index);
++	hwmgr->smu_version = cgs_read_register(hwmgr->device, mmMP0PUB_IND_DATA);
++	adev->pm.fw_version = hwmgr->smu_version >> 8;
++
++	return smu8_request_smu_load_fw(hwmgr);
+ }
+ 
+ static int smu8_smu_init(struct pp_hwmgr *hwmgr)
+-- 
+2.7.4
+

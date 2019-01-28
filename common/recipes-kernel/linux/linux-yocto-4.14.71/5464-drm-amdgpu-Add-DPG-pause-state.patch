@@ -1,0 +1,50 @@
+From a1bb375aa9e523573a84168c24a3afaa7afc06a0 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Mon, 10 Sep 2018 18:15:11 -0400
+Subject: [PATCH 5464/5725] drm/amdgpu:Add DPG pause state
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add DPG pause state to support VCN DPG mode.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+index d2219ab..0b88a46 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+@@ -56,6 +56,16 @@ enum engine_status_constants {
+ 	UVD_STATUS__RBC_BUSY = 0x1,
+ };
+ 
++enum internal_dpg_state {
++	VCN_DPG_STATE__UNPAUSE = 0,
++	VCN_DPG_STATE__PAUSE,
++};
++
++struct dpg_pause_state {
++	enum internal_dpg_state fw_based;
++	enum internal_dpg_state jpeg;
++};
++
+ struct amdgpu_vcn {
+ 	struct amdgpu_bo	*vcpu_bo;
+ 	void			*cpu_addr;
+@@ -70,6 +80,7 @@ struct amdgpu_vcn {
+ 	struct amdgpu_irq_src	irq;
+ 	unsigned		num_enc_rings;
+ 	enum amd_powergating_state cur_state;
++	struct dpg_pause_state pause_state;
+ };
+ 
+ int amdgpu_vcn_sw_init(struct amdgpu_device *adev);
+-- 
+2.7.4
+

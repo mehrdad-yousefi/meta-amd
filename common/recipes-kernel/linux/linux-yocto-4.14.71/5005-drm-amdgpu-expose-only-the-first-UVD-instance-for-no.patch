@@ -1,0 +1,94 @@
+From 2333a46a57fecafb64f70a149c8fc5b2651decea Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Wed, 18 Jul 2018 14:17:59 +0200
+Subject: [PATCH 5005/5725] drm/amdgpu: expose only the first UVD instance for
+ now
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Going to completely rework the context to ring mapping with Nayan's GSoC
+work, but for now just stopping to expose the second UVD instance should
+do it.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c       | 13 +++++--------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_queue_mgr.c |  9 ++-------
+ 2 files changed, 7 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index e34c1b9..5aab580 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -283,7 +283,7 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 	struct drm_crtc *crtc;
+ 	uint32_t ui32 = 0;
+ 	uint64_t ui64 = 0;
+-	int i, j, found;
++	int i, found;
+ 	int ui32_size = sizeof(ui32);
+ 
+ 	if (!info->return_size || !info->return_pointer)
+@@ -362,8 +362,7 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 			break;
+ 		case AMDGPU_HW_IP_UVD:
+ 			type = AMD_IP_BLOCK_TYPE_UVD;
+-			for (i = 0; i < adev->uvd.num_uvd_inst; i++)
+-				ring_mask |= adev->uvd.inst[i].ring.ready << i;
++			ring_mask |= adev->uvd.inst[0].ring.ready;
+ 			ib_start_alignment = 64;
+ 			ib_size_alignment = 64;
+ 			break;
+@@ -376,11 +375,9 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 			break;
+ 		case AMDGPU_HW_IP_UVD_ENC:
+ 			type = AMD_IP_BLOCK_TYPE_UVD;
+-			for (i = 0; i < adev->uvd.num_uvd_inst; i++)
+-				for (j = 0; j < adev->uvd.num_enc_rings; j++)
+-					ring_mask |=
+-					adev->uvd.inst[i].ring_enc[j].ready <<
+-					(j + i * adev->uvd.num_enc_rings);
++			for (i = 0; i < adev->uvd.num_enc_rings; i++)
++				ring_mask |=
++					adev->uvd.inst[0].ring_enc[i].ready << i;
+ 			ib_start_alignment = 64;
+ 			ib_size_alignment = 64;
+ 			break;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_queue_mgr.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_queue_mgr.c
+index ea9850c..d835729 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_queue_mgr.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_queue_mgr.c
+@@ -66,8 +66,6 @@ static int amdgpu_identity_map(struct amdgpu_device *adev,
+ 			       u32 ring,
+ 			       struct amdgpu_ring **out_ring)
+ {
+-	u32 instance;
+-
+ 	switch (mapper->hw_ip) {
+ 	case AMDGPU_HW_IP_GFX:
+ 		*out_ring = &adev->gfx.gfx_ring[ring];
+@@ -79,16 +77,13 @@ static int amdgpu_identity_map(struct amdgpu_device *adev,
+ 		*out_ring = &adev->sdma.instance[ring].ring;
+ 		break;
+ 	case AMDGPU_HW_IP_UVD:
+-		instance = ring;
+-		*out_ring = &adev->uvd.inst[instance].ring;
++		*out_ring = &adev->uvd.inst[0].ring;
+ 		break;
+ 	case AMDGPU_HW_IP_VCE:
+ 		*out_ring = &adev->vce.ring[ring];
+ 		break;
+ 	case AMDGPU_HW_IP_UVD_ENC:
+-		instance = ring / adev->uvd.num_enc_rings;
+-		*out_ring =
+-		&adev->uvd.inst[instance].ring_enc[ring%adev->uvd.num_enc_rings];
++		*out_ring = &adev->uvd.inst[0].ring_enc[ring];
+ 		break;
+ 	case AMDGPU_HW_IP_VCN_DEC:
+ 		*out_ring = &adev->vcn.ring_dec;
+-- 
+2.7.4
+

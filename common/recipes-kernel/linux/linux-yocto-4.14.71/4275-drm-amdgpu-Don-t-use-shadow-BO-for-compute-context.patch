@@ -1,0 +1,75 @@
+From b5bade0746d9a5cfb2ccf99d391f77132fbdc80a Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Mon, 23 Apr 2018 13:53:33 -0400
+Subject: [PATCH 4275/5725] drm/amdgpu: Don't use shadow BO for compute context
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Shadow BO is located on GTT and its parent (PT and PD) BO could located on VRAM.
+In some case, the BO on GTT could be evicted but the parent did not. This may
+cause the shadow BO not be put in the evict list and could not be invalidated
+correctly.
+
+In current state, KFD won't support revovery the process after gpu reset.
+Avoid use the shadow BO for now. Further investigation is needed to fix the
+shadow BO invalidation issue.
+
+Change-Id: I9ab0fb70b5517738f0d0313ed19af8154ee39098
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index af645fb..edf2559 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -399,11 +399,12 @@ static int amdgpu_vm_alloc_levels(struct amdgpu_device *adev,
+ 	eaddr = eaddr & ((1 << shift) - 1);
+ 
+ 	flags = AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
++	if (vm->root.base.bo->shadow)
++		flags |= AMDGPU_GEM_CREATE_SHADOW;
+ 	if (vm->use_cpu_for_update)
+ 		flags |= AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
+ 	else
+-		flags |= (AMDGPU_GEM_CREATE_NO_CPU_ACCESS |
+-				AMDGPU_GEM_CREATE_SHADOW);
++		flags |= AMDGPU_GEM_CREATE_NO_CPU_ACCESS;
+ 
+ 	/* walk over the address space and allocate the page tables */
+ 	for (pt_idx = from; pt_idx <= to; ++pt_idx) {
+@@ -2468,7 +2469,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	flags = AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS;
+ 	if (vm->use_cpu_for_update)
+ 		flags |= AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
+-	else
++	else if (vm_context != AMDGPU_VM_CONTEXT_COMPUTE)
+ 		flags |= AMDGPU_GEM_CREATE_SHADOW;
+ 
+ 	size = amdgpu_vm_bo_size(adev, adev->vm_manager.root_level);
+@@ -2549,8 +2550,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+  *
+  * Reinitializes the page directory to reflect the changed ATS
+  * setting. May also switch to the compute power profile if this is
+- * the first compute VM. May leave behind an unused shadow BO for the
+- * page directory when switching from SDMA updates to CPU updates.
++ * the first compute VM.
+  *
+  * Returns 0 for success, -errno for errors.
+  */
+@@ -2609,6 +2609,8 @@ int amdgpu_vm_make_compute(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 
+ 	/* Count the new compute VM */
+ 	amdgpu_inc_compute_vms(adev);
++	/* Free the shadow bo for compute VM */
++	amdgpu_bo_unref(&vm->root.base.bo->shadow);
+ 
+ error:
+ 	amdgpu_bo_unreserve(vm->root.base.bo);
+-- 
+2.7.4
+

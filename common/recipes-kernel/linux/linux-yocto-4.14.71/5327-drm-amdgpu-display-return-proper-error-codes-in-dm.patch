@@ -1,0 +1,57 @@
+From e1118c5f1a69a0336b24731dba21041dcbe30716 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 13 Sep 2018 11:01:28 -0500
+Subject: [PATCH 5327/5725] drm/amdgpu/display: return proper error codes in dm
+
+Replace -1 with proper error codes.
+
+Acked-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index ae505ed..3815c7b 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -495,7 +495,7 @@ static int amdgpu_dm_init(struct amdgpu_device *adev)
+ error:
+ 	amdgpu_dm_fini(adev);
+ 
+-	return -1;
++	return -EINVAL;
+ }
+ 
+ static void amdgpu_dm_fini(struct amdgpu_device *adev)
+@@ -550,7 +550,7 @@ static int load_dmcu_fw(struct amdgpu_device *adev)
+ 		break;
+ 	default:
+ 		DRM_ERROR("Unsupported ASIC type: 0x%X\n", adev->asic_type);
+-		return -1;
++		return -EINVAL;
+ 	}
+ 
+ 	if (adev->firmware.load_type != AMDGPU_FW_LOAD_PSP) {
+@@ -1647,7 +1647,7 @@ static int amdgpu_dm_initialize_drm_device(struct amdgpu_device *adev)
+         link_cnt = dm->dc->caps.max_links;
+         if (amdgpu_dm_mode_config_init(dm->adev)) {
+                 DRM_ERROR("DM: Failed to initialize mode config\n");
+-                return -1;
++                return -EINVAL;
+         }
+ 
+         /* Identify the number of planes to be initialized */
+@@ -1769,7 +1769,7 @@ static int amdgpu_dm_initialize_drm_device(struct amdgpu_device *adev)
+         kfree(aconnector);
+         for (i = 0; i < dm->dc->caps.max_planes; i++)
+                 kfree(mode_info->planes[i]);
+-        return -1;
++        return -EINVAL;
+ }
+ 
+ static void amdgpu_dm_destroy_drm_device(struct amdgpu_display_manager *dm)
+-- 
+2.7.4
+

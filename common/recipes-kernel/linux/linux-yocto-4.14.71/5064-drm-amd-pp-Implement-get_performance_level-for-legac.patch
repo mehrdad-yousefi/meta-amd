@@ -1,0 +1,121 @@
+From e3ca9af0f77c41a0a3e10a9217a37e981799563f Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 5 Jul 2018 19:22:50 +0800
+Subject: [PATCH 5064/5725] drm/amd/pp: Implement get_performance_level for
+ legacy dgpu
+
+display can get clock info through this function.
+implement this function for vega10 and old asics.
+from vega12, there is no power state management,
+so need to add new interface to notify display
+the clock info
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ .../gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c  |  2 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c   | 24 ++++++++++++++++++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 24 ++++++++++++++++++++++
+ 3 files changed, 49 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c b/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c
+index 53207e7..b05b153 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/hardwaremanager.c
+@@ -357,7 +357,7 @@ int phm_get_clock_info(struct pp_hwmgr *hwmgr, const struct pp_hw_power_state *s
+ 			PHM_PerformanceLevelDesignation designation)
+ {
+ 	int result;
+-	PHM_PerformanceLevel performance_level;
++	PHM_PerformanceLevel performance_level = {0};
+ 
+ 	PHM_FUNC_CHECK(hwmgr);
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index e3c1eb4..d785b76 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -5008,6 +5008,29 @@ static int smu7_set_power_profile_mode(struct pp_hwmgr *hwmgr, long *input, uint
+ 	return 0;
+ }
+ 
++static int smu7_get_performance_level(struct pp_hwmgr *hwmgr, const struct pp_hw_power_state *state,
++				PHM_PerformanceLevelDesignation designation, uint32_t index,
++				PHM_PerformanceLevel *level)
++{
++	const struct smu7_power_state *ps;
++	struct smu7_hwmgr *data;
++	uint32_t i;
++
++	if (level == NULL || hwmgr == NULL || state == NULL)
++		return -EINVAL;
++
++	data = hwmgr->backend;
++	ps = cast_const_phw_smu7_power_state(state);
++
++	i = index > ps->performance_level_count - 1 ?
++			ps->performance_level_count - 1 : index;
++
++	level->coreClock = ps->performance_levels[i].engine_clock;
++	level->memory_clock = ps->performance_levels[i].memory_clock;
++
++	return 0;
++}
++
+ static const struct pp_hwmgr_func smu7_hwmgr_funcs = {
+ 	.backend_init = &smu7_hwmgr_backend_init,
+ 	.backend_fini = &smu7_hwmgr_backend_fini,
+@@ -5064,6 +5087,7 @@ static const struct pp_hwmgr_func smu7_hwmgr_funcs = {
+ 	.set_power_limit = smu7_set_power_limit,
+ 	.get_power_profile_mode = smu7_get_power_profile_mode,
+ 	.set_power_profile_mode = smu7_set_power_profile_mode,
++	.get_performance_level = smu7_get_performance_level,
+ };
+ 
+ uint8_t smu7_get_sleep_divider_id_from_clock(uint32_t clock,
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 384d853..61c6be2 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -4851,6 +4851,29 @@ static int vega10_odn_edit_dpm_table(struct pp_hwmgr *hwmgr,
+ 	return 0;
+ }
+ 
++static int vega10_get_performance_level(struct pp_hwmgr *hwmgr, const struct pp_hw_power_state *state,
++				PHM_PerformanceLevelDesignation designation, uint32_t index,
++				PHM_PerformanceLevel *level)
++{
++	const struct vega10_power_state *ps;
++	struct vega10_hwmgr *data;
++	uint32_t i;
++
++	if (level == NULL || hwmgr == NULL || state == NULL)
++		return -EINVAL;
++
++	data = hwmgr->backend;
++	ps = cast_const_phw_vega10_power_state(state);
++
++	i = index > ps->performance_level_count - 1 ?
++			ps->performance_level_count - 1 : index;
++
++	level->coreClock = ps->performance_levels[i].gfx_clock;
++	level->memory_clock = ps->performance_levels[i].mem_clock;
++
++	return 0;
++}
++
+ static const struct pp_hwmgr_func vega10_hwmgr_funcs = {
+ 	.backend_init = vega10_hwmgr_backend_init,
+ 	.backend_fini = vega10_hwmgr_backend_fini,
+@@ -4910,6 +4933,7 @@ static const struct pp_hwmgr_func vega10_hwmgr_funcs = {
+ 	.set_power_profile_mode = vega10_set_power_profile_mode,
+ 	.set_power_limit = vega10_set_power_limit,
+ 	.odn_edit_dpm_table = vega10_odn_edit_dpm_table,
++	.get_performance_level = vega10_get_performance_level,
+ };
+ 
+ int vega10_enable_smc_features(struct pp_hwmgr *hwmgr,
+-- 
+2.7.4
+

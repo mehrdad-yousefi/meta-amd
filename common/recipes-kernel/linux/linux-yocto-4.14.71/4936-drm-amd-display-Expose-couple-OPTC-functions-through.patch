@@ -1,0 +1,37 @@
+From 4e184888955b642935a24833f6b314bcf1db09a4 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Wed, 27 Jun 2018 15:55:57 -0400
+Subject: [PATCH 4936/5725] drm/amd/display: Expose couple OPTC functions
+ through header
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.h | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.h
+index 1df510f..c1b1142 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_optc.h
+@@ -554,4 +554,15 @@ bool optc1_get_otg_active_size(struct timing_generator *optc,
+ 		uint32_t *otg_active_width,
+ 		uint32_t *otg_active_height);
+ 
++void optc1_enable_crtc_reset(
++		struct timing_generator *optc,
++		int source_tg_inst,
++		struct crtc_trigger_info *crtc_tp);
++
++bool optc1_configure_crc(struct timing_generator *optc,
++			  const struct crc_params *params);
++
++bool optc1_get_crc(struct timing_generator *optc,
++		    uint32_t *r_cr, uint32_t *g_y, uint32_t *b_cb);
++
+ #endif /* __DC_TIMING_GENERATOR_DCN10_H__ */
+-- 
+2.7.4
+

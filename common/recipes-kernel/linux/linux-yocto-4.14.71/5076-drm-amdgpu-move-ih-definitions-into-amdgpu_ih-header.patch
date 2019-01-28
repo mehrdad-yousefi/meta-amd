@@ -1,0 +1,80 @@
+From 113759604ab893a9fe22cfff8c579e3a0d30f8a4 Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Thu, 2 Aug 2018 16:24:52 +0800
+Subject: [PATCH 5076/5725] drm/amdgpu: move ih definitions into amdgpu_ih
+ header
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Demangle amdgpu.h
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h    | 14 --------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h | 15 +++++++++++++++
+ 2 files changed, 15 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 6e7c60f..99f3233 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -325,16 +325,6 @@ struct amdgpu_vm_pte_funcs {
+ 			    uint32_t incr, uint64_t flags);
+ };
+ 
+-/* provided by the ih block */
+-struct amdgpu_ih_funcs {
+-	/* ring read/write ptr handling, called from interrupt context */
+-	u32 (*get_wptr)(struct amdgpu_device *adev);
+-	bool (*prescreen_iv)(struct amdgpu_device *adev);
+-	void (*decode_iv)(struct amdgpu_device *adev,
+-			  struct amdgpu_iv_entry *entry);
+-	void (*set_rptr)(struct amdgpu_device *adev);
+-};
+-
+ /*
+  * BIOS.
+  */
+@@ -1528,10 +1518,6 @@ amdgpu_get_sdma_instance(struct amdgpu_ring *ring)
+ #define amdgpu_ring_pad_ib(r, ib) ((r)->funcs->pad_ib((r), (ib)))
+ #define amdgpu_ring_init_cond_exec(r) (r)->funcs->init_cond_exec((r))
+ #define amdgpu_ring_patch_cond_exec(r,o) (r)->funcs->patch_cond_exec((r),(o))
+-#define amdgpu_ih_get_wptr(adev) (adev)->irq.ih_funcs->get_wptr((adev))
+-#define amdgpu_ih_prescreen_iv(adev) (adev)->irq.ih_funcs->prescreen_iv((adev))
+-#define amdgpu_ih_decode_iv(adev, iv) (adev)->irq.ih_funcs->decode_iv((adev), (iv))
+-#define amdgpu_ih_set_rptr(adev) (adev)->irq.ih_funcs->set_rptr((adev))
+ #define amdgpu_display_vblank_get_counter(adev, crtc) (adev)->mode_info.funcs->vblank_get_counter((adev), (crtc))
+ #define amdgpu_display_backlight_set_level(adev, e, l) (adev)->mode_info.funcs->backlight_set_level((e), (l))
+ #define amdgpu_display_backlight_get_level(adev, e) (adev)->mode_info.funcs->backlight_get_level((e))
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
+index 0e01f11..a23e1c0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ih.h
+@@ -76,6 +76,21 @@ struct amdgpu_iv_entry {
+ 	const uint32_t *iv_entry;
+ };
+ 
++/* provided by the ih block */
++struct amdgpu_ih_funcs {
++	/* ring read/write ptr handling, called from interrupt context */
++	u32 (*get_wptr)(struct amdgpu_device *adev);
++	bool (*prescreen_iv)(struct amdgpu_device *adev);
++	void (*decode_iv)(struct amdgpu_device *adev,
++			  struct amdgpu_iv_entry *entry);
++	void (*set_rptr)(struct amdgpu_device *adev);
++};
++
++#define amdgpu_ih_get_wptr(adev) (adev)->irq.ih_funcs->get_wptr((adev))
++#define amdgpu_ih_prescreen_iv(adev) (adev)->irq.ih_funcs->prescreen_iv((adev))
++#define amdgpu_ih_decode_iv(adev, iv) (adev)->irq.ih_funcs->decode_iv((adev), (iv))
++#define amdgpu_ih_set_rptr(adev) (adev)->irq.ih_funcs->set_rptr((adev))
++
+ int amdgpu_ih_ring_init(struct amdgpu_device *adev, unsigned ring_size,
+ 			bool use_bus_addr);
+ void amdgpu_ih_ring_fini(struct amdgpu_device *adev);
+-- 
+2.7.4
+

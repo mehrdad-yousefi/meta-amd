@@ -1,0 +1,36 @@
+From edc70851db3532e8c02e30ff5dcbe25ac69945e9 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 15:51:26 +0800
+Subject: [PATCH 4405/5725] drm/amdgpu/gfx9: Add support for vega20
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 5c9e44f..8ab13c3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1430,6 +1430,7 @@ static int gfx_v9_0_sw_init(void *handle)
+ 	switch (adev->asic_type) {
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+ 		adev->gfx.mec.num_mec = 2;
+ 		break;
+@@ -4725,6 +4726,7 @@ static void gfx_v9_0_set_rlc_funcs(struct amdgpu_device *adev)
+ 	switch (adev->asic_type) {
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+ 		adev->gfx.rlc.funcs = &gfx_v9_0_rlc_funcs;
+ 		break;
+-- 
+2.7.4
+

@@ -1,0 +1,30 @@
+From 9e4ebe01e8add6020e279b76a1a91857a086ed9d Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 26 Jan 2018 15:10:55 +0800
+Subject: [PATCH 4408/5725] drm/amdgpu/soc15: Set common clockgating for
+ vega20.
+
+Same as vega10 for now.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index f45bea8..1fd75f5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -875,6 +875,7 @@ static int soc15_common_set_clockgating_state(void *handle,
+ 	switch (adev->asic_type) {
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+ 		adev->nbio_funcs->update_medium_grain_clock_gating(adev,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+ 		adev->nbio_funcs->update_medium_grain_light_sleep(adev,
+-- 
+2.7.4
+

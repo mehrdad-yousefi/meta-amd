@@ -1,0 +1,39 @@
+From bd03930cf94ffab0bcf85092dbfcabbfe233a034 Mon Sep 17 00:00:00 2001
+From: Roman Li <Roman.Li@amd.com>
+Date: Tue, 27 Nov 2018 17:16:37 -0500
+Subject: [PATCH 5606/5725] drm/amd/display: Fix 6x4K displays light-up on
+ Vega20
+
+[Why]
+More than 4x4K didn't lightup on Vega20 due to low dcfclk value.
+Powerplay expects valid min requirement for dcfclk from DC.
+
+[How]
+Update min_dcfclock_khz based on min_engine_clock value.
+
+Change-Id: I123f5f98cb02fc8cb5e3c9ea619efc8aa5aa4463
+Reviewed-by: Hersen Wu <hersenxs.wu@amd.com>
+Reviewed-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Roman Li <Roman.Li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c
+index f1e71a8..493e2f4 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c
+@@ -585,6 +585,8 @@ static void dce11_pplib_apply_display_requirements(
+ 			dc,
+ 			context->bw.dce.sclk_khz);
+ 
++	pp_display_cfg->min_dcfclock_khz = pp_display_cfg->min_engine_clock_khz;
++
+ 	pp_display_cfg->min_engine_clock_deep_sleep_khz
+ 			= context->bw.dce.sclk_deep_sleep_khz;
+ 
+-- 
+2.7.4
+

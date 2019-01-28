@@ -1,0 +1,76 @@
+From 9f2208202d0f1b6fb0ecff582c4a6680299313d6 Mon Sep 17 00:00:00 2001
+From: Chunming Zhou <david1.zhou@amd.com>
+Date: Tue, 17 Apr 2018 11:52:53 +0800
+Subject: [PATCH 4230/5725] drm/amdgpu: set preferred_domain independent of
+ fallback handling
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When GEM needs to fallback to GTT for VRAM BOs we still want the
+preferred domain to be untouched so that the BO has a cance to move back
+to VRAM in the future.
+
+Change-Id: I8cfdf3f30532f7e5d80b8e4266b7800211de2f0b
+Signed-off-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c    | 1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 5 ++++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.h | 1 +
+ 3 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index f1031f4..df85dcc 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -89,6 +89,7 @@ int amdgpu_gem_object_create(struct amdgpu_device *adev, unsigned long size,
+ 	bp.byte_align = alignment;
+ 	bp.type = type;
+ 	bp.resv = resv;
++	bp.preferred_domain = initial_domain;
+ retry:
+ 	bp.flags = flags;
+ 	bp.domain = initial_domain;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index ffe6b05..08fcc74 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -382,6 +382,7 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev,
+ 	};
+ 	struct amdgpu_bo *bo;
+ 	unsigned long page_align, size = bp->size;
++	u32 preferred_domains;
+ 	size_t acc_size;
+ 	int r;
+ 
+@@ -402,7 +403,9 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev,
+ 	drm_gem_private_object_init(adev->ddev, &bo->gem_base, size);
+ 	INIT_LIST_HEAD(&bo->shadow_list);
+ 	INIT_LIST_HEAD(&bo->va);
+-	bo->preferred_domains = domain & (AMDGPU_GEM_DOMAIN_VRAM |
++	preferred_domains = bp->preferred_domain ? bp->preferred_domain :
++		bp->domain;
++	bo->preferred_domains = preferred_domains & (AMDGPU_GEM_DOMAIN_VRAM |
+ 					 AMDGPU_GEM_DOMAIN_GTT |
+ 					 AMDGPU_GEM_DOMAIN_CPU |
+ 					 AMDGPU_GEM_DOMAIN_GDS |
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+index 951af42..2c79c25 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.h
+@@ -37,6 +37,7 @@ struct amdgpu_bo_param {
+ 	unsigned long                   size;
+ 	int                             byte_align;
+ 	u32                             domain;
++	u32                             preferred_domain;
+ 	u64                             flags;
+ 	enum ttm_bo_type                type;
+ 	struct reservation_object       *resv;
+-- 
+2.7.4
+

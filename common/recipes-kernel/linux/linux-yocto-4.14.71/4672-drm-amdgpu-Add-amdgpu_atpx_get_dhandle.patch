@@ -1,0 +1,54 @@
+From e86917fba3bd41305582a8203c3567494a20a22c Mon Sep 17 00:00:00 2001
+From: Lyude Paul <lyude@redhat.com>
+Date: Mon, 25 Jun 2018 21:09:06 -0400
+Subject: [PATCH 4672/5725] drm/amdgpu: Add amdgpu_atpx_get_dhandle()
+
+Since it seems that some vendors are storing the ATIF ACPI methods under
+the same handle that ATPX lives under instead of the device's own
+handle, we're going to need to be able to retrieve this handle later so
+we can probe for ATIF there.
+
+Signed-off-by: Lyude Paul <lyude@redhat.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h              | 6 ++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c | 6 ++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index c76a95c..ad566b7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -1926,6 +1926,12 @@ static inline bool amdgpu_atpx_dgpu_req_power_for_displays(void) { return false;
+ static inline bool amdgpu_has_atpx(void) { return false; }
+ #endif
+ 
++#if defined(CONFIG_VGA_SWITCHEROO) && defined(CONFIG_ACPI)
++void *amdgpu_atpx_get_dhandle(void);
++#else
++static inline void *amdgpu_atpx_get_dhandle(void) { return NULL; }
++#endif
++
+ /*
+  * KMS
+  */
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
+index 7ddf169..8db67d4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_atpx_handler.c
+@@ -90,6 +90,12 @@ bool amdgpu_atpx_dgpu_req_power_for_displays(void) {
+ 	return amdgpu_atpx_priv.atpx.dgpu_req_power_for_displays;
+ }
+ 
++#if defined(CONFIG_ACPI)
++void *amdgpu_atpx_get_dhandle(void) {
++	return amdgpu_atpx_priv.dhandle;
++}
++#endif
++
+ /**
+  * amdgpu_atpx_call - call an ATPX method
+  *
+-- 
+2.7.4
+

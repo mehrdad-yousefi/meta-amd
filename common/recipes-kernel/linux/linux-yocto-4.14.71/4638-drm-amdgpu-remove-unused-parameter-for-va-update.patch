@@ -1,0 +1,49 @@
+From 00540351fedfbe72ee403f10f25b495828c90298 Mon Sep 17 00:00:00 2001
+From: Junwei Zhang <Jerry.Zhang@amd.com>
+Date: Tue, 12 Jun 2018 13:57:45 +0800
+Subject: [PATCH 4638/5725] drm/amdgpu: remove unused parameter for va update
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Don't need validation list any more
+
+Signed-off-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: David Zhou <david1.zhou@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 0e022b2..d89d43e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -661,7 +661,6 @@ int amdgpu_gem_metadata_ioctl(struct drm_device *dev, void *data,
+  * @adev: amdgpu_device pointer
+  * @vm: vm to update
+  * @bo_va: bo_va to update
+- * @list: validation list
+  * @operation: map, unmap or clear
+  *
+  * Update the bo_va directly after setting its address. Errors are not
+@@ -670,7 +669,6 @@ int amdgpu_gem_metadata_ioctl(struct drm_device *dev, void *data,
+ static void amdgpu_gem_va_update_vm(struct amdgpu_device *adev,
+ 				    struct amdgpu_vm *vm,
+ 				    struct amdgpu_bo_va *bo_va,
+-				    struct list_head *list,
+ 				    uint32_t operation)
+ {
+ 	int r;
+@@ -824,7 +822,7 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
+ 		break;
+ 	}
+ 	if (!r && !(args->flags & AMDGPU_VM_DELAY_UPDATE) && !amdgpu_vm_debug)
+-		amdgpu_gem_va_update_vm(adev, &fpriv->vm, bo_va, &list,
++		amdgpu_gem_va_update_vm(adev, &fpriv->vm, bo_va,
+ 					args->operation);
+ 
+ error_backoff:
+-- 
+2.7.4
+

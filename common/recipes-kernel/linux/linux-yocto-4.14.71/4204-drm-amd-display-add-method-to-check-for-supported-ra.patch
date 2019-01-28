@@ -1,0 +1,119 @@
+From 88c7014a725334981d5f8c8f05866853601f7357 Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Wed, 4 Apr 2018 20:59:43 -0400
+Subject: [PATCH 4204/5725] drm/amd/display: add method to check for supported
+ range
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ .../drm/amd/display/modules/freesync/freesync.c    | 64 ++++++++++++++++++++--
+ .../gpu/drm/amd/display/modules/inc/mod_freesync.h |  7 +++
+ 2 files changed, 65 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+index 5e12e46..4af73a7 100644
+--- a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
++++ b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+@@ -168,6 +168,21 @@ static unsigned int calc_v_total_from_duration(
+ 	return v_total;
+ }
+ 
++static unsigned long long calc_nominal_field_rate(const struct dc_stream_state *stream)
++{
++	unsigned long long nominal_field_rate_in_uhz = 0;
++
++	/* Calculate nominal field rate for stream */
++	nominal_field_rate_in_uhz = stream->timing.pix_clk_khz;
++	nominal_field_rate_in_uhz *= 1000ULL * 1000ULL * 1000ULL;
++	nominal_field_rate_in_uhz = div_u64(nominal_field_rate_in_uhz,
++						stream->timing.h_total);
++	nominal_field_rate_in_uhz = div_u64(nominal_field_rate_in_uhz,
++						stream->timing.v_total);
++
++	return nominal_field_rate_in_uhz;
++}
++
+ static void update_v_total_for_static_ramp(
+ 		struct core_freesync *core_freesync,
+ 		const struct dc_stream_state *stream,
+@@ -623,12 +638,7 @@ void mod_freesync_build_vrr_params(struct mod_freesync *mod_freesync,
+ 	core_freesync = MOD_FREESYNC_TO_CORE(mod_freesync);
+ 
+ 	/* Calculate nominal field rate for stream */
+-	nominal_field_rate_in_uhz = stream->timing.pix_clk_khz;
+-	nominal_field_rate_in_uhz *= 1000ULL * 1000ULL * 1000ULL;
+-	nominal_field_rate_in_uhz = div_u64(nominal_field_rate_in_uhz,
+-						stream->timing.h_total);
+-	nominal_field_rate_in_uhz = div_u64(nominal_field_rate_in_uhz,
+-						stream->timing.v_total);
++	nominal_field_rate_in_uhz = calc_nominal_field_rate(stream);
+ 
+ 	min_refresh_in_uhz = in_config->min_refresh_in_uhz;
+ 	max_refresh_in_uhz = in_config->max_refresh_in_uhz;
+@@ -878,3 +888,45 @@ void mod_freesync_get_settings(struct mod_freesync *mod_freesync,
+ 	}
+ }
+ 
++bool mod_freesync_is_valid_range(struct mod_freesync *mod_freesync,
++		const struct dc_stream_state *stream,
++		uint32_t min_refresh_cap_in_uhz,
++		uint32_t max_refresh_cap_in_uhz,
++		uint32_t min_refresh_request_in_uhz,
++		uint32_t max_refresh_request_in_uhz)
++{
++	/* Calculate nominal field rate for stream */
++	unsigned long long nominal_field_rate_in_uhz =
++			calc_nominal_field_rate(stream);
++
++	// Check nominal is within range
++	if (nominal_field_rate_in_uhz > max_refresh_cap_in_uhz ||
++		nominal_field_rate_in_uhz < min_refresh_cap_in_uhz)
++		return false;
++
++	// If nominal is less than max, limit the max allowed refresh rate
++	if (nominal_field_rate_in_uhz < max_refresh_cap_in_uhz)
++		max_refresh_cap_in_uhz = nominal_field_rate_in_uhz;
++
++	// Don't allow min > max
++	if (min_refresh_request_in_uhz > max_refresh_request_in_uhz)
++		return false;
++
++	// Check min is within range
++	if (min_refresh_request_in_uhz > max_refresh_cap_in_uhz ||
++		min_refresh_request_in_uhz < min_refresh_cap_in_uhz)
++		return false;
++
++	// Check max is within range
++	if (max_refresh_request_in_uhz > max_refresh_cap_in_uhz ||
++		max_refresh_request_in_uhz < min_refresh_cap_in_uhz)
++		return false;
++
++	// For variable range, check for at least 10 Hz range
++	if ((max_refresh_request_in_uhz != min_refresh_request_in_uhz) &&
++		(max_refresh_request_in_uhz - min_refresh_request_in_uhz < 10000000))
++		return false;
++
++	return true;
++}
++
+diff --git a/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h b/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h
+index bd75ca5..e7d77bb 100644
+--- a/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h
++++ b/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h
+@@ -159,4 +159,11 @@ void mod_freesync_handle_v_update(struct mod_freesync *mod_freesync,
+ 		const struct dc_stream_state *stream,
+ 		struct mod_vrr_params *in_out_vrr);
+ 
++bool mod_freesync_is_valid_range(struct mod_freesync *mod_freesync,
++		const struct dc_stream_state *stream,
++		uint32_t min_refresh_cap_in_uhz,
++		uint32_t max_refresh_cap_in_uhz,
++		uint32_t min_refresh_request_in_uhz,
++		uint32_t max_refresh_request_in_uhz);
++
+ #endif
+-- 
+2.7.4
+

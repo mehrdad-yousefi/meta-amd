@@ -1,0 +1,246 @@
+From 795d53fab8f5333b8f1b858ed3a40f085e5c5804 Mon Sep 17 00:00:00 2001
+From: Philip Yang <Philip.Yang@amd.com>
+Date: Mon, 28 May 2018 16:22:24 -0400
+Subject: [PATCH 4630/5725] drm/amdkfd: Add check user queue busy interface
+
+Process is idle if both conditions are meet:
+  queue's rptr equals to wptr
+  control stack is empty, cntl_stack_offset = cntl_stack_size
+
+Change-Id: I316341eeea8ada302d216d1df36d2d8a6951c573
+Signed-off-by: Philip Yang <Philip.Yang@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h     |  2 ++
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c | 28 +++++++++++++++
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c  | 46 ++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c  | 42 ++++++++++++++++++++++
+ 4 files changed, 118 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h
+index dcaeda8..336ea9c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h
+@@ -94,6 +94,8 @@ struct mqd_manager {
+ 				  u32 *ctl_stack_used_size,
+ 				  u32 *save_area_used_size);
+ 
++	bool	(*check_queue_active)(struct queue *q);
++
+ #if defined(CONFIG_DEBUG_FS)
+ 	int	(*debugfs_show_mqd)(struct seq_file *m, void *data);
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
+index bd44a23..2441834 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
+@@ -42,6 +42,31 @@ static inline struct cik_sdma_rlc_registers *get_sdma_mqd(void *mqd)
+ 	return (struct cik_sdma_rlc_registers *)mqd;
+ }
+ 
++static bool check_sdma_queue_active(struct queue *q)
++{
++	uint32_t rptr, wptr;
++	struct cik_sdma_rlc_registers *m = get_sdma_mqd(q->mqd);
++
++	rptr = m->sdma_rlc_rb_rptr;
++	wptr = m->sdma_rlc_rb_wptr;
++	pr_debug("rptr=%d, wptr=%d\n", rptr, wptr);
++
++	return (rptr != wptr);
++}
++
++static bool check_queue_active(struct queue *q)
++{
++	uint32_t rptr, wptr;
++	struct cik_mqd *m = get_mqd(q->mqd);
++
++	rptr = m->cp_hqd_pq_rptr;
++	wptr = m->cp_hqd_pq_wptr;
++
++	pr_debug("rptr=%d, wptr=%d\n", rptr, wptr);
++
++	return (rptr != wptr);
++}
++
+ static void update_cu_mask(struct mqd_manager *mm, void *mqd,
+ 			struct queue_properties *q)
+ {
+@@ -491,6 +516,7 @@ struct mqd_manager *mqd_manager_init_cik(enum KFD_MQD_TYPE type,
+ 		mqd->update_mqd = update_mqd;
+ 		mqd->destroy_mqd = destroy_mqd;
+ 		mqd->is_occupied = is_occupied;
++		mqd->check_queue_active = check_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd;
+ #endif
+@@ -502,6 +528,7 @@ struct mqd_manager *mqd_manager_init_cik(enum KFD_MQD_TYPE type,
+ 		mqd->update_mqd = update_mqd_hiq;
+ 		mqd->destroy_mqd = destroy_mqd;
+ 		mqd->is_occupied = is_occupied;
++		mqd->check_queue_active = check_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd;
+ #endif
+@@ -513,6 +540,7 @@ struct mqd_manager *mqd_manager_init_cik(enum KFD_MQD_TYPE type,
+ 		mqd->update_mqd = update_mqd_sdma;
+ 		mqd->destroy_mqd = destroy_mqd_sdma;
+ 		mqd->is_occupied = is_occupied_sdma;
++		mqd->check_queue_active = check_sdma_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd_sdma;
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+index 58ea1fe..dcd24c4 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+@@ -41,6 +41,49 @@ static inline struct v9_sdma_mqd *get_sdma_mqd(void *mqd)
+ 	return (struct v9_sdma_mqd *)mqd;
+ }
+ 
++static bool check_sdma_queue_active(struct queue *q)
++{
++	uint32_t rptr, wptr;
++	uint32_t rptr_hi, wptr_hi;
++	struct v9_sdma_mqd *m = get_sdma_mqd(q->mqd);
++
++	rptr = m->sdmax_rlcx_rb_rptr;
++	wptr = m->sdmax_rlcx_rb_wptr;
++	rptr_hi = m->sdmax_rlcx_rb_rptr_hi;
++	wptr_hi = m->sdmax_rlcx_rb_wptr_hi;
++	pr_debug("rptr=%d, wptr=%d\n", rptr, wptr);
++	pr_debug("rptr_hi=%d, wptr_hi=%d\n", rptr_hi, wptr_hi);
++
++	return (rptr != wptr || rptr_hi != wptr_hi);
++}
++
++static bool check_queue_active(struct queue *q)
++{
++	uint32_t rptr, wptr;
++	uint32_t cntl_stack_offset, cntl_stack_size;
++	struct v9_mqd *m = get_mqd(q->mqd);
++
++	rptr = m->cp_hqd_pq_rptr;
++	wptr = m->cp_hqd_pq_wptr_lo % q->properties.queue_size;
++	cntl_stack_offset = m->cp_hqd_cntl_stack_offset;
++	cntl_stack_size = m->cp_hqd_cntl_stack_size;
++
++	pr_debug("rptr=%d, wptr=%d\n", rptr, wptr);
++	pr_debug("m->cp_hqd_cntl_stack_offset=0x%08x\n", cntl_stack_offset);
++	pr_debug("m->cp_hqd_cntl_stack_size=0x%08x\n", cntl_stack_size);
++
++	if ((rptr == 0 && wptr == 0) ||
++		cntl_stack_offset == 0xffffffff ||
++		cntl_stack_size > 0x5000)
++		return false;
++
++	/* Process is idle if both conditions are meet:
++	 * queue's rptr equals to wptr
++	 * control stack is empty, cntl_stack_offset = cntl_stack_size
++	 */
++	return (rptr != wptr || cntl_stack_offset != cntl_stack_size);
++}
++
+ static void update_cu_mask(struct mqd_manager *mm, void *mqd,
+ 			struct queue_properties *q)
+ {
+@@ -489,6 +532,7 @@ struct mqd_manager *mqd_manager_init_v9(enum KFD_MQD_TYPE type,
+ 		mqd->destroy_mqd = destroy_mqd;
+ 		mqd->is_occupied = is_occupied;
+ 		mqd->get_wave_state = get_wave_state;
++		mqd->check_queue_active = check_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd;
+ #endif
+@@ -500,6 +544,7 @@ struct mqd_manager *mqd_manager_init_v9(enum KFD_MQD_TYPE type,
+ 		mqd->update_mqd = update_mqd_hiq;
+ 		mqd->destroy_mqd = destroy_mqd;
+ 		mqd->is_occupied = is_occupied;
++		mqd->check_queue_active = check_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd;
+ #endif
+@@ -511,6 +556,7 @@ struct mqd_manager *mqd_manager_init_v9(enum KFD_MQD_TYPE type,
+ 		mqd->update_mqd = update_mqd_sdma;
+ 		mqd->destroy_mqd = destroy_mqd_sdma;
+ 		mqd->is_occupied = is_occupied_sdma;
++		mqd->check_queue_active = check_sdma_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd_sdma;
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
+index e3ae2d4..246fe6c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
+@@ -44,6 +44,45 @@ static inline struct vi_sdma_mqd *get_sdma_mqd(void *mqd)
+ 	return (struct vi_sdma_mqd *)mqd;
+ }
+ 
++static bool check_sdma_queue_active(struct queue *q)
++{
++	uint32_t rptr, wptr;
++	struct vi_sdma_mqd *m = get_sdma_mqd(q->mqd);
++
++	rptr = m->sdmax_rlcx_rb_rptr;
++	wptr = m->sdmax_rlcx_rb_wptr;
++	pr_debug("rptr=%d, wptr=%d\n", rptr, wptr);
++
++	return (rptr != wptr);
++}
++
++static bool check_queue_active(struct queue *q)
++{
++	uint32_t rptr, wptr;
++	uint32_t cntl_stack_offset, cntl_stack_size;
++	struct vi_mqd *m = get_mqd(q->mqd);
++
++	rptr = m->cp_hqd_pq_rptr;
++	wptr = m->cp_hqd_pq_wptr;
++	cntl_stack_offset = m->cp_hqd_cntl_stack_offset;
++	cntl_stack_size = m->cp_hqd_cntl_stack_size;
++
++	pr_debug("rptr=%d, wptr=%d\n", rptr, wptr);
++	pr_debug("m->cp_hqd_cntl_stack_offset=0x%08x\n", cntl_stack_offset);
++	pr_debug("m->cp_hqd_cntl_stack_size=0x%08x\n", cntl_stack_size);
++
++	if ((rptr == 0 && wptr == 0) ||
++		cntl_stack_offset == 0xffffffff ||
++		cntl_stack_size > 0x5000)
++		return false;
++
++	/* Process is idle if both conditions are meet:
++	 * queue's rptr equals to wptr
++	 * control stack is empty, cntl_stack_offset = cntl_stack_size
++	 */
++	return (rptr != wptr || cntl_stack_offset != cntl_stack_size);
++}
++
+ static void update_cu_mask(struct mqd_manager *mm, void *mqd,
+ 			struct queue_properties *q)
+ {
+@@ -498,6 +537,7 @@ struct mqd_manager *mqd_manager_init_vi(enum KFD_MQD_TYPE type,
+ 		mqd->destroy_mqd = destroy_mqd;
+ 		mqd->is_occupied = is_occupied;
+ 		mqd->get_wave_state = get_wave_state;
++		mqd->check_queue_active = check_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd;
+ #endif
+@@ -509,6 +549,7 @@ struct mqd_manager *mqd_manager_init_vi(enum KFD_MQD_TYPE type,
+ 		mqd->update_mqd = update_mqd_hiq;
+ 		mqd->destroy_mqd = destroy_mqd;
+ 		mqd->is_occupied = is_occupied;
++		mqd->check_queue_active = check_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd;
+ #endif
+@@ -520,6 +561,7 @@ struct mqd_manager *mqd_manager_init_vi(enum KFD_MQD_TYPE type,
+ 		mqd->update_mqd = update_mqd_sdma;
+ 		mqd->destroy_mqd = destroy_mqd_sdma;
+ 		mqd->is_occupied = is_occupied_sdma;
++		mqd->check_queue_active = check_sdma_queue_active;
+ #if defined(CONFIG_DEBUG_FS)
+ 		mqd->debugfs_show_mqd = debugfs_show_mqd_sdma;
+ #endif
+-- 
+2.7.4
+

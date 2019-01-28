@@ -1,0 +1,44 @@
+From ae07d942bbe22d3bff4a06ddba7a5699ada1742c Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Tue, 29 May 2018 16:20:37 -0400
+Subject: [PATCH 4764/5725] drm/amd/display: Add clock types to applying clk
+ for voltage
+
+Add DCF and FCLK clock case statements for changing raven's
+clocks for voltage request.
+Also maintain DCEF clock for DCE120 calls.
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
+index 4c85643..55fea6c 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_services.c
+@@ -392,10 +392,18 @@ bool dm_pp_apply_clock_for_voltage_request(
+ 		pp_clock_request.clock_type = amd_pp_dcef_clock;
+ 		break;
+ 
++	case DM_PP_CLOCK_TYPE_DCFCLK:
++		pp_clock_request.clock_type = amd_pp_dcf_clock;
++		break;
++
+ 	case DM_PP_CLOCK_TYPE_PIXELCLK:
+ 		pp_clock_request.clock_type = amd_pp_pixel_clock;
+ 		break;
+ 
++	case DM_PP_CLOCK_TYPE_FCLK:
++		pp_clock_request.clock_type = amd_pp_f_clock;
++		break;
++
+ 	default:
+ 		return false;
+ 	}
+-- 
+2.7.4
+

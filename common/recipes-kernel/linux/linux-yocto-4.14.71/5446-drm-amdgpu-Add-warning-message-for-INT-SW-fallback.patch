@@ -1,0 +1,28 @@
+From a994484a4dfadb035e215fb96c5b3f1051b23c07 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Fri, 21 Sep 2018 15:41:52 -0400
+Subject: [PATCH 5446/5725] drm/amdgpu: Add warning message for INT SW
+ fallback.
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+index e7f6389..a9b4684 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c
+@@ -274,6 +274,7 @@ static void amdgpu_fence_fallback(struct timer_list *t)
+ 	struct amdgpu_ring *ring = from_timer(ring, t,
+ 					      fence_drv.fallback_timer);
+ 
++	DRM_INFO("Fallback to SW interrupt on ring %s due to HW interrupt time out", ring->name);
+ 	amdgpu_fence_process(ring);
+ }
+ 
+-- 
+2.7.4
+

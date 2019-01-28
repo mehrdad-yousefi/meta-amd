@@ -1,0 +1,39 @@
+From efad2802b48caabd163369cf1807e2e0098b82c9 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 9 Aug 2018 15:26:06 +0800
+Subject: [PATCH 5102/5725] drm/amdgpu: Cancel gfx off delay work when driver
+ fini/suspend
+
+there may be gfx off delay work pending when suspend/driver
+unload, need to cancel them first.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 5e47f2a..65cf144 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1879,6 +1879,7 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
+ 				return r;
+ 			}
+ 			amdgpu_gfx_off_ctrl(adev, false);
++			cancel_delayed_work_sync(&adev->gfx.gfx_off_delay_work);
+ 			r = adev->ip_blocks[i].version->funcs->hw_fini((void *)adev);
+ 			/* XXX handle errors */
+ 			if (r) {
+@@ -2061,6 +2062,7 @@ static int amdgpu_device_ip_suspend_phase2(struct amdgpu_device *adev)
+ 
+ 	/* call smu to disable gfx off feature first when suspend */
+ 	amdgpu_gfx_off_ctrl(adev, false);
++	cancel_delayed_work_sync(&adev->gfx.gfx_off_delay_work);
+ 
+ 	for (i = adev->num_ip_blocks - 1; i >= 0; i--) {
+ 		if (!adev->ip_blocks[i].status.valid)
+-- 
+2.7.4
+

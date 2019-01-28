@@ -1,0 +1,30 @@
+From a68ab3347dd2307e8b90ba072be1262fcc93da37 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Fri, 3 Nov 2017 14:22:16 -0400
+Subject: [PATCH 4310/5725] drm/amdgpu/virtual_dce: add VEGAM support
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/dce_virtual.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_virtual.c b/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
+index 6b8c746..8724edd 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
+@@ -463,8 +463,9 @@ static int dce_virtual_hw_init(void *handle)
+ 		break;
+ 	case CHIP_CARRIZO:
+ 	case CHIP_STONEY:
+-	case CHIP_POLARIS11:
+ 	case CHIP_POLARIS10:
++	case CHIP_POLARIS11:
++	case CHIP_VEGAM:
+ 		dce_v11_0_disable_dce(adev);
+ 		break;
+ 	case CHIP_TOPAZ:
+-- 
+2.7.4
+

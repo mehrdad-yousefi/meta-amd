@@ -1,0 +1,251 @@
+From 1d42babc16089c12bb60a35c9726619ce7d9d05d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Wed, 18 Jul 2018 16:34:49 +0200
+Subject: [PATCH 5382/5725] drm/amdgpu: move context related stuff to
+ amdgpu_ctx.h
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Further unmangle amdgpu.h.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h      |  75 +----------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.h  | 100 +++++++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h |   1 +
+ 3 files changed, 103 insertions(+), 73 deletions(-)
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.h
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 7a8b8fe..c7736d0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -28,6 +28,8 @@
+ #ifndef __AMDGPU_H__
+ #define __AMDGPU_H__
+ 
++#include "amdgpu_ctx.h"
++
+ #include <linux/atomic.h>
+ #include <linux/wait.h>
+ #include <linux/list.h>
+@@ -233,8 +235,6 @@ int amdgpu_device_ip_wait_for_idle(struct amdgpu_device *adev,
+ bool amdgpu_device_ip_is_idle(struct amdgpu_device *adev,
+ 			      enum amd_ip_block_type block_type);
+ 
+-#define AMDGPU_MAX_IP_NUM 16
+-
+ struct amdgpu_ip_block_status {
+ 	bool valid;
+ 	bool sw;
+@@ -496,20 +496,6 @@ struct amdgpu_ib {
+ 
+ extern const struct drm_sched_backend_ops amdgpu_sched_ops;
+ 
+-/*
+- * Queue manager
+- */
+-struct amdgpu_queue_mapper {
+-	int 		hw_ip;
+-	struct mutex	lock;
+-	/* protected by lock */
+-	struct amdgpu_ring *queue_map[AMDGPU_MAX_RINGS];
+-};
+-
+-struct amdgpu_queue_mgr {
+-	struct amdgpu_queue_mapper mapper[AMDGPU_MAX_IP_NUM];
+-};
+-
+ int amdgpu_queue_mgr_init(struct amdgpu_device *adev,
+ 			  struct amdgpu_queue_mgr *mgr);
+ int amdgpu_queue_mgr_fini(struct amdgpu_device *adev,
+@@ -520,63 +506,6 @@ int amdgpu_queue_mgr_map(struct amdgpu_device *adev,
+ 			 struct amdgpu_ring **out_ring);
+ 
+ /*
+- * context related structures
+- */
+-
+-struct amdgpu_ctx_ring {
+-	uint64_t		sequence;
+-	struct dma_fence	**fences;
+-	struct drm_sched_entity	entity;
+-	struct list_head	sem_dep_list;
+-	struct mutex            sem_lock;
+-};
+-
+-struct amdgpu_ctx {
+-	struct kref		refcount;
+-	struct amdgpu_device    *adev;
+-	struct amdgpu_queue_mgr queue_mgr;
+-	unsigned		reset_counter;
+-	unsigned        reset_counter_query;
+-	uint32_t		vram_lost_counter;
+-	spinlock_t		ring_lock;
+-	struct dma_fence	**fences;
+-	struct amdgpu_ctx_ring	rings[AMDGPU_MAX_RINGS];
+-	bool			preamble_presented;
+-	enum drm_sched_priority init_priority;
+-	enum drm_sched_priority override_priority;
+-	struct mutex            lock;
+-	atomic_t	guilty;
+-};
+-
+-struct amdgpu_ctx_mgr {
+-	struct amdgpu_device	*adev;
+-	struct mutex		lock;
+-	/* protected by lock */
+-	struct idr		ctx_handles;
+-};
+-
+-struct amdgpu_ctx *amdgpu_ctx_get(struct amdgpu_fpriv *fpriv, uint32_t id);
+-int amdgpu_ctx_put(struct amdgpu_ctx *ctx);
+-
+-void amdgpu_ctx_add_fence(struct amdgpu_ctx *ctx, struct amdgpu_ring *ring,
+-			      struct dma_fence *fence, uint64_t *seq);
+-struct dma_fence *amdgpu_ctx_get_fence(struct amdgpu_ctx *ctx,
+-				   struct amdgpu_ring *ring, uint64_t seq);
+-void amdgpu_ctx_priority_override(struct amdgpu_ctx *ctx,
+-				  enum drm_sched_priority priority);
+-
+-int amdgpu_ctx_ioctl(struct drm_device *dev, void *data,
+-		     struct drm_file *filp);
+-
+-int amdgpu_ctx_wait_prev_fence(struct amdgpu_ctx *ctx, unsigned ring_id);
+-
+-void amdgpu_ctx_mgr_init(struct amdgpu_ctx_mgr *mgr);
+-void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr);
+-void amdgpu_ctx_mgr_entity_flush(struct amdgpu_ctx_mgr *mgr);
+-void amdgpu_ctx_mgr_fini(struct amdgpu_ctx_mgr *mgr);
+-
+-
+-/*
+  * file private structure
+  */
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.h
+new file mode 100644
+index 0000000..b6eecc4
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.h
+@@ -0,0 +1,100 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++#ifndef __AMDGPU_CTX_H__
++#define __AMDGPU_CTX_H__
++
++#include "amdgpu_ring.h"
++
++struct drm_device;
++struct drm_file;
++struct amdgpu_fpriv;
++
++#define AMDGPU_MAX_IP_NUM 16
++
++/*
++ * Queue manager
++ */
++struct amdgpu_queue_mapper {
++        int             hw_ip;
++        struct mutex    lock;
++        /* protected by lock */
++        struct amdgpu_ring *queue_map[AMDGPU_MAX_RINGS];
++};
++
++struct amdgpu_queue_mgr {
++        struct amdgpu_queue_mapper mapper[AMDGPU_MAX_IP_NUM];
++};
++
++struct amdgpu_ctx_ring {
++	uint64_t                sequence;
++	struct dma_fence        **fences;
++	struct drm_sched_entity entity;
++	struct list_head        sem_dep_list;
++	struct mutex            sem_lock;
++};
++
++struct amdgpu_ctx {
++	struct kref             refcount;
++	struct amdgpu_device    *adev;
++	struct amdgpu_queue_mgr queue_mgr;
++	unsigned                reset_counter;
++	unsigned        reset_counter_query;
++	uint32_t                vram_lost_counter;
++	spinlock_t              ring_lock;
++	struct dma_fence        **fences;
++	struct amdgpu_ctx_ring  rings[AMDGPU_MAX_RINGS];
++	bool                    preamble_presented;
++	enum drm_sched_priority init_priority;
++	enum drm_sched_priority override_priority;
++	struct mutex            lock;
++	atomic_t        guilty;
++};
++
++struct amdgpu_ctx_mgr {
++	struct amdgpu_device    *adev;
++	struct mutex            lock;
++	/* protected by lock */
++	struct idr              ctx_handles;
++};
++
++struct amdgpu_ctx *amdgpu_ctx_get(struct amdgpu_fpriv *fpriv, uint32_t id);
++int amdgpu_ctx_put(struct amdgpu_ctx *ctx);
++
++void amdgpu_ctx_add_fence(struct amdgpu_ctx *ctx, struct amdgpu_ring *ring,
++		struct dma_fence *fence, uint64_t *seq);
++struct dma_fence *amdgpu_ctx_get_fence(struct amdgpu_ctx *ctx,
++		struct amdgpu_ring *ring, uint64_t seq);
++void amdgpu_ctx_priority_override(struct amdgpu_ctx *ctx,
++		enum drm_sched_priority priority);
++
++int amdgpu_ctx_ioctl(struct drm_device *dev, void *data,
++		struct drm_file *filp);
++
++int amdgpu_ctx_wait_prev_fence(struct amdgpu_ctx *ctx, unsigned ring_id);
++
++void amdgpu_ctx_mgr_init(struct amdgpu_ctx_mgr *mgr);
++void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr);
++void amdgpu_ctx_mgr_entity_flush(struct amdgpu_ctx_mgr *mgr);
++void amdgpu_ctx_mgr_fini(struct amdgpu_ctx_mgr *mgr);
++
++#endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index 6467c9c..a42130e 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -27,6 +27,7 @@
+ #include <drm/amdgpu_drm.h>
+ #include <drm/gpu_scheduler.h>
+ #include <drm/drm_print.h>
++#include <drm/drmP.h>
+ 
+ /* max number of rings */
+ #define AMDGPU_MAX_RINGS		21
+-- 
+2.7.4
+

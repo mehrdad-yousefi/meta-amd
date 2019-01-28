@@ -1,0 +1,32 @@
+From 36ad9fff8be4ff8f2ae9b9823a2098d6bc61df27 Mon Sep 17 00:00:00 2001
+From: Raveendra Talabattula <raveendra.talabattula@amd.com>
+Date: Fri, 28 Dec 2018 15:59:05 +0530
+Subject: [PATCH 5384/5725] drm/amdgpu: revert psp firmware load status check
+
+This check is causing boot failure on R1000 secure silicon
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+index 2ca9245..f74f155 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+@@ -134,13 +134,6 @@ psp_cmd_submit_buf(struct psp_context *psp,
+ 		msleep(1);
+ 	}
+ 
+-	/* the status field must be 0 after FW is loaded */
+-	if (ucode && psp->cmd_buf_mem->resp.status) {
+-		DRM_ERROR("failed loading with status (%d) and ucode id (%d)\n",
+-			  psp->cmd_buf_mem->resp.status, ucode->ucode_id);
+-		return -EINVAL;
+-	}
+-
+ 	if (ucode) {
+ 		ucode->tmr_mc_addr_lo = psp->cmd_buf_mem->resp.fw_addr_lo;
+ 		ucode->tmr_mc_addr_hi = psp->cmd_buf_mem->resp.fw_addr_hi;
+-- 
+2.7.4
+

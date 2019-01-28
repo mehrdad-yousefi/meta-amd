@@ -1,0 +1,48 @@
+From 7877163a0e2a21811f302c011251b4047af9300f Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Thu, 4 Jan 2018 18:33:49 +0800
+Subject: [PATCH 5286/5725] drm/amdgpu/gfx9: add support for raven2 gfx
+ firmware
+
+use raven2 gfx firmware.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 1cc6b87..3e6f75c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -87,6 +87,13 @@ MODULE_FIRMWARE("amdgpu/picasso_mec.bin");
+ MODULE_FIRMWARE("amdgpu/picasso_mec2.bin");
+ MODULE_FIRMWARE("amdgpu/picasso_rlc.bin");
+ 
++MODULE_FIRMWARE("amdgpu/raven2_ce.bin");
++MODULE_FIRMWARE("amdgpu/raven2_pfp.bin");
++MODULE_FIRMWARE("amdgpu/raven2_me.bin");
++MODULE_FIRMWARE("amdgpu/raven2_mec.bin");
++MODULE_FIRMWARE("amdgpu/raven2_mec2.bin");
++MODULE_FIRMWARE("amdgpu/raven2_rlc.bin");
++
+ static const struct soc15_reg_golden golden_settings_gc_9_0[] =
+ {
+ 	SOC15_REG_GOLDEN_VALUE(GC, 0, mmDB_DEBUG2, 0xf00fffff, 0x00000400),
+@@ -573,7 +580,10 @@ static int gfx_v9_0_init_microcode(struct amdgpu_device *adev)
+ 		chip_name = "vega20";
+ 		break;
+ 	case CHIP_RAVEN:
+-		chip_name = "raven";
++		if (adev->rev_id >= 8)
++			chip_name = "raven2";
++		else
++			chip_name = "raven";
+ 		break;
+ 	case CHIP_PICASSO:
+ 		chip_name = "picasso";
+-- 
+2.7.4
+

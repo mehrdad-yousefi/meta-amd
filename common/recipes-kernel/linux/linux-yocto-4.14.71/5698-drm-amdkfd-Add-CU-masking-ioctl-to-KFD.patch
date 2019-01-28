@@ -1,0 +1,162 @@
+From 1b59abe4ac41fc09e657c6d33b0202bb0a8fa186 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Sat, 14 Jul 2018 19:05:59 -0400
+Subject: [PATCH 5698/5725] drm/amdkfd: Add CU-masking ioctl to KFD
+
+CU-masking allows a KFD client to control the set of CUs used by a
+user mode queue for executing compute dispatches. This can be used
+for optimizing the partitioning of the GPU and minimize conflicts
+between concurrent tasks.
+
+Signed-off-by: Flora Cui <flora.cui@amd.com>
+Signed-off-by: Kent Russell <kent.russell@amd.com>
+Signed-off-by: Eric Huang <JinHuiEric.Huang@amd.com>
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Oded Gabbay <oded.gabbay@gmail.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c           |  1 -
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.c       | 41 +++++++++++++++++++++-
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h       |  4 +++
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c   |  2 ++
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c    |  2 ++
+ drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c    |  2 ++
+ .../gpu/drm/amd/amdkfd/kfd_process_queue_manager.c |  2 ++
+ 7 files changed, 52 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 759d59e..8d56004 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -2569,7 +2569,6 @@ static const struct amdkfd_ioctl_desc amdkfd_ioctls[] = {
+ 
+ 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_GET_QUEUE_WAVE_STATE,
+ 				kfd_ioctl_get_queue_wave_state, 0),
+-
+ };
+ 
+ #define AMDKFD_CORE_IOCTL_COUNT	ARRAY_SIZE(amdkfd_ioctls)
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.c
+index d39e81c..85b5954 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.c
+@@ -21,7 +21,7 @@
+  *
+  */
+ 
+-#include "kfd_priv.h"
++#include "kfd_mqd_manager.h"
+ 
+ /* Mapping queue priority to pipe priority, indexed by queue priority */
+ int pipe_priority_map[] = {
+@@ -91,3 +91,42 @@ struct mqd_manager *mqd_manager_init(enum KFD_MQD_TYPE type,
+ 
+ 	return NULL;
+ }
++
++void mqd_symmetrically_map_cu_mask(struct mqd_manager *mm,
++		const uint32_t *cu_mask, uint32_t cu_mask_count,
++		uint32_t *se_mask)
++{
++	struct kfd_cu_info cu_info;
++	uint32_t cu_per_sh[4] = {0};
++	int i, se, cu = 0;
++
++	mm->dev->kfd2kgd->get_cu_info(mm->dev->kgd, &cu_info);
++
++	if (cu_mask_count > cu_info.cu_active_number)
++		cu_mask_count = cu_info.cu_active_number;
++
++	for (se = 0; se < cu_info.num_shader_engines; se++)
++		for (i = 0; i < 4; i++)
++			cu_per_sh[se] += hweight32(cu_info.cu_bitmap[se][i]);
++
++	/* Symmetrically map cu_mask to all SEs:
++	 * cu_mask[0] bit0 -> se_mask[0] bit0;
++	 * cu_mask[0] bit1 -> se_mask[1] bit0;
++	 * ... (if # SE is 4)
++	 * cu_mask[0] bit4 -> se_mask[0] bit1;
++	 * ...
++	 */
++	se = 0;
++	for (i = 0; i < cu_mask_count; i++) {
++		if (cu_mask[i / 32] & (1 << (i % 32)))
++			se_mask[se] |= 1 << cu;
++
++		do {
++			se++;
++			if (se == cu_info.num_shader_engines) {
++				se = 0;
++				cu++;
++			}
++		} while (cu >= cu_per_sh[se] && cu < 32);
++	}
++}
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h
+index 336ea9c..5fd379d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager.h
+@@ -104,4 +104,8 @@ struct mqd_manager {
+ 	struct kfd_dev	*dev;
+ };
+ 
++void mqd_symmetrically_map_cu_mask(struct mqd_manager *mm,
++		const uint32_t *cu_mask, uint32_t cu_mask_count,
++		uint32_t *se_mask);
++
+ #endif /* KFD_MQD_MANAGER_H_ */
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
+index 6611c7a..2de16bd 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_cik.c
+@@ -289,6 +289,8 @@ static int __update_mqd(struct mqd_manager *mm, void *mqd,
+ 	update_cu_mask(mm, mqd, q);
+ 	set_priority(m, q);
+ 
++	update_cu_mask(mm, mqd, q);
++
+ 	q->is_active = (q->queue_size > 0 &&
+ 			q->queue_address != 0 &&
+ 			q->queue_percent > 0 &&
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+index ea1d01d..1fcf0c4 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_v9.c
+@@ -298,6 +298,8 @@ static int update_mqd(struct mqd_manager *mm, void *mqd,
+ 
+ 	update_cu_mask(mm, mqd, q);
+ 
++	update_cu_mask(mm, mqd, q);
++
+ 	q->is_active = (q->queue_size > 0 &&
+ 			q->queue_address != 0 &&
+ 			q->queue_percent > 0 &&
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
+index 9b1eca7..5b800d2 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_mqd_manager_vi.c
+@@ -301,6 +301,8 @@ static int __update_mqd(struct mqd_manager *mm, void *mqd,
+ 	update_cu_mask(mm, mqd, q);
+ 	set_priority(m, q);
+ 
++	update_cu_mask(mm, mqd, q);
++
+ 	q->is_active = (q->queue_size > 0 &&
+ 			q->queue_address != 0 &&
+ 			q->queue_percent > 0 &&
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c
+index 566e205a..6940db1 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c
+@@ -328,6 +328,8 @@ int pqm_destroy_queue(struct process_queue_manager *pqm, unsigned int qid)
+ 			if (retval != -ETIME)
+ 				goto err_destroy_queue;
+ 		}
++		kfree(pqn->q->properties.cu_mask);
++		pqn->q->properties.cu_mask = NULL;
+ 		uninit_queue(pqn->q);
+ 	}
+ 
+-- 
+2.7.4
+

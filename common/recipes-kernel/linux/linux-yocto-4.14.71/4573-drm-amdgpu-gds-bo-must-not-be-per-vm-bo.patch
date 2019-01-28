@@ -1,0 +1,40 @@
+From 5373139da9ccdecada62d15ff90f6b10851f933c Mon Sep 17 00:00:00 2001
+From: Chunming Zhou <david1.zhou@amd.com>
+Date: Wed, 30 May 2018 11:12:08 +0800
+Subject: [PATCH 4573/5725] drm/amdgpu: gds bo must not be per-vm-bo
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+In per-vm-bo case, there could be no bo list.
+But gds bo created from user space  must be passed to bo list.
+So adding a check to prevent to creat gds bo as per-vm-bo.
+
+Change-Id: Idfa58c40447df0db2883413f9f7ccf56b47579f5
+Signed-off-by: Chunming Zhou <david1.zhou@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 275c316..0e022b2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -269,6 +269,13 @@ int amdgpu_gem_create_ioctl(struct drm_device *dev, void *data,
+ 	/* create a gem object to contain this object in */
+ 	if (args->in.domains & (AMDGPU_GEM_DOMAIN_GDS |
+ 	    AMDGPU_GEM_DOMAIN_GWS | AMDGPU_GEM_DOMAIN_OA)) {
++		if (flags & AMDGPU_GEM_CREATE_VM_ALWAYS_VALID) {
++			/* if gds bo is created from user space, it must be
++			 * passed to bo list
++			 */
++			DRM_ERROR("GDS bo cannot be per-vm-bo\n");
++			return -EINVAL;
++		}
+ 		flags |= AMDGPU_GEM_CREATE_NO_CPU_ACCESS;
+ 		if (args->in.domains == AMDGPU_GEM_DOMAIN_GDS)
+ 			size = size << AMDGPU_GDS_SHIFT;
+-- 
+2.7.4
+

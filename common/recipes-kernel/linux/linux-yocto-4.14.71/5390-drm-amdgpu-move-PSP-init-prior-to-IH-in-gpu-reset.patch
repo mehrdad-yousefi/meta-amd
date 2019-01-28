@@ -1,0 +1,41 @@
+From f5db1e85299aa44e74727f29bb157ea351f1e546 Mon Sep 17 00:00:00 2001
+From: Emily Deng <Emily.Deng@amd.com>
+Date: Mon, 10 Sep 2018 17:51:31 +0800
+Subject: [PATCH 5390/5725] drm/amdgpu: move PSP init prior to IH in gpu reset
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+since we use PSP to program IH regs now
+
+Signed-off-by: Monk Liu <Monk.Liu@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Emily Deng <Emily.Deng@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 13efee8..2db51ef 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -2015,6 +2015,7 @@ static int amdgpu_device_ip_reinit_early_sriov(struct amdgpu_device *adev)
+ 	static enum amd_ip_block_type ip_order[] = {
+ 		AMD_IP_BLOCK_TYPE_GMC,
+ 		AMD_IP_BLOCK_TYPE_COMMON,
++		AMD_IP_BLOCK_TYPE_PSP,
+ 		AMD_IP_BLOCK_TYPE_IH,
+ 	};
+ 
+@@ -2045,7 +2046,6 @@ static int amdgpu_device_ip_reinit_late_sriov(struct amdgpu_device *adev)
+ 
+ 	static enum amd_ip_block_type ip_order[] = {
+ 		AMD_IP_BLOCK_TYPE_SMC,
+-		AMD_IP_BLOCK_TYPE_PSP,
+ 		AMD_IP_BLOCK_TYPE_DCE,
+ 		AMD_IP_BLOCK_TYPE_GFX,
+ 		AMD_IP_BLOCK_TYPE_SDMA,
+-- 
+2.7.4
+

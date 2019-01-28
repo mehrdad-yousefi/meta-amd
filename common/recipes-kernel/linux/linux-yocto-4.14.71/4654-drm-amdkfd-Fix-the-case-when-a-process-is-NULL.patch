@@ -1,0 +1,46 @@
+From 9a52bf4850153c60518ebf0797b4c3894ab5988b Mon Sep 17 00:00:00 2001
+From: Wei Lu <wei.lu2@amd.com>
+Date: Fri, 8 Jun 2018 17:01:29 -0400
+Subject: [PATCH 4654/5725] drm/amdkfd: Fix the case when a process is NULL
+
+Return ERR_PTR(-EINVAL) if kfd_get_process fails to
+find the process.
+
+BUG: KFD-399
+
+Change-Id: I7d34c2662b37fe061994bd8a35ea22f93ae3b76a
+Signed-off-by: Wei Lu <wei.lu2@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 2 ++
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 0eab007..89176ec 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -2372,7 +2372,7 @@ static int kfd_ioctl_cross_memory_copy(struct file *filep,
+ 	}
+ 
+ 	remote_p = kfd_get_process(remote_task);
+-	if (!remote_p) {
++	if (IS_ERR(remote_p)) {
+ 		pr_err("Cross mem copy failed. Invalid kfd process %d\n",
+ 		       args->pid);
+ 		err = -EINVAL;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index e79479b..735c96a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -255,6 +255,8 @@ struct kfd_process *kfd_get_process(const struct task_struct *thread)
+ 		return ERR_PTR(-EINVAL);
+ 
+ 	process = find_process(thread, false);
++	if (!process)
++		return ERR_PTR(-EINVAL);
+ 
+ 	return process;
+ }
+-- 
+2.7.4
+

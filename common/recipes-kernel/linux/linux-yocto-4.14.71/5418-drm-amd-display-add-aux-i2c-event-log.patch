@@ -1,0 +1,91 @@
+From 118a723ddf294b6b084744879bc907d3526a7ac0 Mon Sep 17 00:00:00 2001
+From: Chiawen Huang <chiawen.huang@amd.com>
+Date: Wed, 29 Aug 2018 18:39:38 +0800
+Subject: [PATCH 5418/5725] drm/amd/display: add aux i2c event log.
+
+[Why]
+support i2c transition event log
+
+[How]
+refined aux REQ and REP events in aux flow.
+commented REQ and REP events in i2c flow.
+
+note: i2c event log is currently commented out. more work is required
+to find an portocol parser to and generate event for the parser
+
+Signed-off-by: Chiawen Huang <chiawen.huang@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dm_event_log.h                    | 5 +++--
+ drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c | 9 +++++----
+ drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c            | 4 ++++
+ 3 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dm_event_log.h b/drivers/gpu/drm/amd/display/dc/dm_event_log.h
+index 00a275d..34a701c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dm_event_log.h
++++ b/drivers/gpu/drm/amd/display/dc/dm_event_log.h
+@@ -31,7 +31,8 @@
+ 
+ #define __DM_EVENT_LOG_H__
+ 
+-#define EVENT_LOG_AUX_REQ(dcc, type, action, address, len, data)
+-#define EVENT_LOG_AUX_Reply(dcc, type, swStatus, replyStatus, len, data)
++#define EVENT_LOG_AUX_REQ(ddc, type, action, address, len, data)
++#define EVENT_LOG_AUX_REP(ddc, type, replyStatus, len, data)
+ 
+ #endif
++
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c b/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
+index 4a88fc7..8eee8ac 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
+@@ -274,8 +274,8 @@ static void submit_channel_request(
+ 	REG_WAIT(AUX_SW_STATUS, AUX_SW_DONE, 0,
+ 				10, aux110->timeout_period/10);
+ 	REG_UPDATE(AUX_SW_CONTROL, AUX_SW_GO, 1);
+-	EVENT_LOG_AUX_REQ(engine->base.ddc->pin_data->en, Native, request->action,
+-					request->address, request->length, request->data);
++	EVENT_LOG_AUX_REQ(engine->base.ddc->pin_data->en, EVENT_LOG_AUX_ORIGIN_NATIVE,
++					request->action, request->address, request->length, request->data);
+ }
+ 
+ static int read_channel_reply(struct aux_engine *engine, uint32_t size,
+@@ -340,8 +340,9 @@ static void process_channel_reply(
+ 
+ 	bytes_replied = read_channel_reply(engine, reply->length, reply->data,
+ 						&reply_result, &sw_status);
+-	EVENT_LOG_AUX_Reply(engine->base.ddc->pin_data->en, Native,
+-					sw_status, reply_result, bytes_replied, reply->data);
++	EVENT_LOG_AUX_REP(engine->base.ddc->pin_data->en,
++					EVENT_LOG_AUX_ORIGIN_NATIVE, reply_result,
++					bytes_replied, reply->data);
+ 
+ 	/* in case HPD is LOW, exit AUX transaction */
+ 	if ((sw_status & AUX_SW_STATUS__AUX_SW_HPD_DISCON_MASK)) {
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c b/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
+index c995ef4..1418985 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
+@@ -121,6 +121,8 @@ bool dal_i2c_hw_engine_submit_request(
+ 
+ 	hw_engine->base.funcs->submit_channel_request(
+ 		&hw_engine->base, &request);
++	/* EVENT_LOG_AUX_REQ(engine->ddc->pin_data->en, EVENT_LOG_AUX_ORIGIN_I2C, */
++	/* request.action, request.address, request.length, request.data); */
+ 
+ 	if ((request.status == I2C_CHANNEL_OPERATION_FAILED) ||
+ 		(request.status == I2C_CHANNEL_OPERATION_ENGINE_BUSY)) {
+@@ -169,6 +171,8 @@ bool dal_i2c_hw_engine_submit_request(
+ 
+ 		hw_engine->base.funcs->
+ 			process_channel_reply(&hw_engine->base, &reply);
++		/* EVENT_LOG_AUX_REP(engine->ddc->pin_data->en, EVENT_LOG_AUX_ORIGIN_I2C, */
++		/* AUX_TRANSACTION_REPLY_I2C_ACK, reply.length, reply.data); */
+ 	}
+ 
+ 
+-- 
+2.7.4
+

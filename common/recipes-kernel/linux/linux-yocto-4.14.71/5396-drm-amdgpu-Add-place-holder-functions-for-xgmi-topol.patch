@@ -1,0 +1,67 @@
+From 83d313b35b447b8efa9e46e2e02bab00427edba3 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Tue, 14 Aug 2018 13:30:00 -0400
+Subject: [PATCH 5396/5725] drm/amdgpu: Add place holder functions for xgmi
+ topology interface with psp
+
+Add dummy function for xgmi function interface with psp
+
+Change-Id: I01f35baf5a4b96e9654d448c9892be3cd72c05b7
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/psp_v11_0.c | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c b/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c
+index b70cfa3..9217af0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/psp_v11_0.c
+@@ -548,6 +548,33 @@ static int psp_v11_0_mode1_reset(struct psp_context *psp)
+ 	return 0;
+ }
+ 
++/* TODO: Fill in follow functions once PSP firmware interface for XGMI is ready.
++ * For now, return success and hack the hive_id so high level code can
++ * start testing
++ */
++static int psp_v11_0_xgmi_get_topology_info(struct psp_context *psp,
++	int number_devices, struct psp_xgmi_topology_info *topology)
++{
++	return 0;
++}
++
++static int psp_v11_0_xgmi_set_topology_info(struct psp_context *psp,
++	int number_devices, struct psp_xgmi_topology_info *topology)
++{
++	return 0;
++}
++
++static u64 psp_v11_0_xgmi_get_hive_id(struct psp_context *psp)
++{
++	u64 hive_id = 0;
++
++	/* Remove me when we can get correct hive_id through PSP */
++	if (psp->adev->gmc.xgmi.num_physical_nodes)
++		hive_id = 0x123456789abcdef;
++
++	return hive_id;
++}
++
+ static const struct psp_funcs psp_v11_0_funcs = {
+ 	.init_microcode = psp_v11_0_init_microcode,
+ 	.bootloader_load_sysdrv = psp_v11_0_bootloader_load_sysdrv,
+@@ -560,6 +587,9 @@ static const struct psp_funcs psp_v11_0_funcs = {
+ 	.cmd_submit = psp_v11_0_cmd_submit,
+ 	.compare_sram_data = psp_v11_0_compare_sram_data,
+ 	.mode1_reset = psp_v11_0_mode1_reset,
++	.xgmi_get_topology_info = psp_v11_0_xgmi_get_topology_info,
++	.xgmi_set_topology_info = psp_v11_0_xgmi_set_topology_info,
++	.xgmi_get_hive_id = psp_v11_0_xgmi_get_hive_id,
+ };
+ 
+ void psp_v11_0_set_psp_funcs(struct psp_context *psp)
+-- 
+2.7.4
+

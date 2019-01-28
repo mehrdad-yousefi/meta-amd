@@ -1,0 +1,45 @@
+From cbb6ae4260d94fce545ea582a0de7e0b084756f9 Mon Sep 17 00:00:00 2001
+From: Paul Menzel <pmenzel@molgen.mpg.de>
+Date: Wed, 25 Jul 2018 12:54:19 +0200
+Subject: [PATCH 5175/5725] drm/amdgpu: Do not evict VRAM on APUs with disabled
+ HIBERNATE
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Improve commit d796d844 (drm/radeon/kms: make hibernate work on IGPs) to
+only migrate VRAM objects if the Linux kernel is actually built with
+support for hibernation (suspend to disk).
+
+The better solution is to get the information, if this is suspend or
+hibernate, from `amdgpu_device_suspend()`, but that’s more involved, so
+apply the simple solution first.
+
+Link: https://bugs.freedesktop.org/show_bug.cgi?id=107277
+Signed-off-by: Paul Menzel <pmenzel@molgen.mpg.de>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index 4c26b94..6f86f44 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -1060,10 +1060,12 @@ int amdgpu_bo_unpin(struct amdgpu_bo *bo)
+ int amdgpu_bo_evict_vram(struct amdgpu_device *adev)
+ {
+ 	/* late 2.6.33 fix IGP hibernate - we need pm ops to do this correct */
+-	if (0 && (adev->flags & AMD_IS_APU)) {
++#ifndef CONFIG_HIBERNATION
++	if (adev->flags & AMD_IS_APU) {
+ 		/* Useless to evict on IGP chips */
+ 		return 0;
+ 	}
++#endif
+ 	return ttm_bo_evict_mm(&adev->mman.bdev, TTM_PL_VRAM);
+ }
+ 
+-- 
+2.7.4
+

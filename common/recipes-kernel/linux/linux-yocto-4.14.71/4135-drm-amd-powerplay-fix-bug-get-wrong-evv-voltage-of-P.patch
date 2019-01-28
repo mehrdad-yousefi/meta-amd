@@ -1,0 +1,39 @@
+From bd8d55b5ce66715bb8193431e6863008c7de7083 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 26 Oct 2016 12:56:07 +0800
+Subject: [PATCH 4135/5725] drm/amd/powerplay: fix bug get wrong evv voltage of
+ Polaris V2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+index 63d1060..d3eeafb 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+@@ -1323,9 +1323,11 @@ int atomctrl_get_voltage_evv_on_sclk_ai(struct pp_hwmgr *hwmgr, uint8_t voltage_
+ 			GetIndexIntoMasterTable(COMMAND, GetVoltageInfo),
+ 			(uint32_t *)&get_voltage_info_param_space);
+ 
+-	*voltage = result ? 0 :
+-		le32_to_cpu(((GET_EVV_VOLTAGE_INFO_OUTPUT_PARAMETER_V1_3 *)(&get_voltage_info_param_space))->ulVoltageLevel);
++	if (0 != result)
++		return result;
+ 
++	*voltage = le32_to_cpu(((GET_EVV_VOLTAGE_INFO_OUTPUT_PARAMETER_V1_3 *)
++				(&get_voltage_info_param_space))->ulVoltageLevel);
+ 	return result;
+ }
+ 
+-- 
+2.7.4
+

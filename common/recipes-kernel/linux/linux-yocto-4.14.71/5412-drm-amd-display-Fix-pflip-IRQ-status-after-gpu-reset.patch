@@ -1,0 +1,39 @@
+From 057709821d19a5c5a0d4a406e589394cf2f63769 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Wed, 12 Sep 2018 16:38:57 -0400
+Subject: [PATCH 5412/5725] drm/amd/display: Fix pflip IRQ status after gpu
+ reset.
+
+Problem:
+After GPU reset pflip completion IRQ is disabled and hence
+any subsequent mode set or plane update leads to hang.
+
+Fix:
+Unless acrtc->otg_inst is initialized to -1 during display
+block initializtion then durng resume from GPU reset
+amdgpu_irq_gpu_reset_resume_helper will override CRTC 0 pflip
+IRQ value with whatever value was on every other unused CRTC because
+dm_irq_state will do irq_source = dal_irq_type + acrtc->otg_inst
+where acrtc->otg_inst will be 0 for every unused CRTC.
+
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 641f715..0c33419 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3697,6 +3697,7 @@ static int amdgpu_dm_crtc_init(struct amdgpu_display_manager *dm,
+ 
+ 	acrtc->crtc_id = crtc_index;
+ 	acrtc->base.enabled = false;
++	acrtc->otg_inst = -1;
+ 
+ 	dm->adev->mode_info.crtcs[crtc_index] = acrtc;
+ 	drm_crtc_enable_color_mgmt(&acrtc->base, MAX_COLOR_LUT_ENTRIES,
+-- 
+2.7.4
+

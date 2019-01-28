@@ -1,0 +1,61 @@
+From 1fe610d6e52dc2375a0ec1414913c71c019b1474 Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Fri, 20 Apr 2018 10:53:50 -0400
+Subject: [PATCH 4361/5725] drm/amd/display: Couple formatting fixes
+
+Things such as mis-indent, and space at beginning of line.
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c       | 1 +
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c       | 6 +++---
+ drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c | 2 +-
+ 3 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 508424f..11b9601 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -2863,6 +2863,7 @@ static void amdgpu_dm_connector_destroy(struct drm_connector *connector)
+ 	const struct dc_link *link = aconnector->dc_link;
+ 	struct amdgpu_device *adev = connector->dev->dev_private;
+ 	struct amdgpu_display_manager *dm = &adev->dm;
++
+ #if defined(CONFIG_BACKLIGHT_CLASS_DEVICE) ||\
+ 	defined(CONFIG_BACKLIGHT_CLASS_DEVICE_MODULE)
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 60cf748..412b48b 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1797,9 +1797,9 @@ enum dc_status dc_validate_global_state(
+ 		return DC_ERROR_UNEXPECTED;
+ 
+ 	if (dc->res_pool->funcs->validate_global) {
+-			result = dc->res_pool->funcs->validate_global(dc, new_ctx);
+-			if (result != DC_OK)
+-				return result;
++		result = dc->res_pool->funcs->validate_global(dc, new_ctx);
++		if (result != DC_OK)
++			return result;
+ 	}
+ 
+ 	for (i = 0; i < new_ctx->stream_count; i++) {
+diff --git a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+index 0a47663..00c0a1e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+@@ -430,7 +430,7 @@ static struct stream_encoder *dce112_stream_encoder_create(
+ 
+ 	if (!enc110)
+ 		return NULL;
+-	
++
+ 	dce110_stream_encoder_construct(enc110, ctx, ctx->dc_bios, eng_id,
+ 					&stream_enc_regs[eng_id],
+ 					&se_shift, &se_mask);
+-- 
+2.7.4
+

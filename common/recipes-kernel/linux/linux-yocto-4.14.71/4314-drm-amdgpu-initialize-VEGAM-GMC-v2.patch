@@ -1,0 +1,43 @@
+From ad3389bbfcb27a6840db8b5812892621e6319d51 Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Wed, 11 Apr 2018 15:20:35 -0500
+Subject: [PATCH 4314/5725] drm/amdgpu: initialize VEGAM GMC (v2)
+
+v2: use proper register rather than hardcoding.
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+index dbda097..c696bad 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v8_0.c
+@@ -573,9 +573,10 @@ static int gmc_v8_0_mc_init(struct amdgpu_device *adev)
+ 	/* set the gart size */
+ 	if (amdgpu_gart_size == -1) {
+ 		switch (adev->asic_type) {
+-		case CHIP_POLARIS11: /* all engines support GPUVM */
+ 		case CHIP_POLARIS10: /* all engines support GPUVM */
++		case CHIP_POLARIS11: /* all engines support GPUVM */
+ 		case CHIP_POLARIS12: /* all engines support GPUVM */
++		case CHIP_VEGAM:     /* all engines support GPUVM */
+ 		default:
+ 			adev->gmc.gart_size = 256ULL << 20;
+ 			break;
+@@ -1097,7 +1098,8 @@ static int gmc_v8_0_sw_init(void *handle)
+ 	} else {
+ 		u32 tmp;
+ 
+-		if (adev->asic_type == CHIP_FIJI)
++		if ((adev->asic_type == CHIP_FIJI) ||
++		    (adev->asic_type == CHIP_VEGAM))
+ 			tmp = RREG32(mmMC_SEQ_MISC0_FIJI);
+ 		else
+ 			tmp = RREG32(mmMC_SEQ_MISC0);
+-- 
+2.7.4
+

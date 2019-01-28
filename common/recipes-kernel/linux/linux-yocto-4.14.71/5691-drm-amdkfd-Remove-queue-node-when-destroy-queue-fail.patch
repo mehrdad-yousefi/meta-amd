@@ -1,0 +1,48 @@
+From 4ba7777945d81d93eb326dd3fa5702eb8121366e Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Tue, 1 May 2018 17:56:11 -0400
+Subject: [PATCH 5691/5725] drm/amdkfd: Remove queue node when destroy queue
+ failed
+
+HWS may hang in the middle of destroy queue, remove the queue from the
+process queue list so it won't be freed again in the future
+
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c
+index a3c22a3..566e205a 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process_queue_manager.c
+@@ -241,7 +241,8 @@ int pqm_create_queue(struct process_queue_manager *pqm,
+ 	}
+ 
+ 	if (retval != 0) {
+-		pr_err("DQM create queue failed\n");
++		pr_err("Pasid %d DQM create queue %d failed. ret %d\n",
++			pqm->process->pasid, type, retval);
+ 		goto err_create_queue;
+ 	}
+ 
+@@ -321,8 +322,11 @@ int pqm_destroy_queue(struct process_queue_manager *pqm, unsigned int qid)
+ 		pqn->q->properties.cu_mask = NULL;
+ 		retval = dqm->ops.destroy_queue(dqm, &pdd->qpd, pqn->q);
+ 		if (retval) {
+-			pr_debug("Destroy queue failed, returned %d\n", retval);
+-			goto err_destroy_queue;
++			pr_err("Pasid %d destroy queue %d failed, ret %d\n",
++				pqm->process->pasid,
++				pqn->q->properties.queue_id, retval);
++			if (retval != -ETIME)
++				goto err_destroy_queue;
+ 		}
+ 		uninit_queue(pqn->q);
+ 	}
+-- 
+2.7.4
+

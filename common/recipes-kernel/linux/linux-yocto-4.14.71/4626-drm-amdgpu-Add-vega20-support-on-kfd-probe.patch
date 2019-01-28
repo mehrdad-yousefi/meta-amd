@@ -1,0 +1,36 @@
+From 973f6f6445cac12d1f9486ce93c99560863f4cec Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Tue, 6 Feb 2018 15:37:53 -0500
+Subject: [PATCH 4626/5725] drm/amdgpu: Add vega20 support on kfd probe
+
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index a9f2657..af2481a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -94,7 +94,14 @@ void amdgpu_amdkfd_device_probe(struct amdgpu_device *adev)
+ 		kfd2kgd = amdgpu_amdkfd_gfx_8_0_get_functions();
+ 		break;
+ 	case CHIP_VEGA10:
++	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
++                if (adev->asic_type == CHIP_RAVEN) {
++                        dev_dbg(adev->dev, "DKMS installed kfd does not support Raven for kernel < 4.16\n");
++                        return;
++                }
++#endif
+ 		kfd2kgd = amdgpu_amdkfd_gfx_9_0_get_functions();
+ 		break;
+ 	default:
+-- 
+2.7.4
+

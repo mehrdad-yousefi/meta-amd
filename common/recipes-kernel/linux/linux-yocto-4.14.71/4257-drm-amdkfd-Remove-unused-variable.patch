@@ -1,0 +1,26 @@
+From b6f66788d04b9e6ca6bf692765ed2b64f38b7824 Mon Sep 17 00:00:00 2001
+From: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+Date: Mon, 9 Apr 2018 16:37:04 -0400
+Subject: [PATCH 4257/5725] drm/amdkfd: Remove unused variable
+
+Change-Id: Ic3d7beda97308b09b8765ce1dc69970814943dfe
+Signed-off-by: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 9be0ac1..98d9b1b 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -2205,7 +2205,6 @@ static int kfd_copy_single_range(struct cma_iter *si, struct cma_iter *di,
+ 
+ 	while (size && !kfd_cma_iter_end(di)) {
+ 		struct dma_fence *fence = NULL;
+-		struct kfd_bo *dst_bo = di->cur_bo;
+ 
+ 		copy_size = min(size, (di->array->size - di->offset));
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,33 @@
+From 11d048118dbb391295fb2b4b72a855351d9bda63 Mon Sep 17 00:00:00 2001
+From: Hugo Hu <hugo.hu@amd.com>
+Date: Tue, 3 Jul 2018 15:59:15 -0400
+Subject: [PATCH 4942/5725] drm/amd/display: Initialize data structure for
+ DalMpVisualConfirm.
+
+[Why] Prevent unexpected color shows if DalMpVisualConfirm enable.
+[How] Zero out color configuration data for DalMpVisualConfirm when initiating.
+
+Signed-off-by: Hugo Hu <hugo.hu@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 06cf967..5b99a83 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -1866,7 +1866,7 @@ static void update_dpp(struct dpp *dpp, struct dc_plane_state *plane_state)
+ static void dcn10_update_mpcc(struct dc *dc, struct pipe_ctx *pipe_ctx)
+ {
+ 	struct hubp *hubp = pipe_ctx->plane_res.hubp;
+-	struct mpcc_blnd_cfg blnd_cfg;
++	struct mpcc_blnd_cfg blnd_cfg = {0};
+ 	bool per_pixel_alpha = pipe_ctx->plane_state->per_pixel_alpha && pipe_ctx->bottom_pipe;
+ 	int mpcc_id;
+ 	struct mpcc *new_mpcc;
+-- 
+2.7.4
+

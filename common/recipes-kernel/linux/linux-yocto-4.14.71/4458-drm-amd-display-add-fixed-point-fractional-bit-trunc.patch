@@ -1,0 +1,42 @@
+From 087833951a00439a47fd83d4ce587e55e83acde9 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Wed, 18 Apr 2018 14:11:43 -0400
+Subject: [PATCH 4458/5725] drm/amd/display: add fixed point fractional bit
+ truncation function
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/include/fixed31_32.h | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/include/fixed31_32.h b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+index ebfd33e..61f11e2 100644
+--- a/drivers/gpu/drm/amd/display/include/fixed31_32.h
++++ b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+@@ -496,4 +496,21 @@ unsigned int dc_fixpt_clamp_u0d10(struct fixed31_32 arg);
+ 
+ int dc_fixpt_s4d19(struct fixed31_32 arg);
+ 
++static inline struct fixed31_32 dc_fixpt_truncate(struct fixed31_32 arg, unsigned int frac_bits)
++{
++	bool negative = arg.value < 0;
++
++	if (frac_bits >= FIXED31_32_BITS_PER_FRACTIONAL_PART) {
++		ASSERT(frac_bits == FIXED31_32_BITS_PER_FRACTIONAL_PART);
++		return arg;
++	}
++
++	if (negative)
++		arg.value = -arg.value;
++	arg.value &= (~0LL) << (FIXED31_32_BITS_PER_FRACTIONAL_PART - frac_bits);
++	if (negative)
++		arg.value = -arg.value;
++	return arg;
++}
++
+ #endif
+-- 
+2.7.4
+

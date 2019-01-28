@@ -1,0 +1,53 @@
+From 942541c09ff3ff6dca3ac6d7126df3657bade3b9 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 19:50:01 +0800
+Subject: [PATCH 4413/5725] drm/amd/display/dm: Add vega20 support
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index be3200c..21be9fd 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -1111,6 +1111,7 @@ static int dce110_register_irq_handlers(struct amdgpu_device *adev)
+ 
+ 	if (adev->asic_type == CHIP_VEGA10 ||
+ 	    adev->asic_type == CHIP_VEGA12 ||
++	    adev->asic_type == CHIP_VEGA20 ||
+ 	    adev->asic_type == CHIP_RAVEN)
+ 		client_id = SOC15_IH_CLIENTID_DCE;
+ 
+@@ -1514,6 +1515,7 @@ static int amdgpu_dm_initialize_drm_device(struct amdgpu_device *adev)
+ #endif
+         case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+                 if (dce110_register_irq_handlers(dm->adev)) {
+                         DRM_ERROR("DM: Failed to initialize IRQ\n");
+                         goto fail;
+@@ -1766,6 +1768,7 @@ static int dm_early_init(void *handle)
+ 		break;
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+ 		adev->mode_info.num_crtc = 6;
+ 		adev->mode_info.num_hpd = 6;
+ 		adev->mode_info.num_dig = 6;
+@@ -2014,6 +2017,7 @@ static int fill_plane_attributes_from_fb(struct amdgpu_device *adev,
+ 
+ 	if (adev->asic_type == CHIP_VEGA10 ||
+ 	    adev->asic_type == CHIP_VEGA12 ||
++	    adev->asic_type == CHIP_VEGA20 ||
+ 	    adev->asic_type == CHIP_RAVEN) {
+ 		/* Fill GFX9 params */
+ 		plane_state->tiling_info.gfx9.num_pipes =
+-- 
+2.7.4
+

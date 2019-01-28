@@ -1,0 +1,31 @@
+From 2dfe71d3485ea5420f93e830a47e7db0adadcd95 Mon Sep 17 00:00:00 2001
+From: Tom St Denis <tom.stdenis@amd.com>
+Date: Tue, 1 May 2018 10:15:16 -0400
+Subject: [PATCH 4297/5725] drm/amd/amdgpu: vcn10 Add callback for
+ emit_reg_write_reg_wait
+
+The callback .emit_reg_write_reg_wait was missing for vcn decode
+which resulted in a kernel oops.
+
+Change-Id: I77b68bb82c690394cd6e598c7876373c08336eb4
+Signed-off-by: Tom St Denis <tom.stdenis@amd.com>
+Reviewed-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index 48c469f..bc00178 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -1147,6 +1147,7 @@ static const struct amdgpu_ring_funcs vcn_v1_0_dec_ring_vm_funcs = {
+ 	.end_use = amdgpu_vcn_ring_end_use,
+ 	.emit_wreg = vcn_v1_0_dec_ring_emit_wreg,
+ 	.emit_reg_wait = vcn_v1_0_dec_ring_emit_reg_wait,
++	.emit_reg_write_reg_wait = amdgpu_ring_emit_reg_write_reg_wait_helper,
+ };
+ 
+ static const struct amdgpu_ring_funcs vcn_v1_0_enc_ring_vm_funcs = {
+-- 
+2.7.4
+

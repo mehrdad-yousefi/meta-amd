@@ -1,0 +1,196 @@
+From 72f96f62e18f8bec73fb67e735f5fb7ed00211c3 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Sun, 15 Jul 2018 00:57:02 -0400
+Subject: [PATCH 5166/5725] drm/amdgpu: Remove VM-based compute profile
+ switching
+
+VM-based compute profile switching was rejected upstream. It was
+replaced with queue-based switching and a dedicated kfd2kgd interface.
+
+Change-Id: I7c319bfe2533b29d8e5199dc2fc8fb001bbffdfd
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+      drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c |  9 ++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c           | 53 ------------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h           |  6 ---
+ 3 files changed, 5 insertions(+), 63 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+index 59e1f44..fb22f77 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
+@@ -1094,6 +1094,10 @@ int amdgpu_amdkfd_gpuvm_acquire_process_vm(struct kgd_dev *kgd,
+ 	struct amdgpu_vm *avm = &drv_priv->vm;
+ 	int ret;
+ 
++	/* Already a compute VM? */
++	if (avm->process_info)
++		return -EINVAL;
++
+ 	/* Convert VM into a compute VM */
+ 	ret = amdgpu_vm_make_compute(adev, avm);
+ 	if (ret)
+@@ -1115,7 +1119,7 @@ void amdgpu_amdkfd_gpuvm_destroy_cb(struct amdgpu_device *adev,
+ 	struct amdkfd_process_info *process_info = vm->process_info;
+ 	struct amdgpu_bo *pd = vm->root.base.bo;
+ 
+-	if (vm->vm_context != AMDGPU_VM_CONTEXT_COMPUTE)
++	if (!process_info)
+ 		return;
+ 
+ 	/* Release eviction fence from PD */
+@@ -1123,9 +1127,6 @@ void amdgpu_amdkfd_gpuvm_destroy_cb(struct amdgpu_device *adev,
+ 	amdgpu_bo_fence(pd, NULL, false);
+ 	amdgpu_bo_unreserve(pd);
+ 
+-	if (!process_info)
+-		return;
+-
+ 	/* Update process info */
+ 	mutex_lock(&process_info->lock);
+ 	process_info->n_vms--;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 5de844d..deaef9f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2561,24 +2561,6 @@ void amdgpu_vm_adjust_size(struct amdgpu_device *adev, uint32_t vm_size,
+ 		 adev->vm_manager.fragment_size);
+ }
+ 
+-static void amdgpu_inc_compute_vms(struct amdgpu_device *adev)
+-{
+-	/* Temporary use only the first VM manager */
+-	unsigned int vmhub = 0; /*ring->funcs->vmhub;*/
+-	struct amdgpu_vmid_mgr *id_mgr = &adev->vm_manager.id_mgr[vmhub];
+-
+-	mutex_lock(&id_mgr->lock);
+-	if ((adev->vm_manager.n_compute_vms++ == 0) &&
+-	    (!amdgpu_sriov_vf(adev))) {
+-		/* First Compute VM: enable compute power profile */
+-		if (adev->powerplay.pp_funcs &&
+-			adev->powerplay.pp_funcs->switch_power_profile)
+-			amdgpu_dpm_switch_power_profile(adev,
+-							PP_SMC_POWER_PROFILE_COMPUTE, true);
+-	}
+-	mutex_unlock(&id_mgr->lock);
+-}
+-
+ /**
+  * amdgpu_vm_init - initialize a vm instance
+  *
+@@ -2691,11 +2673,6 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	INIT_KFIFO(vm->faults);
+ 	vm->fault_credit = 16;
+ 	
+-	vm->vm_context = vm_context;
+-	
+-	if (vm_context == AMDGPU_VM_CONTEXT_COMPUTE)
+-		amdgpu_inc_compute_vms(adev);
+-
+ 	return 0;
+ 
+ error_unreserve:
+@@ -2722,7 +2699,6 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+  * page tables allocated yet.
+  *
+  * Changes the following VM parameters:
+- * - vm_context
+  * - use_cpu_for_update
+  * - pte_supports_ats
+  * - pasid (old PASID is released, because compute manages its own PASIDs)
+@@ -2744,13 +2720,6 @@ int amdgpu_vm_make_compute(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 		return r;
+ 
+ 	/* Sanity checks */
+-	if (vm->vm_context == AMDGPU_VM_CONTEXT_COMPUTE) {
+-		/* Can happen if ioctl is interrupted by a signal after
+-		 * this function already completed. Just return success.
+-		 */
+-		r = 0;
+-		goto error;
+-	}
+ 	if (!RB_EMPTY_ROOT(&vm->va.rb_root) || vm->root.entries) {
+ 		r = -EINVAL;
+ 		goto error;
+@@ -2768,7 +2737,6 @@ int amdgpu_vm_make_compute(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 	}
+ 
+ 	/* Update VM state */
+-	vm->vm_context = AMDGPU_VM_CONTEXT_COMPUTE;
+ 	vm->use_cpu_for_update = !!(adev->vm_manager.vm_update_mode &
+ 				    AMDGPU_VM_USE_CPU_FOR_COMPUTE);
+ 	vm->pte_support_ats = pte_support_ats;
+@@ -2787,8 +2755,6 @@ int amdgpu_vm_make_compute(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 		vm->pasid = 0;
+ 	}
+ 
+-	/* Count the new compute VM */
+-	amdgpu_inc_compute_vms(adev);
+ 	/* Free the shadow bo for compute VM */
+ 	amdgpu_bo_unref(&vm->root.base.bo->shadow);
+ 
+@@ -2858,24 +2824,6 @@ void amdgpu_vm_fini(struct amdgpu_device *adev, struct amdgpu_vm *vm)
+ 		spin_unlock_irqrestore(&adev->vm_manager.pasid_lock, flags);
+ 	}
+ 
+-	if (vm->vm_context == AMDGPU_VM_CONTEXT_COMPUTE) {
+-		struct amdgpu_vmid_mgr *id_mgr =
+-			&adev->vm_manager.id_mgr[AMDGPU_GFXHUB];
+-		mutex_lock(&id_mgr->lock);
+-
+-		WARN(adev->vm_manager.n_compute_vms == 0, "Unbalanced number of Compute VMs");
+-
+-		if ((--adev->vm_manager.n_compute_vms == 0) &&
+-			(!amdgpu_sriov_vf(adev))) {
+-			/* Last KFD VM: enable graphics power profile */
+-			if (adev->powerplay.pp_funcs &&
+-				adev->powerplay.pp_funcs->switch_power_profile)
+-				amdgpu_dpm_switch_power_profile(adev,
+-					PP_SMC_POWER_PROFILE_COMPUTE, false);
+-		}
+-		mutex_unlock(&id_mgr->lock);
+-	}
+-
+ 	drm_sched_entity_fini(vm->entity.sched, &vm->entity);
+ 
+ 	if (!RB_EMPTY_ROOT(&vm->va.rb_root)) {
+@@ -2986,7 +2934,6 @@ void amdgpu_vm_manager_init(struct amdgpu_device *adev)
+ 
+ 	idr_init(&adev->vm_manager.pasid_idr);
+ 	spin_lock_init(&adev->vm_manager.pasid_lock);
+-	adev->vm_manager.n_compute_vms = 0;
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index b96bfed..3461300 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -236,9 +236,6 @@ struct amdgpu_vm {
+ 	/* Limit non-retry fault storms */
+ 	unsigned int		fault_credit;
+ 
+-	/* Whether this is a Compute or GFX Context */
+-	int			vm_context;
+-
+ 	/* Points to the KFD process VM info */
+ 	struct amdkfd_process_info *process_info;
+ 
+@@ -288,9 +285,6 @@ struct amdgpu_vm_manager {
+ 	 */
+ 	struct idr				pasid_idr;
+ 	spinlock_t				pasid_lock;
+-
+-	/* Number of Compute VMs, used for detecting Compute activity */
+-	unsigned                                n_compute_vms;
+ };
+ 
+ #define amdgpu_vm_copy_pte(adev, ib, pe, src, count) ((adev)->vm_manager.vm_pte_funcs->copy_pte((ib), (pe), (src), (count)))
+-- 
+2.7.4
+

@@ -1,0 +1,51 @@
+From 674fede53e8ed89c8718435c25127a005c2e07ba Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Wed, 4 Jul 2018 18:08:54 +0800
+Subject: [PATCH 4971/5725] drm/amdgpu: simplify the bo reference on
+ amdgpu_bo_update
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+BO ptr already be initialized at definition, we needn't use the complicated
+reference.
+
+v2: fix typo at subject line
+
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index b8e9262..852956c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -1655,18 +1655,17 @@ int amdgpu_vm_bo_update(struct amdgpu_device *adev,
+ 	struct amdgpu_device *bo_adev;
+ 	int r;
+ 
+-	if (clear || !bo_va->base.bo) {
++	if (clear || !bo) {
+ 		mem = NULL;
+ 		nodes = NULL;
+ 		exclusive = NULL;
+ 	} else {
+ 		struct ttm_dma_tt *ttm;
+ 
+-		mem = &bo_va->base.bo->tbo.mem;
++		mem = &bo->tbo.mem;
+ 		nodes = mem->mm_node;
+ 		if (mem->mem_type == TTM_PL_TT) {
+-			ttm = container_of(bo_va->base.bo->tbo.ttm,
+-					   struct ttm_dma_tt, ttm);
++			ttm = container_of(bo->tbo.ttm, struct ttm_dma_tt, ttm);
+ 			pages_addr = ttm->dma_address;
+ 		} else if (mem->mem_type == AMDGPU_PL_DGMA_IMPORT) {
+ 			pages_addr = (dma_addr_t *)bo_va->base.bo->tbo.mem.bus.addr;
+-- 
+2.7.4
+

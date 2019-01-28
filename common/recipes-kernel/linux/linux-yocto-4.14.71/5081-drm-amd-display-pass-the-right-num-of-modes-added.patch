@@ -1,0 +1,39 @@
+From d2d3eb077d5cc6128dc7ea4192cc59cc8f3f088c Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Thu, 26 Jul 2018 16:27:48 -0400
+Subject: [PATCH 5081/5725] drm/amd/display: pass the right num of modes added
+
+[why]
+In case if edid is null or corrupted we need to manually add
+a single failsafe mode (640x480). If zero modes returned
+DRM adds a different failsafe mode that is not accepted by
+DP 1.2 compliance test
+
+[how]
+Return the number of modes manually added
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Reviewed-by: Sun peng Li <Sunpeng.Li@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 0d6475b..d6d6568 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3790,7 +3790,8 @@ static int amdgpu_dm_connector_get_modes(struct drm_connector *connector)
+ 	encoder = helper->best_encoder(connector);
+ 
+ 	if (!edid || !drm_edid_is_valid(edid)) {
+-		drm_add_modes_noedid(connector, 640, 480);
++		amdgpu_dm_connector->num_modes =
++				drm_add_modes_noedid(connector, 640, 480);
+ 	} else {
+ 		amdgpu_dm_connector_ddc_get_modes(connector, edid);
+ 		amdgpu_dm_connector_add_common_modes(encoder, connector);
+-- 
+2.7.4
+

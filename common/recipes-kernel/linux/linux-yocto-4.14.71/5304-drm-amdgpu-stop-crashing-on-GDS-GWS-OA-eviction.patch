@@ -1,0 +1,63 @@
+From 32424d7bb58667c5d3bb52bb910f02710e84610a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 20:44:17 +0200
+Subject: [PATCH 5304/5725] drm/amdgpu: stop crashing on GDS/GWS/OA eviction
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Simply ignore any copying here.
+
+Change-Id: I8c10da1b6199f4aa60fb8c52473eb2adb3286116
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 614a5cf..212ce92 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -273,6 +273,13 @@ static void amdgpu_evict_flags(struct ttm_buffer_object *bo,
+ 
+ 	abo = ttm_to_amdgpu_bo(bo);
+ 	switch (bo->mem.mem_type) {
++	case AMDGPU_PL_GDS:
++	case AMDGPU_PL_GWS:
++	case AMDGPU_PL_OA:
++		placement->num_placement = 0;
++		placement->num_busy_placement = 0;
++		return;
++
+ 	case TTM_PL_VRAM:
+ 	case AMDGPU_PL_DGMA:
+ 		if (!adev->mman.buffer_funcs_enabled) {
+@@ -302,6 +309,7 @@ static void amdgpu_evict_flags(struct ttm_buffer_object *bo,
+ 	case AMDGPU_PL_DGMA_IMPORT:
+ 	default:
+ 		amdgpu_bo_placement_from_domain(abo, AMDGPU_GEM_DOMAIN_CPU);
++		break;
+ 	}
+ 	*placement = abo->placement;
+ }
+@@ -699,6 +707,16 @@ static int amdgpu_bo_move(struct ttm_buffer_object *bo, bool evict,
+ 		amdgpu_move_null(bo, new_mem);
+ 		return 0;
+ 	}
++	if (old_mem->mem_type == AMDGPU_PL_GDS ||
++	    old_mem->mem_type == AMDGPU_PL_GWS ||
++	    old_mem->mem_type == AMDGPU_PL_OA ||
++	    new_mem->mem_type == AMDGPU_PL_GDS ||
++	    new_mem->mem_type == AMDGPU_PL_GWS ||
++	    new_mem->mem_type == AMDGPU_PL_OA) {
++		/* Nothing to save here */
++		amdgpu_move_null(bo, new_mem);
++		return 0;
++	}
+ 
+ 	if (!adev->mman.buffer_funcs_enabled)
+ 		goto memcpy;
+-- 
+2.7.4
+

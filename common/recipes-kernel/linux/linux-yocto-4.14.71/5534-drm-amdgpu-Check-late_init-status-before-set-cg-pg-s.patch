@@ -1,0 +1,39 @@
+From 8b57a6d371949e570b1a0444f8c8e1abbd791ad4 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 3 Oct 2018 16:19:50 +0800
+Subject: [PATCH 5534/5725] drm/amdgpu: Check late_init status before set cg/pg
+ state
+
+Fix cg/pg unexpected set in hw init failed case.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 9230cdb..0cce3fa 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1706,7 +1706,7 @@ static int amdgpu_device_set_cg_state(struct amdgpu_device *adev,
+ 
+ 	for (j = 0; j < adev->num_ip_blocks; j++) {
+ 		i = state == AMD_CG_STATE_GATE ? j : adev->num_ip_blocks - j - 1;
+-		if (!adev->ip_blocks[i].status.valid)
++		if (!adev->ip_blocks[i].status.late_initialized)
+ 			continue;
+ 		/* skip CG for VCE/UVD, it's handled specially */
+ 		if (adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_UVD &&
+@@ -1736,7 +1736,7 @@ static int amdgpu_device_set_pg_state(struct amdgpu_device *adev, enum amd_power
+ 
+ 	for (j = 0; j < adev->num_ip_blocks; j++) {
+ 		i = state == AMD_PG_STATE_GATE ? j : adev->num_ip_blocks - j - 1;
+-		if (!adev->ip_blocks[i].status.valid)
++		if (!adev->ip_blocks[i].status.late_initialized)
+ 			continue;
+ 		/* skip CG for VCE/UVD, it's handled specially */
+ 		if (adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_UVD &&
+-- 
+2.7.4
+

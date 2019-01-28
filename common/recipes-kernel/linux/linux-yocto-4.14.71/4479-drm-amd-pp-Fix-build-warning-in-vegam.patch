@@ -1,0 +1,48 @@
+From 1af886baae76311596b6fc693339c06fa2dc0cb8 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 17 May 2018 20:21:42 +0800
+Subject: [PATCH 4479/5725] drm/amd/pp: Fix build warning in vegam
+
+warning: missing braces around initializer [-Wmissing-braces]
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c    | 2 +-
+ drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c | 4 +++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+index 9c7625c..c7927595 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/ppatomctrl.c
+@@ -320,7 +320,7 @@ int atomctrl_get_memory_pll_dividers_ai(struct pp_hwmgr *hwmgr,
+ 					pp_atomctrl_memory_clock_param_ai *mpll_param)
+ {
+ 	struct amdgpu_device *adev = hwmgr->adev;
+-	COMPUTE_MEMORY_CLOCK_PARAM_PARAMETERS_V2_3 mpll_parameters = {0};
++	COMPUTE_MEMORY_CLOCK_PARAM_PARAMETERS_V2_3 mpll_parameters = {{0}, 0, 0};
+ 	int result;
+ 
+ 	mpll_parameters.ulClock.ulClock = cpu_to_le32(clock_value);
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
+index c9a5633..a40f714 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
+@@ -1366,10 +1366,12 @@ static int vegam_program_memory_timing_parameters(struct pp_hwmgr *hwmgr)
+ {
+ 	struct smu7_hwmgr *hw_data = (struct smu7_hwmgr *)(hwmgr->backend);
+ 	struct vegam_smumgr *smu_data = (struct vegam_smumgr *)(hwmgr->smu_backend);
+-	struct SMU75_Discrete_MCArbDramTimingTable arb_regs = {0};
++	struct SMU75_Discrete_MCArbDramTimingTable arb_regs;
+ 	uint32_t i, j;
+ 	int result = 0;
+ 
++	memset(&arb_regs, 0, sizeof(SMU75_Discrete_MCArbDramTimingTable));
++
+ 	for (i = 0; i < hw_data->dpm_table.sclk_table.count; i++) {
+ 		for (j = 0; j < hw_data->dpm_table.mclk_table.count; j++) {
+ 			result = vegam_populate_memory_timing_parameters(hwmgr,
+-- 
+2.7.4
+

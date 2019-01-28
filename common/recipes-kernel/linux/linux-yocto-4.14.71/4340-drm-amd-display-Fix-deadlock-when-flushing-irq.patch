@@ -1,0 +1,40 @@
+From 4d051e2c132c0baf8ea1167fb03202dbf718f135 Mon Sep 17 00:00:00 2001
+From: Mikita Lipski <mikita.lipski@amd.com>
+Date: Wed, 10 Jan 2018 10:01:38 -0500
+Subject: [PATCH 4340/5725] drm/amd/display: Fix deadlock when flushing irq
+
+Lock irq table when reading a work in queue,
+unlock to flush the work, lock again till all tasks
+are cleared
+
+Signed-off-by: Mikita Lipski <mikita.lipski@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c
+index 470c4e2..30bec90 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c
+@@ -329,14 +329,15 @@ void amdgpu_dm_irq_fini(struct amdgpu_device *adev)
+ {
+ 	int src;
+ 	struct irq_list_head *lh;
++	unsigned long irq_table_flags;
+ 	DRM_DEBUG_KMS("DM_IRQ: releasing resources.\n");
+-
+ 	for (src = 0; src < DAL_IRQ_SOURCES_NUMBER; src++) {
+-
++		DM_IRQ_TABLE_LOCK(adev, irq_table_flags);
+ 		/* The handler was removed from the table,
+ 		 * it means it is safe to flush all the 'work'
+ 		 * (because no code can schedule a new one). */
+ 		lh = &adev->dm.irq_handler_list_low_tab[src];
++		DM_IRQ_TABLE_UNLOCK(adev, irq_table_flags);
+ 		flush_work(&lh->work);
+ 	}
+ }
+-- 
+2.7.4
+

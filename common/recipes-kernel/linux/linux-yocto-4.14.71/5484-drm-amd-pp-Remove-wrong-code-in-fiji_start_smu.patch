@@ -1,0 +1,37 @@
+From 6ed98a6ce4d1a41c02016b41f71a7700438eb436 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 26 Sep 2018 12:17:52 +0800
+Subject: [PATCH 5484/5725] drm/amd/pp: Remove wrong code in fiji_start_smu
+
+HW CG feature will be enabled after hw ip initialized
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c
+index ec14798..b6b62a7 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c
+@@ -302,16 +302,6 @@ static int fiji_start_smu(struct pp_hwmgr *hwmgr)
+ 			hwmgr->avfs_supported = false;
+ 	}
+ 
+-	/* To initialize all clock gating before RLC loaded and running.*/
+-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+-			AMD_IP_BLOCK_TYPE_GFX, AMD_CG_STATE_GATE);
+-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+-			AMD_IP_BLOCK_TYPE_GMC, AMD_CG_STATE_GATE);
+-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+-			AMD_IP_BLOCK_TYPE_SDMA, AMD_CG_STATE_GATE);
+-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+-			AMD_IP_BLOCK_TYPE_COMMON, AMD_CG_STATE_GATE);
+-
+ 	/* Setup SoftRegsStart here for register lookup in case
+ 	 * DummyBackEnd is used and ProcessFirmwareHeader is not executed
+ 	 */
+-- 
+2.7.4
+

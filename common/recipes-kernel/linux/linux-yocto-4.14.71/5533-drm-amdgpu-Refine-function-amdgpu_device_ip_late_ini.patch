@@ -1,0 +1,42 @@
+From 7119e74a762cdfed1f0d7b839f038650effdbec0 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 3 Oct 2018 16:10:45 +0800
+Subject: [PATCH 5533/5725] drm/amdgpu: Refine function
+ amdgpu_device_ip_late_init
+
+1. only call late_init when hw_init successful,
+   so check status.hw instand of status.valid in late_init.
+2. set status.late_initialized true if late_init was not implemented.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 1de2728..9230cdb 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1773,7 +1773,7 @@ static int amdgpu_device_ip_late_init(struct amdgpu_device *adev)
+ 	int i = 0, r;
+ 
+ 	for (i = 0; i < adev->num_ip_blocks; i++) {
+-		if (!adev->ip_blocks[i].status.valid)
++		if (!adev->ip_blocks[i].status.hw)
+ 			continue;
+ 		if (adev->ip_blocks[i].version->funcs->late_init) {
+ 			r = adev->ip_blocks[i].version->funcs->late_init((void *)adev);
+@@ -1782,8 +1782,8 @@ static int amdgpu_device_ip_late_init(struct amdgpu_device *adev)
+ 					  adev->ip_blocks[i].version->funcs->name, r);
+ 				return r;
+ 			}
+-			adev->ip_blocks[i].status.late_initialized = true;
+ 		}
++		adev->ip_blocks[i].status.late_initialized = true;
+ 	}
+ 
+ 	amdgpu_device_set_cg_state(adev, AMD_CG_STATE_GATE);
+-- 
+2.7.4
+

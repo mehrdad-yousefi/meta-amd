@@ -1,0 +1,92 @@
+From 0d172de4060e4fa7de0ce4794d893a9f13ae37a6 Mon Sep 17 00:00:00 2001
+From: James Zhu <James.Zhu@amd.com>
+Date: Mon, 10 Sep 2018 14:06:08 -0400
+Subject: [PATCH 5459/5725] drm/amdgpu:Use register UVD_SCRATCH9 for VCN
+ ring/ib test
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Use register UVD_SCRATCH9 for VCN ring/ib test. Since those registers
+can't be directly accessed under DPG(Dynamic Power Gate) mode.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 86b1627..064475d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -264,7 +264,7 @@ int amdgpu_vcn_dec_ring_test_ring(struct amdgpu_ring *ring)
+ 	unsigned i;
+ 	int r;
+ 
+-	WREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_CONTEXT_ID), 0xCAFEDEAD);
++	WREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9), 0xCAFEDEAD);
+ 	r = amdgpu_ring_alloc(ring, 3);
+ 	if (r) {
+ 		DRM_ERROR("amdgpu: cp failed to lock ring %d (%d).\n",
+@@ -272,11 +272,11 @@ int amdgpu_vcn_dec_ring_test_ring(struct amdgpu_ring *ring)
+ 		return r;
+ 	}
+ 	amdgpu_ring_write(ring,
+-		PACKET0(SOC15_REG_OFFSET(UVD, 0, mmUVD_CONTEXT_ID), 0));
++		PACKET0(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9), 0));
+ 	amdgpu_ring_write(ring, 0xDEADBEEF);
+ 	amdgpu_ring_commit(ring);
+ 	for (i = 0; i < adev->usec_timeout; i++) {
+-		tmp = RREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_CONTEXT_ID));
++		tmp = RREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9));
+ 		if (tmp == 0xDEADBEEF)
+ 			break;
+ 		DRM_UDELAY(1);
+@@ -618,7 +618,7 @@ int amdgpu_vcn_jpeg_ring_test_ring(struct amdgpu_ring *ring)
+ 	unsigned i;
+ 	int r;
+ 
+-	WREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_CONTEXT_ID), 0xCAFEDEAD);
++	WREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9), 0xCAFEDEAD);
+ 	r = amdgpu_ring_alloc(ring, 3);
+ 
+ 	if (r) {
+@@ -628,12 +628,12 @@ int amdgpu_vcn_jpeg_ring_test_ring(struct amdgpu_ring *ring)
+ 	}
+ 
+ 	amdgpu_ring_write(ring,
+-		PACKETJ(SOC15_REG_OFFSET(UVD, 0, mmUVD_CONTEXT_ID), 0, 0, 0));
++		PACKETJ(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9), 0, 0, 0));
+ 	amdgpu_ring_write(ring, 0xDEADBEEF);
+ 	amdgpu_ring_commit(ring);
+ 
+ 	for (i = 0; i < adev->usec_timeout; i++) {
+-		tmp = RREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_CONTEXT_ID));
++		tmp = RREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9));
+ 		if (tmp == 0xDEADBEEF)
+ 			break;
+ 		DRM_UDELAY(1);
+@@ -667,7 +667,7 @@ static int amdgpu_vcn_jpeg_set_reg(struct amdgpu_ring *ring, uint32_t handle,
+ 
+ 	ib = &job->ibs[0];
+ 
+-	ib->ptr[0] = PACKETJ(SOC15_REG_OFFSET(UVD, 0, mmUVD_JPEG_PITCH), 0, 0, PACKETJ_TYPE0);
++	ib->ptr[0] = PACKETJ(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9), 0, 0, PACKETJ_TYPE0);
+ 	ib->ptr[1] = 0xDEADBEEF;
+ 	for (i = 2; i < 16; i += 2) {
+ 		ib->ptr[i] = PACKETJ(0, 0, 0, PACKETJ_TYPE6);
+@@ -716,7 +716,7 @@ int amdgpu_vcn_jpeg_ring_test_ib(struct amdgpu_ring *ring, long timeout)
+ 		r = 0;
+ 
+ 	for (i = 0; i < adev->usec_timeout; i++) {
+-		tmp = RREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_JPEG_PITCH));
++		tmp = RREG32(SOC15_REG_OFFSET(UVD, 0, mmUVD_SCRATCH9));
+ 		if (tmp == 0xDEADBEEF)
+ 			break;
+ 		DRM_UDELAY(1);
+-- 
+2.7.4
+

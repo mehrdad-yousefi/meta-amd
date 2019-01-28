@@ -1,0 +1,35 @@
+From 74ae856aa0a67927e74879917e8b65c0dbc13a23 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Fri, 19 Aug 2016 20:35:48 +0800
+Subject: [PATCH 4134/5725] drm/amd/powerplay: implement smu7_smumgr for asics
+ with smu ip version 7 (V2)
+
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+index d644a9b..64d33b7 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu7_smumgr.c
+@@ -283,9 +283,11 @@ int smu7_read_smc_sram_dword(struct pp_hwmgr *hwmgr, uint32_t smc_addr, uint32_t
+ 
+ 	result = smu7_set_smc_sram_address(hwmgr, smc_addr, limit);
+ 
+-	*value = result ? 0 : cgs_read_register(hwmgr->device, mmSMC_IND_DATA_11);
++	if (result)
++		return result;
+ 
+-	return result;
++	*value = cgs_read_register(hwmgr->device, mmSMC_IND_DATA_11);
++	return 0;
+ }
+ 
+ int smu7_write_smc_sram_dword(struct pp_hwmgr *hwmgr, uint32_t smc_addr, uint32_t value, uint32_t limit)
+-- 
+2.7.4
+

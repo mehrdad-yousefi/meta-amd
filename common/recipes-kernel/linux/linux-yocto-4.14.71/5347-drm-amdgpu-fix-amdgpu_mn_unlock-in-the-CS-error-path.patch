@@ -1,0 +1,36 @@
+From f654fe26508465c6d2ac120b627ab3efe462724a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 3 Sep 2018 10:51:51 +0200
+Subject: [PATCH 5347/5725] drm/amdgpu: fix amdgpu_mn_unlock() in the CS error
+ path
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Avoid unlocking a lock we never locked.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 3e41c03..67551d4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1258,10 +1258,10 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ error_abort:
+ 	dma_fence_put(&job->base.s_fence->finished);
+ 	job->base.s_fence = NULL;
++	amdgpu_mn_unlock(p->mn);
+ 
+ error_unlock:
+ 	amdgpu_job_free(job);
+-	amdgpu_mn_unlock(p->mn);
+ 	return r;
+ }
+ 
+-- 
+2.7.4
+

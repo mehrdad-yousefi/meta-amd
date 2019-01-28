@@ -1,0 +1,39 @@
+From 3208f350fd2995ca2d7e4923b7d3883ebf3db7b3 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Fri, 17 Aug 2018 09:31:56 +0800
+Subject: [PATCH 5200/5725] drm/amdgpu: set correct base for THM/NBIF/MP1 IP
+
+Set correct address base for vega20.
+
+Change-Id: I7435980e2ca156ee2b443a97899d40aaba4876cb
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vega20_reg_init.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vega20_reg_init.c b/drivers/gpu/drm/amd/amdgpu/vega20_reg_init.c
+index 52778de..2d44735 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vega20_reg_init.c
++++ b/drivers/gpu/drm/amd/amdgpu/vega20_reg_init.c
+@@ -38,6 +38,7 @@ int vega20_reg_base_init(struct amdgpu_device *adev)
+ 		adev->reg_offset[ATHUB_HWIP][i] = (uint32_t *)(&(ATHUB_BASE.instance[i]));
+ 		adev->reg_offset[NBIO_HWIP][i] = (uint32_t *)(&(NBIO_BASE.instance[i]));
+ 		adev->reg_offset[MP0_HWIP][i] = (uint32_t *)(&(MP0_BASE.instance[i]));
++		adev->reg_offset[MP1_HWIP][i] = (uint32_t *)(&(MP1_BASE.instance[i]));
+ 		adev->reg_offset[UVD_HWIP][i] = (uint32_t *)(&(UVD_BASE.instance[i]));
+ 		adev->reg_offset[VCE_HWIP][i] = (uint32_t *)(&(VCE_BASE.instance[i]));
+ 		adev->reg_offset[DF_HWIP][i] = (uint32_t *)(&(DF_BASE.instance[i]));
+@@ -46,6 +47,8 @@ int vega20_reg_base_init(struct amdgpu_device *adev)
+ 		adev->reg_offset[SDMA0_HWIP][i] = (uint32_t *)(&(SDMA0_BASE.instance[i]));
+ 		adev->reg_offset[SDMA1_HWIP][i] = (uint32_t *)(&(SDMA1_BASE.instance[i]));
+ 		adev->reg_offset[SMUIO_HWIP][i] = (uint32_t *)(&(SMUIO_BASE.instance[i]));
++		adev->reg_offset[NBIF_HWIP][i] = (uint32_t *)(&(NBIO_BASE.instance[i]));
++		adev->reg_offset[THM_HWIP][i] = (uint32_t *)(&(THM_BASE.instance[i]));
+ 	}
+ 	return 0;
+ }
+-- 
+2.7.4
+

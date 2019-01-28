@@ -1,0 +1,43 @@
+From fe6d898510192300f1fa96a16b02d19ae6c5c88d Mon Sep 17 00:00:00 2001
+From: Likun Gao <Likun.Gao@amd.com>
+Date: Tue, 5 Jun 2018 14:05:45 +0800
+Subject: [PATCH 5283/5725] drm/amdgpu: add psp support for raven2
+
+Modified for using raven2_asd.bin to replace raven_asd.bin for raven2
+
+Change-Id: I1cfe49ca09786409daa4d15d3e1eb11bbf5f3805
+Signed-off-by: Likun Gao <Likun.Gao@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/psp_v10_0.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c b/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
+index 02be34e..1ac597c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/psp_v10_0.c
+@@ -35,6 +35,8 @@
+ #include "sdma0/sdma0_4_1_offset.h"
+ 
+ MODULE_FIRMWARE("amdgpu/raven_asd.bin");
++MODULE_FIRMWARE("amdgpu/picasso_asd.bin");
++MODULE_FIRMWARE("amdgpu/raven2_asd.bin");
+ 
+ static int
+ psp_v10_0_get_fw_type(struct amdgpu_firmware_info *ucode, enum psp_gfx_fw_type *type)
+@@ -111,7 +113,10 @@ static int psp_v10_0_init_microcode(struct psp_context *psp)
+ 
+ 	switch (adev->asic_type) {
+ 	case CHIP_RAVEN:
+-		chip_name = "raven";
++		if (adev->rev_id >= 0x8)
++			chip_name = "raven2";
++		else
++			chip_name = "raven";
+ 		break;
+ 	default: BUG();
+ 	}
+-- 
+2.7.4
+

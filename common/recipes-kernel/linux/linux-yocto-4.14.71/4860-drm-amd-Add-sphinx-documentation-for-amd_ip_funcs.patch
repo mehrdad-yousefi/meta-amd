@@ -1,0 +1,95 @@
+From 27a023ae41e7df6c4bd994bce65396a4fd62ced6 Mon Sep 17 00:00:00 2001
+From: Darren Powell <darren.powell@amd.com>
+Date: Wed, 27 Jun 2018 17:05:20 -0400
+Subject: [PATCH 4860/5725] drm/amd: Add sphinx documentation for amd_ip_funcs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Darren Powell <darren.powell@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/amd_shared.h | 45 +++++++++++++++++++-------------
+ 1 file changed, 27 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/include/amd_shared.h b/drivers/gpu/drm/amd/include/amd_shared.h
+index 91459a6..dc3d856 100644
+--- a/drivers/gpu/drm/amd/include/amd_shared.h
++++ b/drivers/gpu/drm/amd/include/amd_shared.h
+@@ -131,45 +131,54 @@ enum PP_FEATURE_MASK {
+ 	PP_STUTTER_MODE = 0x20000,
+ };
+ 
++/**
++ * struct amd_ip_funcs - general hooks for managing amdgpu IP Blocks
++ */
+ struct amd_ip_funcs {
+-	/* Name of IP block */
++	/** @name: Name of IP block */
+ 	char *name;
+-	/* sets up early driver state (pre sw_init), does not configure hw - Optional */
++	/**
++	 * @early_init:
++	 *
++	 * sets up early driver state (pre sw_init),
++	 * does not configure hw - Optional
++	 */
+ 	int (*early_init)(void *handle);
+-	/* sets up late driver/hw state (post hw_init) - Optional */
++	/** @late_init: sets up late driver/hw state (post hw_init) - Optional */
+ 	int (*late_init)(void *handle);
+-	/* sets up driver state, does not configure hw */
++	/** @sw_init: sets up driver state, does not configure hw */
+ 	int (*sw_init)(void *handle);
+-	/* tears down driver state, does not configure hw */
++	/** @sw_fini: tears down driver state, does not configure hw */
+ 	int (*sw_fini)(void *handle);
+-	/* sets up the hw state */
++	/** @hw_init: sets up the hw state */
+ 	int (*hw_init)(void *handle);
+-	/* tears down the hw state */
++	/** @hw_fini: tears down the hw state */
+ 	int (*hw_fini)(void *handle);
++	/** @late_fini: final cleanup */
+ 	void (*late_fini)(void *handle);
+-	/* handles IP specific hw/sw changes for suspend */
++	/** @suspend: handles IP specific hw/sw changes for suspend */
+ 	int (*suspend)(void *handle);
+-	/* handles IP specific hw/sw changes for resume */
++	/** @resume: handles IP specific hw/sw changes for resume */
+ 	int (*resume)(void *handle);
+-	/* returns current IP block idle status */
++	/** @is_idle: returns current IP block idle status */
+ 	bool (*is_idle)(void *handle);
+-	/* poll for idle */
++	/** @wait_for_idle: poll for idle */
+ 	int (*wait_for_idle)(void *handle);
+-	/* check soft reset the IP block */
++	/** @check_soft_reset: check soft reset the IP block */
+ 	bool (*check_soft_reset)(void *handle);
+-	/* pre soft reset the IP block */
++	/** @pre_soft_reset: pre soft reset the IP block */
+ 	int (*pre_soft_reset)(void *handle);
+-	/* soft reset the IP block */
++	/** @soft_reset: soft reset the IP block */
+ 	int (*soft_reset)(void *handle);
+-	/* post soft reset the IP block */
++	/** @post_soft_reset: post soft reset the IP block */
+ 	int (*post_soft_reset)(void *handle);
+-	/* enable/disable cg for the IP block */
++	/** @set_clockgating_state: enable/disable cg for the IP block */
+ 	int (*set_clockgating_state)(void *handle,
+ 				     enum amd_clockgating_state state);
+-	/* enable/disable pg for the IP block */
++	/** @set_powergating_state: enable/disable pg for the IP block */
+ 	int (*set_powergating_state)(void *handle,
+ 				     enum amd_powergating_state state);
+-	/* get current clockgating status */
++	/** @get_clockgating_state: get current clockgating status */
+ 	void (*get_clockgating_state)(void *handle, u32 *flags);
+ };
+ 
+-- 
+2.7.4
+

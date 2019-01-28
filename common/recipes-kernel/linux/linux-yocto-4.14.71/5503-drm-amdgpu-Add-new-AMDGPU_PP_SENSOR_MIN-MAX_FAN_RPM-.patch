@@ -1,0 +1,30 @@
+From 8eaa9abe3b522075f8b8a5918f048a6b8fff058a Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sun, 30 Sep 2018 13:18:17 +0800
+Subject: [PATCH 5503/5725] drm/amdgpu: Add new
+ AMDGPU_PP_SENSOR_MIN/MAX_FAN_RPM sensor
+
+For getting the min/max fan speed in RPM units.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/include/kgd_pp_interface.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/include/kgd_pp_interface.h b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+index 8593850..97001a6 100644
+--- a/drivers/gpu/drm/amd/include/kgd_pp_interface.h
++++ b/drivers/gpu/drm/amd/include/kgd_pp_interface.h
+@@ -114,6 +114,8 @@ enum amd_pp_sensors {
+ 	AMDGPU_PP_SENSOR_STABLE_PSTATE_SCLK,
+ 	AMDGPU_PP_SENSOR_STABLE_PSTATE_MCLK,
+ 	AMDGPU_PP_SENSOR_ENABLED_SMC_FEATURES_MASK,
++	AMDGPU_PP_SENSOR_MIN_FAN_RPM,
++	AMDGPU_PP_SENSOR_MAX_FAN_RPM,
+ };
+ 
+ enum amd_pp_task {
+-- 
+2.7.4
+

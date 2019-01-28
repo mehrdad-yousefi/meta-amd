@@ -1,0 +1,31 @@
+From e2889bc861fba264bdd0ea3a9e3de562092808f1 Mon Sep 17 00:00:00 2001
+From: Derek Lai <Derek.Lai@amd.com>
+Date: Thu, 23 Aug 2018 15:13:23 +0800
+Subject: [PATCH 5356/5725] drm/amd/display: add disconnect_delay to
+ dc_panel_patch
+
+Some display need disconnect delay. Adding this parameter for future use
+
+Change-Id: I0075cf2be0fe658f07425f80d23c592726929a76
+Signed-off-by: Derek Lai <Derek.Lai@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc_types.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_types.h b/drivers/gpu/drm/amd/display/dc/dc_types.h
+index 58a6ef8..4fb6278 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_types.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_types.h
+@@ -191,6 +191,7 @@ union display_content_support {
+ };
+ 
+ struct dc_panel_patch {
++	unsigned int disconnect_delay;
+ 	unsigned int dppowerup_delay;
+ 	unsigned int extra_t12_ms;
+ };
+-- 
+2.7.4
+

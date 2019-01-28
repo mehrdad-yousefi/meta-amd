@@ -1,0 +1,88 @@
+From f698389435a51b85d5fc98e186f5114526caf40b Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 9 Oct 2018 14:22:04 +0800
+Subject: [PATCH 5536/5725] drm/amdgpu: Remove amdgpu_ucode_fini_bo
+
+The variable clean is unnecessary.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c       |  2 --
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c     | 19 -------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h     |  3 +--
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c |  3 ---
+ 4 files changed, 1 insertion(+), 26 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+index f74f155..a70657d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+@@ -444,8 +444,6 @@ static int psp_hw_fini(void *handle)
+ 	if (adev->firmware.load_type != AMDGPU_FW_LOAD_PSP)
+ 		return 0;
+ 
+-	amdgpu_ucode_fini_bo(adev);
+-
+ 	psp_ring_destroy(psp, PSP_RING_TYPE__KM);
+ 
+ 	amdgpu_bo_free_kernel(&psp->tmr_bo, &psp->tmr_mc_addr, &psp->tmr_buf);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+index e15dfa6..b41bba4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+@@ -490,22 +490,3 @@ int amdgpu_ucode_init_bo(struct amdgpu_device *adev)
+ 	}
+ 	return 0;
+ }
+-
+-int amdgpu_ucode_fini_bo(struct amdgpu_device *adev)
+-{
+-	int i;
+-	struct amdgpu_firmware_info *ucode = NULL;
+-
+-	if (!adev->firmware.fw_size)
+-		return 0;
+-
+-	for (i = 0; i < adev->firmware.max_ucodes; i++) {
+-		ucode = &adev->firmware.ucode[i];
+-		if (ucode->fw) {
+-			ucode->mc_addr = 0;
+-			ucode->kaddr = NULL;
+-		}
+-	}
+-
+-	return 0;
+-}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h
+index cbd69fe..3b194e8 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.h
+@@ -277,9 +277,8 @@ void amdgpu_ucode_print_gpu_info_hdr(const struct common_firmware_header *hdr);
+ int amdgpu_ucode_validate(const struct firmware *fw);
+ bool amdgpu_ucode_hdr_version(union amdgpu_firmware_header *hdr,
+ 				uint16_t hdr_major, uint16_t hdr_minor);
+-int amdgpu_ucode_init_bo(struct amdgpu_device *adev);
+-int amdgpu_ucode_fini_bo(struct amdgpu_device *adev);
+ 
++int amdgpu_ucode_init_bo(struct amdgpu_device *adev);
+ int amdgpu_ucode_create_bo(struct amdgpu_device *adev);
+ void amdgpu_ucode_free_bo(struct amdgpu_device *adev);
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index 8ca308e..f2cb6e1 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -109,9 +109,6 @@ static int pp_sw_fini(void *handle)
+ 
+ 	hwmgr_sw_fini(hwmgr);
+ 
+-	if (adev->firmware.load_type == AMDGPU_FW_LOAD_SMU)
+-		amdgpu_ucode_fini_bo(adev);
+-
+ 	release_firmware(adev->pm.fw);
+ 	adev->pm.fw = NULL;
+ 
+-- 
+2.7.4
+

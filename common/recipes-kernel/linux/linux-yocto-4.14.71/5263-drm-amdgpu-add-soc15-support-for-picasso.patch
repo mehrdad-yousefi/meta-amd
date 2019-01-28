@@ -1,0 +1,97 @@
+From 75c11c5019e434a49310bd1a62ed6d9280628687 Mon Sep 17 00:00:00 2001
+From: Likun Gao <Likun.Gao@amd.com>
+Date: Tue, 10 Jul 2018 20:22:36 +0800
+Subject: [PATCH 5263/5725] drm/amdgpu: add soc15 support for picasso
+
+Add the IP blocks, clock and powergating flags, and common clockgating support.
+
+Signed-off-by: Likun Gao <Likun.Gao@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c |  7 ++++++-
+ drivers/gpu/drm/amd/amdgpu/soc15.c         | 21 +++++++++++++++++++++
+ 2 files changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 948b62b..44adc15 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -62,6 +62,7 @@
+ MODULE_FIRMWARE("amdgpu/vega10_gpu_info.bin");
+ MODULE_FIRMWARE("amdgpu/vega12_gpu_info.bin");
+ MODULE_FIRMWARE("amdgpu/raven_gpu_info.bin");
++MODULE_FIRMWARE("amdgpu/picasso_gpu_info.bin");
+ 
+ #define AMDGPU_RESUME_MS		2000
+ 
+@@ -1385,6 +1386,9 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
+ 	case CHIP_RAVEN:
+ 		chip_name = "raven";
+ 		break;
++	case CHIP_PICASSO:
++		chip_name = "picasso";
++		break;
+ 	}
+ 
+ 	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_gpu_info.bin", chip_name);
+@@ -1510,7 +1514,8 @@ static int amdgpu_device_ip_early_init(struct amdgpu_device *adev)
+ 	case CHIP_VEGA12:
+ 	case CHIP_VEGA20:
+ 	case CHIP_RAVEN:
+-		if (adev->asic_type == CHIP_RAVEN)
++	case CHIP_PICASSO:
++		if ((adev->asic_type == CHIP_RAVEN) || (adev->asic_type == CHIP_PICASSO))
+ 			adev->family = AMDGPU_FAMILY_RV;
+ 		else
+ 			adev->family = AMDGPU_FAMILY_AI;
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index fc0cb7d3..d3b73af 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -486,6 +486,7 @@ int soc15_set_ip_blocks(struct amdgpu_device *adev)
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
+ 	case CHIP_RAVEN:
++	case CHIP_PICASSO:
+ 		vega10_reg_base_init(adev);
+ 		break;
+ 	case CHIP_VEGA20:
+@@ -724,6 +725,25 @@ static int soc15_common_early_init(void *handle)
+ 
+ 		adev->external_rev_id = 0x1;
+ 		break;
++	case CHIP_PICASSO:
++		adev->cg_flags = AMD_CG_SUPPORT_GFX_MGLS |
++			AMD_CG_SUPPORT_GFX_CP_LS |
++			AMD_CG_SUPPORT_GFX_3D_CGCG |
++			AMD_CG_SUPPORT_GFX_3D_CGLS |
++			AMD_CG_SUPPORT_GFX_CGCG |
++			AMD_CG_SUPPORT_GFX_CGLS |
++			AMD_CG_SUPPORT_BIF_LS |
++			AMD_CG_SUPPORT_HDP_LS |
++			AMD_CG_SUPPORT_ROM_MGCG |
++			AMD_CG_SUPPORT_MC_MGCG |
++			AMD_CG_SUPPORT_MC_LS |
++			AMD_CG_SUPPORT_SDMA_MGCG |
++			AMD_CG_SUPPORT_SDMA_LS;
++
++		adev->pg_flags = 0;
++
++		adev->external_rev_id = adev->rev_id + 0x41;
++		break;
+ 	default:
+ 		/* FIXME: not supported yet */
+ 		return -EINVAL;
+@@ -924,6 +944,7 @@ static int soc15_common_set_clockgating_state(void *handle,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+ 		break;
+ 	case CHIP_RAVEN:
++	case CHIP_PICASSO:
+ 		adev->nbio_funcs->update_medium_grain_clock_gating(adev,
+ 				state == AMD_CG_STATE_GATE ? true : false);
+ 		adev->nbio_funcs->update_medium_grain_light_sleep(adev,
+-- 
+2.7.4
+

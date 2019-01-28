@@ -1,0 +1,28 @@
+From 3c6023c6b4542bff56da7aa0d95fd1100eca8b56 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 13:48:23 +0800
+Subject: [PATCH 4396/5725] drm/amdgpu/virtual_dce: Add vega20 support
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/dce_virtual.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/dce_virtual.c b/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
+index 8724edd..28bf8cf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
++++ b/drivers/gpu/drm/amd/amdgpu/dce_virtual.c
+@@ -476,6 +476,7 @@ static int dce_virtual_hw_init(void *handle)
+ 		break;
+ 	case CHIP_VEGA10:
+ 	case CHIP_VEGA12:
++	case CHIP_VEGA20:
+ 		break;
+ 	default:
+ 		DRM_ERROR("Virtual display unsupported ASIC type: 0x%X\n", adev->asic_type);
+-- 
+2.7.4
+

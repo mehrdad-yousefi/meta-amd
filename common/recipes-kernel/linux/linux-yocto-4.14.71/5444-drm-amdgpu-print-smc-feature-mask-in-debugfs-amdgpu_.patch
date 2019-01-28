@@ -1,0 +1,40 @@
+From 26c0a0dff042d83beab601e0a70a525d493cd0a0 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 20 Sep 2018 22:50:07 -0500
+Subject: [PATCH 5444/5725] drm/amdgpu: print smc feature mask in debugfs
+ amdgpu_pm_info
+
+Print the enabled smc feature mask in amdgpu_pm_info for debugging.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index 9c5036f..accf51e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -1975,6 +1975,7 @@ void amdgpu_pm_compute_clocks(struct amdgpu_device *adev)
+ static int amdgpu_debugfs_pm_info_pp(struct seq_file *m, struct amdgpu_device *adev)
+ {
+ 	uint32_t value;
++	uint64_t value64;
+ 	uint32_t query = 0;
+ 	int size;
+ 
+@@ -2013,6 +2014,10 @@ static int amdgpu_debugfs_pm_info_pp(struct seq_file *m, struct amdgpu_device *a
+ 		seq_printf(m, "GPU Load: %u %%\n", value);
+ 	seq_printf(m, "\n");
+ 
++	/* SMC feature mask */
++	if (!amdgpu_dpm_read_sensor(adev, AMDGPU_PP_SENSOR_ENABLED_SMC_FEATURES_MASK, (void *)&value64, &size))
++		seq_printf(m, "SMC Feature Mask: 0x%016llx\n", value64);
++
+ 	/* UVD clocks */
+ 	if (!amdgpu_dpm_read_sensor(adev, AMDGPU_PP_SENSOR_UVD_POWER, (void *)&value, &size)) {
+ 		if (!value) {
+-- 
+2.7.4
+

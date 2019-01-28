@@ -1,0 +1,124 @@
+From 13a312a8fab28d683de537f751b51f1e817e72da Mon Sep 17 00:00:00 2001
+From: Yong Zhao <yong.zhao@amd.com>
+Date: Wed, 11 Jul 2018 22:33:08 -0400
+Subject: [PATCH 5696/5725] drm/amdkfd: Clean up reference of radeon
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Yong Zhao <yong.zhao@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/cik_int.h    |  5 ++---
+ drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.c |  1 -
+ drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.h | 37 +++++++++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h   |  2 +-
+ 4 files changed, 40 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/cik_int.h b/drivers/gpu/drm/amd/amdkfd/cik_int.h
+index a2079a0..76f8677 100644
+--- a/drivers/gpu/drm/amd/amdkfd/cik_int.h
++++ b/drivers/gpu/drm/amd/amdkfd/cik_int.h
+@@ -20,8 +20,8 @@
+  * OTHER DEALINGS IN THE SOFTWARE.
+  */
+ 
+-#ifndef HSA_RADEON_CIK_INT_H_INCLUDED
+-#define HSA_RADEON_CIK_INT_H_INCLUDED
++#ifndef CIK_INT_H_INCLUDED
++#define CIK_INT_H_INCLUDED
+ 
+ #include <linux/types.h>
+ 
+@@ -34,7 +34,6 @@ struct cik_ih_ring_entry {
+ 
+ #define CIK_INTSRC_CP_END_OF_PIPE	0xB5
+ #define CIK_INTSRC_CP_BAD_OPCODE	0xB7
+-#define CIK_INTSRC_DEQUEUE_COMPLETE	0xC6
+ #define CIK_INTSRC_SDMA_TRAP		0xE0
+ #define CIK_INTSRC_SQ_INTERRUPT_MSG	0xEF
+ #define CIK_INTSRC_GFX_PAGE_INV_FAULT	0x92
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.c b/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.c
+index 8d85e28..c411090 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.c
+@@ -38,7 +38,6 @@
+ #include "kfd_dbgmgr.h"
+ #include "kfd_dbgdev.h"
+ #include "kfd_device_queue_manager.h"
+-#include "../../radeon/cik_reg.h"
+ 
+ static void dbgdev_address_watch_disable_nodiq(struct kfd_dev *dev)
+ {
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.h b/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.h
+index 583aaa9..dde7bfb 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_dbgdev.h
+@@ -78,6 +78,9 @@ enum SQ_IND_CMD_NEW {
+ 
+ };
+ 
++/* SQ_CMD definitions */
++#define SQ_CMD						0x8DEC
++
+ enum SQ_IND_CMD_CMD {
+ 	SQ_IND_CMD_CMD_NULL = 0x00000000,
+ 	SQ_IND_CMD_CMD_HALT = 0x00000001,
+@@ -222,4 +225,38 @@ union ULARGE_INTEGER {
+ void kfd_dbgdev_init(struct kfd_dbgdev *pdbgdev, struct kfd_dev *pdev,
+ 			enum DBGDEV_TYPE type);
+ 
++union TCP_WATCH_CNTL_BITS {
++	struct {
++		uint32_t mask:24;
++		uint32_t vmid:4;
++		uint32_t atc:1;
++		uint32_t mode:2;
++		uint32_t valid:1;
++	} bitfields, bits;
++	uint32_t u32All;
++	signed int i32All;
++	float f32All;
++};
++
++enum {
++	ADDRESS_WATCH_REG_CNTL_ATC_BIT = 0x10000000UL,
++	ADDRESS_WATCH_REG_CNTL_DEFAULT_MASK = 0x00FFFFFF,
++	ADDRESS_WATCH_REG_ADDLOW_MASK_EXTENSION = 0x03000000,
++	/* extend the mask to 26 bits in order to match the low address field */
++	ADDRESS_WATCH_REG_ADDLOW_SHIFT = 6,
++	ADDRESS_WATCH_REG_ADDHIGH_MASK = 0xFFFF
++};
++
++enum {
++	MAX_TRAPID = 8,		/* 3 bits in the bitfield. */
++	MAX_WATCH_ADDRESSES = 4
++};
++
++enum {
++	ADDRESS_WATCH_REG_ADDR_HI = 0,
++	ADDRESS_WATCH_REG_ADDR_LO,
++	ADDRESS_WATCH_REG_CNTL,
++	ADDRESS_WATCH_REG_MAX
++};
++
+ #endif	/* KFD_DBGDEV_H_ */
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index a21bab4..21dfc72 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -75,7 +75,7 @@
+ 
+ /*
+  * When working with cp scheduler we should assign the HIQ manually or via
+- * the radeon driver to a fixed hqd slot, here are the fixed HIQ hqd slot
++ * the amdgpu driver to a fixed hqd slot, here are the fixed HIQ hqd slot
+  * definitions for Kaveri. In Kaveri only the first ME queues participates
+  * in the cp scheduling taking that in mind we set the HIQ slot in the
+  * second ME.
+-- 
+2.7.4
+

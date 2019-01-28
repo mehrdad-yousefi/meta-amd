@@ -1,0 +1,55 @@
+From 5d4c992cd144c786782ba7bcee5382655e815a28 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Thu, 17 May 2018 11:18:34 -0400
+Subject: [PATCH 4485/5725] Remove calls to suspend/resume atomic helpers from
+ amdgpu_device_gpu_recover.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+First of all it's already being called from the display code from amd_ip_funcs.suspend/resume hooks.
+Second of all, the place in amdgpu_device_gpu_recover it's being called is wrong for GPU stalls since
+it is called BEFORE we cancel and force completion of all in flight jobs which were not yet processed.
+So, as Bas pointed in the ticket we will try to wait for fence  in amdgpu_pm_compute_clocks but the pipe
+is hanged so we end up in deadlock.
+
+Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=106500
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 10 ++--------
+ 1 file changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 8267990..0adc774 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -3271,9 +3271,6 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+ 
+         /* block TTM */
+         resched = ttm_bo_lock_delayed_workqueue(&adev->mman.bdev);
+-        /* store modesetting */
+-        if (amdgpu_device_has_dc_support(adev))
+-                state = drm_atomic_helper_suspend(adev->ddev);
+ 
+ 	/* block all schedulers and reset given job's ring */
+         for (i = 0; i < AMDGPU_MAX_RINGS; ++i) {
+@@ -3313,11 +3310,8 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+ 
+                         kthread_unpark(adev->rings[i]->sched.thread);
+         }
+-
+-        if (amdgpu_device_has_dc_support(adev)) {
+-                if (drm_atomic_helper_resume(adev->ddev, state))
+-                        dev_info(adev->dev, "drm resume failed:%d\n", r);
+-        } else {
++	
++	if (!amdgpu_device_has_dc_support(adev)) {
+                 drm_helper_resume_force_mode(adev->ddev);
+         }
+ 
+-- 
+2.7.4
+

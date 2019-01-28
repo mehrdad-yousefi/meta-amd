@@ -1,0 +1,28 @@
+From d92aa224da771a25aee57e21e99652883e2c2d2f Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Wed, 16 May 2018 08:51:11 -0400
+Subject: [PATCH 4552/5725] drm/amd/display: add dentist frequency to resource
+ pool
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/inc/core_types.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/core_types.h b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+index a94942d..4beddca0 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/core_types.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+@@ -148,6 +148,7 @@ struct resource_pool {
+ 	unsigned int underlay_pipe_index;
+ 	unsigned int stream_enc_count;
+ 	unsigned int ref_clock_inKhz;
++	unsigned int dentist_vco_freq_khz;
+ 	unsigned int timing_generator_count;
+ 
+ 	/*
+-- 
+2.7.4
+

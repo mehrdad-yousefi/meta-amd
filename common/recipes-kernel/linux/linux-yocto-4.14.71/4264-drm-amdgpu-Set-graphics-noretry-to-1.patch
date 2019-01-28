@@ -1,0 +1,38 @@
+From 459511eca2dc3111d0d86069e59c4fb6958452df Mon Sep 17 00:00:00 2001
+From: Philip Yang <Philip.Yang@amd.com>
+Date: Tue, 27 Mar 2018 18:15:59 -0400
+Subject: [PATCH 4264/5725] drm/amdgpu: Set graphics noretry to 1
+
+Fix graphics hang issue while computer noretry set to 1
+
+BUG: SWDEV-146501
+
+Change-Id: If3f5a692119a953c14cb18a823ac82e611886a98
+Signed-off-by: Philip Yang <Philip.Yang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 6105d81..9a3d62b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1686,11 +1686,15 @@ static void gfx_v9_0_gpu_init(struct amdgpu_device *adev)
+ 		if (i == 0) {
+ 			tmp = REG_SET_FIELD(0, SH_MEM_CONFIG, ALIGNMENT_MODE,
+ 					    SH_MEM_ALIGNMENT_MODE_UNALIGNED);
++			tmp = REG_SET_FIELD(tmp, SH_MEM_CONFIG, RETRY_DISABLE,
++					    1);
+ 			WREG32_SOC15(GC, 0, mmSH_MEM_CONFIG, tmp);
+ 			WREG32_SOC15(GC, 0, mmSH_MEM_BASES, 0);
+ 		} else {
+ 			tmp = REG_SET_FIELD(0, SH_MEM_CONFIG, ALIGNMENT_MODE,
+ 					    SH_MEM_ALIGNMENT_MODE_UNALIGNED);
++			tmp = REG_SET_FIELD(tmp, SH_MEM_CONFIG, RETRY_DISABLE,
++					    1);
+ 			WREG32_SOC15(GC, 0, mmSH_MEM_CONFIG, tmp);
+ 			tmp = REG_SET_FIELD(0, SH_MEM_BASES, PRIVATE_BASE,
+ 				(adev->gmc.private_aperture_start >> 48));
+-- 
+2.7.4
+

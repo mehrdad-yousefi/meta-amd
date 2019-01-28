@@ -1,0 +1,55 @@
+From 9bbe2abc4cba4cb6ac833f81d3e8b9632b64798c Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Thu, 12 Jul 2018 10:07:49 -0400
+Subject: [PATCH 4718/5725] amd/dc/dce100: On dce100, set clocks to 0 on
+ suspend
+
+[Why]
+When a dce100 asic was suspended, the clocks were not set to 0.
+Upon resume, the new clock was compared to the existing clock,
+they were found to be the same, and so the clock was not set.
+This resulted in a pernicious blackscreen.
+
+[How]
+In atomic commit, check to see if there are any active pipes.
+If no, set clocks to 0
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ .../gpu/drm/amd/display/dc/dce100/dce100_resource.c   | 19 ++++++++++++++++---
+ 1 file changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+index 38ec0d6..344dd2e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+@@ -678,9 +678,22 @@ bool dce100_validate_bandwidth(
+ 	struct dc  *dc,
+ 	struct dc_state *context)
+ {
+-	/* TODO implement when needed but for now hardcode max value*/
+-	context->bw.dce.dispclk_khz = 681000;
+-	context->bw.dce.yclk_khz = 250000 * MEMORY_TYPE_MULTIPLIER;
++	int i;
++	bool at_least_one_pipe = false;
++
++	for (i = 0; i < dc->res_pool->pipe_count; i++) {
++		if (context->res_ctx.pipe_ctx[i].stream)
++			at_least_one_pipe = true;
++	}
++
++	if (at_least_one_pipe) {
++		/* TODO implement when needed but for now hardcode max value*/
++		context->bw.dce.dispclk_khz = 681000;
++		context->bw.dce.yclk_khz = 250000 * MEMORY_TYPE_MULTIPLIER;
++	} else {
++		context->bw.dce.dispclk_khz = 0;
++		context->bw.dce.yclk_khz = 0;
++	}
+ 
+ 	return true;
+ }
+-- 
+2.7.4
+

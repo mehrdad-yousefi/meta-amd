@@ -1,0 +1,51 @@
+From 10b8bfbdfd0b380c72f20027823a2a43754ea286 Mon Sep 17 00:00:00 2001
+From: Samson Tam <Samson.Tam@amd.com>
+Date: Fri, 7 Sep 2018 10:13:55 -0400
+Subject: [PATCH 5426/5725] drm/amd/display: use proper pipe_ctx index
+
+Use link->link_index as index to pipe_ctx[] to get proper link
+information instead of using index 0 to avoid potential miss matches.
+
+Change-Id: If3f8c5f1e02396949d0a0a0d2e14400ecd52af87
+Signed-off-by: Samson Tam <Samson.Tam@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 20 ++++++++++++++++++--
+ 1 file changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 7c5382a..1764137 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -460,9 +460,25 @@ void dc_link_set_preferred_link_settings(struct dc *dc,
+ 					 struct dc_link_settings *link_setting,
+ 					 struct dc_link *link)
+ {
++	int i;
++	struct pipe_ctx *pipe;
++	struct dc_stream_state *link_stream;
+ 	struct dc_link_settings store_settings = *link_setting;
+-	struct dc_stream_state *link_stream =
+-		link->dc->current_state->res_ctx.pipe_ctx[0].stream;
++
++	for (i = 0; i < MAX_PIPES; i++) {
++		pipe = &dc->current_state->res_ctx.pipe_ctx[i];
++		if (pipe->stream && pipe->stream->sink
++			&& pipe->stream->sink->link) {
++			if (pipe->stream->sink->link == link)
++				break;
++		}
++	}
++
++	/* Stream not found */
++	if (i == MAX_PIPES)
++		return;
++
++	link_stream = link->dc->current_state->res_ctx.pipe_ctx[i].stream;
+ 
+ 	link->preferred_link_setting = store_settings;
+ 	if (link_stream)
+-- 
+2.7.4
+

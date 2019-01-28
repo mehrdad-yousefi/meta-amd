@@ -1,0 +1,62 @@
+From 4d9bf45f0d8213d72aa05799b359da9146d67781 Mon Sep 17 00:00:00 2001
+From: Thomas Zimmermann <tzimmermann@suse.de>
+Date: Tue, 31 Jul 2018 09:12:35 +0200
+Subject: [PATCH 5034/5725] drm/amdgpu: Replace ttm_bo_reference with
+ ttm_bo_get
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The function ttm_bo_get acquires a reference on a TTM buffer object. The
+function's name is more aligned to the Linux kernel convention of naming
+ref-counting function _get and _put.
+
+v2:
+ * changed prefix to drm/amdgpu
+
+Signed-off-by: Thomas Zimmermann <tzimmermann@suse.de>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c |  2 +-
+ include/drm/ttm/ttm_bo_api.h               | 10 ++++++++++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index e8f43d0..961b848 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -866,7 +866,7 @@ struct amdgpu_bo *amdgpu_bo_ref(struct amdgpu_bo *bo)
+ 	if (bo == NULL)
+ 		return NULL;
+ 
+-	ttm_bo_reference(&bo->tbo);
++	ttm_bo_get(&bo->tbo);
+ 	return bo;
+ }
+ 
+diff --git a/include/drm/ttm/ttm_bo_api.h b/include/drm/ttm/ttm_bo_api.h
+index f885bfc..e5a9866 100644
+--- a/include/drm/ttm/ttm_bo_api.h
++++ b/include/drm/ttm/ttm_bo_api.h
+@@ -283,6 +283,16 @@ struct ttm_operation_ctx {
+ #define TTM_OPT_FLAG_FORCE_ALLOC               0x2
+ 
+ /**
++ * ttm_bo_get - reference a struct ttm_buffer_object
++ *
++ * @bo: The buffer object.
++ */
++static inline void ttm_bo_get(struct ttm_buffer_object *bo)
++{
++	kref_get(&bo->kref);
++}
++
++/**
+  * ttm_bo_reference - reference a struct ttm_buffer_object
+  *
+  * @bo: The buffer object.
+-- 
+2.7.4
+

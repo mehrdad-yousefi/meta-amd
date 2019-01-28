@@ -1,0 +1,152 @@
+From bdc18c8fcd9c4a5a53a7ab65691919b9e85f9fb0 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Sat, 29 Sep 2018 15:27:02 +0800
+Subject: [PATCH 5509/5725] drm/amdgpu: Move gfx flag in_suspend to adev
+
+Move in_suspend flag to adev from gfx, so
+can be used in other ip blocks, also keep
+consistent with gpu_in_reset flag.
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h        |  3 +++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c |  3 +++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h    |  3 +--
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c      | 13 +++----------
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c      | 16 ++++------------
+ 5 files changed, 14 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 662f265..5e6df72 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -1073,6 +1073,9 @@ struct amdgpu_device {
+ 
+ 	u8				reset_magic[AMDGPU_RESET_MAGIC_NUM];
+ 
++	/* s3/s4 mask */
++	bool                            in_suspend;
++
+ 	/* record last mm index being written through WREG32*/
+ 	unsigned long last_mm_index;
+ 	bool                            in_gpu_reset;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index b573d9f..1de2728 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -2701,6 +2701,7 @@ int amdgpu_device_suspend(struct drm_device *dev, bool suspend, bool fbcon)
+ 	if (dev->switch_power_state == DRM_SWITCH_POWER_OFF)
+ 		return 0;
+ 
++	adev->in_suspend = true;
+ 	drm_kms_helper_poll_disable(dev);
+ 
+ 	if (fbcon)
+@@ -2887,6 +2888,8 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
+ #ifdef CONFIG_PM
+ 	dev->dev->power.disable_depth--;
+ #endif
++	adev->in_suspend = false;
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
+index f172e92..b61b5c1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
+@@ -297,8 +297,7 @@ struct amdgpu_gfx {
+ 	/* reset mask */
+ 	uint32_t                        grbm_soft_reset;
+ 	uint32_t                        srbm_soft_reset;
+-	/* s3/s4 mask */
+-	bool                            in_suspend;
++
+ 	/* NGG */
+ 	struct amdgpu_ngg		ngg;
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 34aabe7..09eab2b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -4871,7 +4871,7 @@ static int gfx_v8_0_kcq_init_queue(struct amdgpu_ring *ring)
+ 	struct vi_mqd *mqd = ring->mqd_ptr;
+ 	int mqd_idx = ring - &adev->gfx.compute_ring[0];
+ 
+-	if (!adev->in_gpu_reset && !adev->gfx.in_suspend) {
++	if (!adev->in_gpu_reset && !adev->in_suspend) {
+ 		memset((void *)mqd, 0, sizeof(struct vi_mqd_allocation));
+ 		((struct vi_mqd_allocation *)mqd)->dynamic_cu_mask = 0xFFFFFFFF;
+ 		((struct vi_mqd_allocation *)mqd)->dynamic_rb_mask = 0xFFFFFFFF;
+@@ -5141,19 +5141,12 @@ static int gfx_v8_0_hw_fini(void *handle)
+ 
+ static int gfx_v8_0_suspend(void *handle)
+ {
+-	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+-	adev->gfx.in_suspend = true;
+-	return gfx_v8_0_hw_fini(adev);
++	return gfx_v8_0_hw_fini(handle);
+ }
+ 
+ static int gfx_v8_0_resume(void *handle)
+ {
+-	int r;
+-	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+-
+-	r = gfx_v8_0_hw_init(adev);
+-	adev->gfx.in_suspend = false;
+-	return r;
++	return gfx_v8_0_hw_init(handle);
+ }
+ 
+ static bool gfx_v8_0_check_soft_reset(void *handle)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 17be234..a71c27e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -3203,7 +3203,7 @@ static int gfx_v9_0_kcq_init_queue(struct amdgpu_ring *ring)
+ 	struct v9_mqd *mqd = ring->mqd_ptr;
+ 	int mqd_idx = ring - &adev->gfx.compute_ring[0];
+ 
+-	if (!adev->in_gpu_reset && !adev->gfx.in_suspend) {
++	if (!adev->in_gpu_reset && !adev->in_suspend) {
+ 		memset((void *)mqd, 0, sizeof(struct v9_mqd_allocation));
+ 		((struct v9_mqd_allocation *)mqd)->dynamic_cu_mask = 0xFFFFFFFF;
+ 		((struct v9_mqd_allocation *)mqd)->dynamic_rb_mask = 0xFFFFFFFF;
+@@ -3422,7 +3422,7 @@ static int gfx_v9_0_hw_fini(void *handle)
+ 	/* Use deinitialize sequence from CAIL when unbinding device from driver,
+ 	 * otherwise KIQ is hanging when binding back
+ 	 */
+-	if (!adev->in_gpu_reset && !adev->gfx.in_suspend) {
++	if (!adev->in_gpu_reset && !adev->in_suspend) {
+ 		mutex_lock(&adev->srbm_mutex);
+ 		soc15_grbm_select(adev, adev->gfx.kiq.ring.me,
+ 				adev->gfx.kiq.ring.pipe,
+@@ -3442,20 +3442,12 @@ static int gfx_v9_0_hw_fini(void *handle)
+ 
+ static int gfx_v9_0_suspend(void *handle)
+ {
+-	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+-
+-	adev->gfx.in_suspend = true;
+-	return gfx_v9_0_hw_fini(adev);
++	return gfx_v9_0_hw_fini(handle);
+ }
+ 
+ static int gfx_v9_0_resume(void *handle)
+ {
+-	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+-	int r;
+-
+-	r = gfx_v9_0_hw_init(adev);
+-	adev->gfx.in_suspend = false;
+-	return r;
++	return gfx_v9_0_hw_init(handle);
+ }
+ 
+ static bool gfx_v9_0_is_idle(void *handle)
+-- 
+2.7.4
+

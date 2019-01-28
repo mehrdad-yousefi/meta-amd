@@ -1,0 +1,252 @@
+From be50641f155e86f42c15ba1b3e77533e514316a4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 16:06:31 +0200
+Subject: [PATCH 5319/5725] drm/amdgpu: fix up GDS/GWS/OA shifting
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+That only worked by pure coincident. Completely remove the shifting and
+always apply correct PAGE_SHIFT.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c     | 12 ++++++------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gds.h    |  7 -------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c    | 12 +++---------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c    | 14 +++++++-------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c |  6 +++++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c    | 15 +++------------
+ drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c      |  9 ---------
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c      |  9 ---------
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c      | 12 +-----------
+ 9 files changed, 25 insertions(+), 71 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index f7fa60b..a1ad99e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -714,16 +714,16 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
+ 		e->bo_va = amdgpu_vm_bo_find(vm, e->robj);
+ 
+ 	if (gds) {
+-		p->job->gds_base = amdgpu_bo_gpu_offset(gds);
+-		p->job->gds_size = amdgpu_bo_size(gds);
++		p->job->gds_base = amdgpu_bo_gpu_offset(gds) >> PAGE_SHIFT;
++		p->job->gds_size = amdgpu_bo_size(gds) >> PAGE_SHIFT;
+ 	}
+ 	if (gws) {
+-		p->job->gws_base = amdgpu_bo_gpu_offset(gws);
+-		p->job->gws_size = amdgpu_bo_size(gws);
++		p->job->gws_base = amdgpu_bo_gpu_offset(gws) >> PAGE_SHIFT;
++		p->job->gws_size = amdgpu_bo_size(gws) >> PAGE_SHIFT;
+ 	}
+ 	if (oa) {
+-		p->job->oa_base = amdgpu_bo_gpu_offset(oa);
+-		p->job->oa_size = amdgpu_bo_size(oa);
++		p->job->oa_base = amdgpu_bo_gpu_offset(oa) >> PAGE_SHIFT;
++		p->job->oa_size = amdgpu_bo_size(oa) >> PAGE_SHIFT;
+ 	}
+ 
+ 	if (!r && p->uf_entry.robj) {
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gds.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gds.h
+index e73728d..ecbcefe 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gds.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gds.h
+@@ -24,13 +24,6 @@
+ #ifndef __AMDGPU_GDS_H__
+ #define __AMDGPU_GDS_H__
+ 
+-/* Because TTM request that alloacted buffer should be PAGE_SIZE aligned,
+- * we should report GDS/GWS/OA size as PAGE_SIZE aligned
+- * */
+-#define AMDGPU_GDS_SHIFT	2
+-#define AMDGPU_GWS_SHIFT	PAGE_SHIFT
+-#define AMDGPU_OA_SHIFT		PAGE_SHIFT
+-
+ struct amdgpu_ring;
+ struct amdgpu_bo;
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 6171e03..3cd2b29 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -276,16 +276,10 @@ int amdgpu_gem_create_ioctl(struct drm_device *dev, void *data,
+ 			return -EINVAL;
+ 		}
+ 		flags |= AMDGPU_GEM_CREATE_NO_CPU_ACCESS;
+-		if (args->in.domains == AMDGPU_GEM_DOMAIN_GDS)
+-			size = size << AMDGPU_GDS_SHIFT;
+-		else if (args->in.domains == AMDGPU_GEM_DOMAIN_GWS)
+-			size = size << AMDGPU_GWS_SHIFT;
+-		else if (args->in.domains == AMDGPU_GEM_DOMAIN_OA)
+-			size = size << AMDGPU_OA_SHIFT;
+-		else
+-			return -EINVAL;
++		/* GDS allocations must be DW aligned */
++		if (args->in.domains & AMDGPU_GEM_DOMAIN_GDS)
++			size = ALIGN(size, 4);
+ 	}
+-	size = roundup(size, PAGE_SIZE);
+ 
+ 	if (flags & AMDGPU_GEM_CREATE_VM_ALWAYS_VALID) {
+ 		r = amdgpu_bo_reserve(vm->root.base.bo, false);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index a47f456..37b6416 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -524,13 +524,13 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 		struct drm_amdgpu_info_gds gds_info;
+ 
+ 		memset(&gds_info, 0, sizeof(gds_info));
+-		gds_info.gds_gfx_partition_size = adev->gds.mem.gfx_partition_size >> AMDGPU_GDS_SHIFT;
+-		gds_info.compute_partition_size = adev->gds.mem.cs_partition_size >> AMDGPU_GDS_SHIFT;
+-		gds_info.gds_total_size = adev->gds.mem.total_size >> AMDGPU_GDS_SHIFT;
+-		gds_info.gws_per_gfx_partition = adev->gds.gws.gfx_partition_size >> AMDGPU_GWS_SHIFT;
+-		gds_info.gws_per_compute_partition = adev->gds.gws.cs_partition_size >> AMDGPU_GWS_SHIFT;
+-		gds_info.oa_per_gfx_partition = adev->gds.oa.gfx_partition_size >> AMDGPU_OA_SHIFT;
+-		gds_info.oa_per_compute_partition = adev->gds.oa.cs_partition_size >> AMDGPU_OA_SHIFT;
++		gds_info.gds_gfx_partition_size = adev->gds.mem.gfx_partition_size;
++		gds_info.compute_partition_size = adev->gds.mem.cs_partition_size;
++		gds_info.gds_total_size = adev->gds.mem.total_size;
++		gds_info.gws_per_gfx_partition = adev->gds.gws.gfx_partition_size;
++		gds_info.gws_per_compute_partition = adev->gds.gws.cs_partition_size;
++		gds_info.oa_per_gfx_partition = adev->gds.oa.gfx_partition_size;
++		gds_info.oa_per_compute_partition = adev->gds.oa.cs_partition_size;
+ 		return copy_to_user(out, &gds_info,
+ 				    min((size_t)size, sizeof(gds_info))) ? -EFAULT : 0;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index e05f8c9..a43ec44 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -453,7 +453,11 @@ static int amdgpu_bo_do_create(struct amdgpu_device *adev,
+ 	int r;
+ 
+ 	page_align = roundup(bp->byte_align, PAGE_SIZE) >> PAGE_SHIFT;
+-	size = ALIGN(size, PAGE_SIZE);
++	if (bp->domain & (AMDGPU_GEM_DOMAIN_GDS | AMDGPU_GEM_DOMAIN_GWS |
++			  AMDGPU_GEM_DOMAIN_OA))
++		size <<= PAGE_SHIFT;
++	else
++		size = ALIGN(size, PAGE_SIZE);
+ 
+ 	if (!amdgpu_bo_validate_size(adev, size, bp->domain))
+ 		return -ENOMEM;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 1220809..1d79941 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -2031,19 +2031,10 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 	amdgpu_ssg_init(adev);
+ 
+ 	/* Initialize various on-chip memory pools */
+-	adev->gds.mem.total_size = adev->gds.mem.total_size << AMDGPU_GDS_SHIFT;
+-	adev->gds.mem.gfx_partition_size = adev->gds.mem.gfx_partition_size << AMDGPU_GDS_SHIFT;
+-	adev->gds.mem.cs_partition_size = adev->gds.mem.cs_partition_size << AMDGPU_GDS_SHIFT;
+-	adev->gds.gws.total_size = adev->gds.gws.total_size << AMDGPU_GWS_SHIFT;
+-	adev->gds.gws.gfx_partition_size = adev->gds.gws.gfx_partition_size << AMDGPU_GWS_SHIFT;
+-	adev->gds.gws.cs_partition_size = adev->gds.gws.cs_partition_size << AMDGPU_GWS_SHIFT;
+-	adev->gds.oa.total_size = adev->gds.oa.total_size << AMDGPU_OA_SHIFT;
+-	adev->gds.oa.gfx_partition_size = adev->gds.oa.gfx_partition_size << AMDGPU_OA_SHIFT;
+-	adev->gds.oa.cs_partition_size = adev->gds.oa.cs_partition_size << AMDGPU_OA_SHIFT;
+ 	/* GDS Memory */
+ 	if (adev->gds.mem.total_size) {
+ 		r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_GDS,
+-				   adev->gds.mem.total_size >> PAGE_SHIFT);
++				   adev->gds.mem.total_size);
+ 		if (r) {
+ 			DRM_ERROR("Failed initializing GDS heap.\n");
+ 			return r;
+@@ -2053,7 +2044,7 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 	/* GWS */
+ 	if (adev->gds.gws.total_size) {
+ 		r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_GWS,
+-				   adev->gds.gws.total_size >> PAGE_SHIFT);
++				   adev->gds.gws.total_size);
+ 		if (r) {
+ 			DRM_ERROR("Failed initializing gws heap.\n");
+ 			return r;
+@@ -2063,7 +2054,7 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 	/* OA */
+ 	if (adev->gds.oa.total_size) {
+ 		r = ttm_bo_init_mm(&adev->mman.bdev, AMDGPU_PL_OA,
+-				   adev->gds.oa.total_size >> PAGE_SHIFT);
++				   adev->gds.oa.total_size);
+ 		if (r) {
+ 			DRM_ERROR("Failed initializing oa heap.\n");
+ 			return r;
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+index e3d5714..c87cc9a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+@@ -4190,15 +4190,6 @@ static void gfx_v7_0_ring_emit_gds_switch(struct amdgpu_ring *ring,
+ 					  uint32_t gws_base, uint32_t gws_size,
+ 					  uint32_t oa_base, uint32_t oa_size)
+ {
+-	gds_base = gds_base >> AMDGPU_GDS_SHIFT;
+-	gds_size = gds_size >> AMDGPU_GDS_SHIFT;
+-
+-	gws_base = gws_base >> AMDGPU_GWS_SHIFT;
+-	gws_size = gws_size >> AMDGPU_GWS_SHIFT;
+-
+-	oa_base = oa_base >> AMDGPU_OA_SHIFT;
+-	oa_size = oa_size >> AMDGPU_OA_SHIFT;
+-
+ 	/* GDS Base */
+ 	amdgpu_ring_write(ring, PACKET3(PACKET3_WRITE_DATA, 3));
+ 	amdgpu_ring_write(ring, (WRITE_DATA_ENGINE_SEL(0) |
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 1d7034c..5e775c0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -5395,15 +5395,6 @@ static void gfx_v8_0_ring_emit_gds_switch(struct amdgpu_ring *ring,
+ 					  uint32_t gws_base, uint32_t gws_size,
+ 					  uint32_t oa_base, uint32_t oa_size)
+ {
+-	gds_base = gds_base >> AMDGPU_GDS_SHIFT;
+-	gds_size = gds_size >> AMDGPU_GDS_SHIFT;
+-
+-	gws_base = gws_base >> AMDGPU_GWS_SHIFT;
+-	gws_size = gws_size >> AMDGPU_GWS_SHIFT;
+-
+-	oa_base = oa_base >> AMDGPU_OA_SHIFT;
+-	oa_size = oa_size >> AMDGPU_OA_SHIFT;
+-
+ 	/* GDS Base */
+ 	amdgpu_ring_write(ring, PACKET3(PACKET3_WRITE_DATA, 3));
+ 	amdgpu_ring_write(ring, (WRITE_DATA_ENGINE_SEL(0) |
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index b9918ea..06ac237 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1528,8 +1528,7 @@ static int gfx_v9_0_ngg_en(struct amdgpu_device *adev)
+ 	gfx_v9_0_write_data_to_reg(ring, 0, false,
+ 				   SOC15_REG_OFFSET(GC, 0, mmGDS_VMID0_SIZE),
+ 			           (adev->gds.mem.total_size +
+-				    adev->gfx.ngg.gds_reserve_size) >>
+-				   AMDGPU_GDS_SHIFT);
++				    adev->gfx.ngg.gds_reserve_size));
+ 
+ 	amdgpu_ring_write(ring, PACKET3(PACKET3_DMA_DATA, 5));
+ 	amdgpu_ring_write(ring, (PACKET3_DMA_DATA_CP_SYNC |
+@@ -3477,15 +3476,6 @@ static void gfx_v9_0_ring_emit_gds_switch(struct amdgpu_ring *ring,
+ {
+ 	struct amdgpu_device *adev = ring->adev;
+ 
+-	gds_base = gds_base >> AMDGPU_GDS_SHIFT;
+-	gds_size = gds_size >> AMDGPU_GDS_SHIFT;
+-
+-	gws_base = gws_base >> AMDGPU_GWS_SHIFT;
+-	gws_size = gws_size >> AMDGPU_GWS_SHIFT;
+-
+-	oa_base = oa_base >> AMDGPU_OA_SHIFT;
+-	oa_size = oa_size >> AMDGPU_OA_SHIFT;
+-
+ 	/* GDS Base */
+ 	gfx_v9_0_write_data_to_reg(ring, 0, false,
+ 				   SOC15_REG_OFFSET(GC, 0, mmGDS_VMID0_BASE) + 2 * vmid,
+-- 
+2.7.4
+

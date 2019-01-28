@@ -1,0 +1,36 @@
+From fd7010b531eec13cc7fba117739580790d5386e0 Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Tue, 24 Apr 2018 11:11:16 +0800
+Subject: [PATCH 4424/5725] drm/amdgpu: Set vega20 load_type to
+ AMDGPU_FW_LOAD_DIRECT.
+
+Please revert this patch when psp load fw is enabled.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+index 63e2996..abcc163 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ucode.c
+@@ -303,11 +303,12 @@ amdgpu_ucode_get_load_type(struct amdgpu_device *adev, int load_type)
+ 	case CHIP_VEGA10:
+ 	case CHIP_RAVEN:
+ 	case CHIP_VEGA12:
+-	case CHIP_VEGA20:
+ 		if (!load_type)
+ 			return AMDGPU_FW_LOAD_DIRECT;
+ 		else
+ 			return AMDGPU_FW_LOAD_PSP;
++	case CHIP_VEGA20:
++		return AMDGPU_FW_LOAD_DIRECT;
+ 	default:
+ 		DRM_ERROR("Unknow firmware load type\n");
+ 	}
+-- 
+2.7.4
+

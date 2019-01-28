@@ -1,0 +1,30 @@
+From 589e36ffdcc4f75a8c1884cc8c7adeb0b56a2569 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Thu, 28 Jun 2018 12:28:00 -0400
+Subject: [PATCH 4939/5725] drm/amd/display: add max scl ratio to soc bounding
+ box
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h b/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h
+index 6943801..c43d68b 100644
+--- a/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h
++++ b/drivers/gpu/drm/amd/display/dc/dml/display_mode_structs.h
+@@ -111,6 +111,8 @@ struct _vcs_dpi_soc_bounding_box_st {
+ 	double xfc_bus_transport_time_us;
+ 	double xfc_xbuf_latency_tolerance_us;
+ 	int use_urgent_burst_bw;
++	double max_hscl_ratio;
++	double max_vscl_ratio;
+ 	struct _vcs_dpi_voltage_scaling_st clock_limits[7];
+ };
+ 
+-- 
+2.7.4
+

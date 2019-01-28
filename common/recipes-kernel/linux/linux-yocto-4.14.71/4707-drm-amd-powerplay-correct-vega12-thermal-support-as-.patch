@@ -1,0 +1,30 @@
+From 9452765c7d12895a4ae9870d64b4be77decb1d71 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Mon, 11 Jun 2018 16:46:40 +0800
+Subject: [PATCH 4707/5725] drm/amd/powerplay: correct vega12 thermal support
+ as true
+
+Thermal support is enabled on vega12.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index d685ce7..b38b1d9 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -81,6 +81,7 @@ static void vega12_set_default_registry_data(struct pp_hwmgr *hwmgr)
+ 
+ 	data->registry_data.disallowed_features = 0x0;
+ 	data->registry_data.od_state_in_dc_support = 0;
++	data->registry_data.thermal_support = 1;
+ 	data->registry_data.skip_baco_hardware = 0;
+ 
+ 	data->registry_data.log_avfs_param = 0;
+-- 
+2.7.4
+

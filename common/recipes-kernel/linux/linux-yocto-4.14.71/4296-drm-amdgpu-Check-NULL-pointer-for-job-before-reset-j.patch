@@ -1,0 +1,32 @@
+From 51d6742573db2d69a58afcd5c6c08a7dee34f77e Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Mon, 23 Apr 2018 13:46:40 -0400
+Subject: [PATCH 4296/5725] drm/amdgpu: Check NULL pointer for job before reset
+ job's ring
+
+job could be NULL when amdgpu_device_gpu_recover is called
+
+Change-Id: Ie30e365d2616b8bb280c67c97d9d98dba5050472
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 8859f19..0ece1c3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -3279,7 +3279,7 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
+                 if (job && job->ring->idx != i)
+                         continue;
+ 
+-		drm_sched_hw_job_reset(&ring->sched, &job->base);
++		drm_sched_hw_job_reset(&ring->sched, job ? &job->base : NULL);
+ 
+                 /* after all hw jobs are reset, hw fence is meaningless, so force_completion */
+                 amdgpu_fence_driver_force_completion(ring);
+-- 
+2.7.4
+

@@ -1,0 +1,74 @@
+From 1cd6781342f4471a93a7f0b82607afbaaf9d63d7 Mon Sep 17 00:00:00 2001
+From: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+Date: Thu, 12 Apr 2018 14:24:22 -0400
+Subject: [PATCH 5647/5725] drm/amdkfd: CMA: Add intermediate wait if mGPU
+
+CMA can happen on multiple GPUs. The current approach of keeping track
+of only the latest fence is not sufficient. Before throwing away the old
+fence check if it belongs to the same context. If not wait before
+releasing it.
+
+The current approach will be suboptimal in a mGPU (> 2) system if CMA
+ioctl is called with a long list of memory ranges where potentially each
+range copy could be done by different GPU. In this situation, the better
+approach would be to call the ioctl repeatedly with shorter list.
+
+Change-Id: Icf522cf8bfa648e24900745622600f920c0de320
+Signed-off-by: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 035f10b..6154dc8 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1820,6 +1820,20 @@ static int kfd_cma_fence_wait(struct dma_fence *f)
+ 	return ret;
+ }
+ 
++/* Put previous (old) fence @pf but it waits for @pf to signal if the context
++ * of the current fence @cf is different.
++ */
++static int kfd_fence_put_wait_if_diff_context(struct dma_fence *cf,
++					      struct dma_fence *pf)
++{
++	int ret = 0;
++
++	if (pf && cf && cf->context != pf->context)
++		ret = kfd_cma_fence_wait(pf);
++	dma_fence_put(pf);
++	return ret;
++}
++
+ /* Create a system BO by pinning underlying system pages of the given userptr
+  * BO @ubo
+  * @ubo: Userptr BO
+@@ -2197,8 +2211,10 @@ static int kfd_copy_single_range(struct cma_iter *si, struct cma_iter *di,
+ 		}
+ 		
+ 		if (fence) {
+-		        dma_fence_put(lfence);
++			err = kfd_fence_put_wait_if_diff_context(fence,lfence);
+ 		        lfence = fence;
++                        if (err)
++                                break;
+ 		}
+ 		size -= n;
+ 		*copied += n;
+@@ -2338,8 +2354,11 @@ static int kfd_ioctl_cross_memory_copy(struct file *filep,
+                  * new fence is created, then keep the preivous fence
+                  */
+                 if (fence) {
+-                        dma_fence_put(lfence);
++                        err = kfd_fence_put_wait_if_diff_context(fence,
++                                                                 lfence);
+ 			lfence = fence;
++                        if (err)
++                                break;
+ 		}
+ 	}
+ 
+-- 
+2.7.4
+

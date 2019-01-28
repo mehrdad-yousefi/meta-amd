@@ -1,0 +1,105 @@
+From 4c1e23516e34c8563b5eba3c03fd92642e0a068a Mon Sep 17 00:00:00 2001
+From: Samuel Li <Samuel.Li@amd.com>
+Date: Wed, 18 Apr 2018 15:06:02 -0400
+Subject: [PATCH 4239/5725] drm/amdgpu: Rename
+ amdgpu_display_framebuffer_domains()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+It returns supported domains for display, and domains actually used are to be
+decided later when pinned.
+
+Signed-off-by: Samuel Li <Samuel.Li@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_display.c       | 4 ++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_display.h       | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c            | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c         | 2 +-
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 3 +--
+ 5 files changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c
+index 10b25d9..26a5a9c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.c
+@@ -191,7 +191,7 @@ int amdgpu_display_crtc_page_flip_target(struct drm_crtc *crtc,
+ 		goto cleanup;
+ 	}
+ 
+-	r = amdgpu_bo_pin(new_abo, amdgpu_display_framebuffer_domains(adev), &base);
++	r = amdgpu_bo_pin(new_abo, amdgpu_display_supported_domains(adev), &base);
+ 	if (unlikely(r != 0)) {
+ 		DRM_ERROR("failed to pin new abo buffer before flip\n");
+ 		goto unreserve;
+@@ -505,7 +505,7 @@ static const struct drm_framebuffer_funcs amdgpu_fb_funcs = {
+ 	.create_handle = amdgpu_display_user_framebuffer_create_handle,
+ };
+ 
+-uint32_t amdgpu_display_framebuffer_domains(struct amdgpu_device *adev)
++uint32_t amdgpu_display_supported_domains(struct amdgpu_device *adev)
+ {
+ 	uint32_t domain = AMDGPU_GEM_DOMAIN_VRAM;
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h
+index 4471b2d..ec11434 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_display.h
+@@ -23,7 +23,7 @@
+ #ifndef __AMDGPU_DISPLAY_H__
+ #define __AMDGPU_DISPLAY_H__
+ 
+-uint32_t amdgpu_display_framebuffer_domains(struct amdgpu_device *adev);
++uint32_t amdgpu_display_supported_domains(struct amdgpu_device *adev);
+ struct drm_framebuffer *
+ amdgpu_display_user_framebuffer_create(struct drm_device *dev,
+ 			       struct drm_file *file_priv,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
+index 6c110e4..cc55fa5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_fb.c
+@@ -137,7 +137,7 @@ static int amdgpufb_create_pinned_object(struct amdgpu_fbdev *rfbdev,
+ 	/* need to align pitch with crtc limits */
+ 	mode_cmd->pitches[0] = amdgpu_align_pitch(adev, mode_cmd->width, cpp,
+ 						  fb_tiled);
+-	domain = amdgpu_display_framebuffer_domains(adev);
++	domain = amdgpu_display_supported_domains(adev);
+ 
+ 	height = ALIGN(mode_cmd->height, 8);
+ 	size = mode_cmd->pitches[0] * height;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+index a7a0f0c..63d5a01 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_prime.c
+@@ -219,7 +219,7 @@ static int amdgpu_gem_begin_cpu_access(struct dma_buf *dma_buf,
+         struct amdgpu_bo *bo = gem_to_amdgpu_bo(dma_buf->priv);
+         struct amdgpu_device *adev = amdgpu_ttm_adev(bo->tbo.bdev);
+         struct ttm_operation_ctx ctx = { true, false };
+-        u32 domain = amdgpu_display_framebuffer_domains(adev);
++	u32 domain = amdgpu_display_supported_domains(adev);
+         int ret;
+         bool reads = (direction == DMA_BIDIRECTIONAL ||
+                       direction == DMA_FROM_DEVICE);
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 4760ff4..ab3fd8a 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3221,12 +3221,11 @@ static int dm_plane_helper_prepare_fb(struct drm_plane *plane,
+ 		return r;
+ 
+ 	if (plane->type != DRM_PLANE_TYPE_CURSOR)
+-		domain = amdgpu_display_framebuffer_domains(adev);
++		domain = amdgpu_display_supported_domains(adev);
+ 	else
+ 		domain = AMDGPU_GEM_DOMAIN_VRAM;
+ 
+ 	r = amdgpu_bo_pin(rbo, domain, &afb->address);
+-
+ 	amdgpu_bo_unreserve(rbo);
+ 
+ 	if (unlikely(r != 0)) {
+-- 
+2.7.4
+

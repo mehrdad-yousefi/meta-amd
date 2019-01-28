@@ -1,0 +1,32 @@
+From 250b27fcfedb6c5cb2dd677bf38269a57e3c81ae Mon Sep 17 00:00:00 2001
+From: Raveendra Talabattula <raveendra.talabattula@amd.com>
+Date: Fri, 4 Jan 2019 12:39:53 +0530
+Subject: [PATCH 5614/5725] drm/amdgpu: revert the commit interim disable RV2
+ GFX CG flag
+
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index 5614c2b..a741913 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -705,9 +705,12 @@ static int soc15_common_early_init(void *handle)
+ 			adev->external_rev_id = 0x1;
+ 
+ 		if (adev->rev_id >= 0x8) {
+-			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGLS |
++			adev->cg_flags = AMD_CG_SUPPORT_GFX_MGCG |
++				AMD_CG_SUPPORT_GFX_MGLS |
+ 				AMD_CG_SUPPORT_GFX_CP_LS |
++				AMD_CG_SUPPORT_GFX_3D_CGCG |
+ 				AMD_CG_SUPPORT_GFX_3D_CGLS |
++				AMD_CG_SUPPORT_GFX_CGCG |
+ 				AMD_CG_SUPPORT_GFX_CGLS |
+ 				AMD_CG_SUPPORT_BIF_LS |
+ 				AMD_CG_SUPPORT_HDP_LS |
+-- 
+2.7.4
+

@@ -1,0 +1,36 @@
+From 2f8ebd8ec602b5680b96fac7880d634c125b795c Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Thu, 8 Mar 2018 12:08:01 -0500
+Subject: [PATCH 4144/5725] drm/amd/display: fix Polaris 12 bw bounding box
+ (v2)
+
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c b/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c
+index 0a5eb32..56f46a0 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dce_calcs.c
+@@ -53,10 +53,11 @@ static enum bw_calcs_version bw_calcs_version_from_asic_id(struct hw_asic_id asi
+ 		return BW_CALCS_VERSION_CARRIZO;
+ 
+ 	case FAMILY_VI:
++		if (ASIC_REV_IS_POLARIS12_V(asic_id.hw_internal_rev))
++			return BW_CALCS_VERSION_POLARIS12;
+ 		if (ASIC_REV_IS_POLARIS10_P(asic_id.hw_internal_rev))
+ 			return BW_CALCS_VERSION_POLARIS10;
+-		if (ASIC_REV_IS_POLARIS11_M(asic_id.hw_internal_rev) ||
+-				ASIC_REV_IS_POLARIS12_V(asic_id.hw_internal_rev))
++		if (ASIC_REV_IS_POLARIS11_M(asic_id.hw_internal_rev))
+ 			return BW_CALCS_VERSION_POLARIS11;
+ 		return BW_CALCS_VERSION_INVALID;
+ 
+-- 
+2.7.4
+

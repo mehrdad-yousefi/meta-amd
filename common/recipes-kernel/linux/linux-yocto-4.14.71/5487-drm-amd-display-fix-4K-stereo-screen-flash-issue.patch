@@ -1,0 +1,34 @@
+From 4356c9c65a29b834d5cdb40ff3b5367e2189c643 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Wed, 12 Sep 2018 18:22:16 -0400
+Subject: [PATCH 5487/5725] drm/amd/display: fix 4K stereo screen flash issue
+
+[Why]
+HDMI_scramber is not enabled for pixel rate >340Mhz.
+[How]
+Calculate the phy clock to include the Hw frame packing factor.
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Chris Park <Chris.Park@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 6d27db6..28a9b24 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1956,6 +1956,9 @@ static void calculate_phy_pix_clks(struct dc_stream_state *stream)
+ 	else
+ 		stream->phy_pix_clk =
+ 			stream->timing.pix_clk_khz;
++
++	if (stream->timing.timing_3d_format == TIMING_3D_FORMAT_HW_FRAME_PACKING)
++		stream->phy_pix_clk *= 2;
+ }
+ 
+ enum dc_status resource_map_pool_resources(
+-- 
+2.7.4
+

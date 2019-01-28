@@ -1,0 +1,48 @@
+From f58a50893dd4ab084390fa1342d360d379654a8c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 15:43:57 +0200
+Subject: [PATCH 5303/5725] drm/amdgpu: add GDS, GWS and OA debugfs files
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Additional to the existing files for VRAM and GTT.
+
+Change-Id: I1f418e127ded38ff48ebda14a4226709524cffd3
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 7c46a03f..614a5cf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -2400,7 +2400,7 @@ int amdgpu_fill_buffer(struct amdgpu_bo *bo,
+ static int amdgpu_mm_dump_table(struct seq_file *m, void *data)
+ {
+ 	struct drm_info_node *node = (struct drm_info_node *)m->private;
+-	unsigned ttm_pl = *(int *)node->info_ent->data;
++	unsigned ttm_pl = (uintptr_t)node->info_ent->data;
+ 	struct drm_device *dev = node->minor->dev;
+ 	struct amdgpu_device *adev = dev->dev_private;
+ 	struct ttm_mem_type_manager *man = &adev->mman.bdev.man[ttm_pl];
+@@ -2416,8 +2416,11 @@ static int ttm_pl_dgma = AMDGPU_PL_DGMA;
+ static int ttm_pl_dgma_import = AMDGPU_PL_DGMA_IMPORT;
+ 
+ static const struct drm_info_list amdgpu_ttm_debugfs_list[] = {
+-	{"amdgpu_vram_mm", amdgpu_mm_dump_table, 0, &ttm_pl_vram},
+-	{"amdgpu_gtt_mm", amdgpu_mm_dump_table, 0, &ttm_pl_tt},
++	{"amdgpu_vram_mm", amdgpu_mm_dump_table, 0, (void *)TTM_PL_VRAM},
++	{"amdgpu_gtt_mm", amdgpu_mm_dump_table, 0, (void *)TTM_PL_TT},
++	{"amdgpu_gds_mm", amdgpu_mm_dump_table, 0, (void *)AMDGPU_PL_GDS},
++	{"amdgpu_gws_mm", amdgpu_mm_dump_table, 0, (void *)AMDGPU_PL_GWS},
++	{"amdgpu_oa_mm", amdgpu_mm_dump_table, 0, (void *)AMDGPU_PL_OA},
+ 	{"ttm_page_pool", ttm_page_alloc_debugfs, 0, NULL},
+ #ifdef CONFIG_SWIOTLB
+ 	{"ttm_dma_page_pool", ttm_dma_page_alloc_debugfs, 0, NULL}
+-- 
+2.7.4
+

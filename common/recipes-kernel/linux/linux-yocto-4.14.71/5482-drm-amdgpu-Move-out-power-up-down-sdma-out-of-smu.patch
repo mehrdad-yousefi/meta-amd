@@ -1,0 +1,96 @@
+From b5fde60c3bb2d968aa921c6098a758ad2e624bc4 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 25 Sep 2018 19:53:30 +0800
+Subject: [PATCH 5482/5725] drm/amdgpu: Move out power up/down sdma out of smu
+
+smu only expose interface to other ip blocks.
+in order to reduce dependence between smu and other ip blocks
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c              |  6 ++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c   |  1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c | 15 ---------------
+ 3 files changed, 7 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+index 8a99832..d05951f 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+@@ -1374,6 +1374,9 @@ static int sdma_v4_0_hw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
++	if (adev->asic_type == CHIP_RAVEN && adev->powerplay.pp_funcs->set_powergating_by_smu)
++		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_SDMA, false);
++
+ 	sdma_v4_0_init_golden_registers(adev);
+ 
+ 	r = sdma_v4_0_start(adev);
+@@ -1391,6 +1394,9 @@ static int sdma_v4_0_hw_fini(void *handle)
+ 	sdma_v4_0_ctx_switch_enable(adev, false);
+ 	sdma_v4_0_enable(adev, false);
+ 
++	if (adev->asic_type == CHIP_RAVEN && adev->powerplay.pp_funcs->set_powergating_by_smu)
++		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_SDMA, true);
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index fa59be3..7100c74 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -1217,6 +1217,7 @@ static const struct pp_hwmgr_func smu10_hwmgr_funcs = {
+ 	.gfx_off_control = smu10_gfx_off_control,
+ 	.display_clock_voltage_request = smu10_display_clock_voltage_request,
+ 	.powergate_gfx = smu10_gfx_off_control,
++	.powergate_sdma = smu10_powergate_sdma,
+ };
+ 
+ int smu10_init_function_pointers(struct pp_hwmgr *hwmgr)
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+index 6f961de..d78d864 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu10_smumgr.c
+@@ -186,19 +186,6 @@ static int smu10_verify_smc_interface(struct pp_hwmgr *hwmgr)
+ 	return 0;
+ }
+ 
+-/* sdma is disabled by default in vbios, need to re-enable in driver */
+-static void smu10_smc_enable_sdma(struct pp_hwmgr *hwmgr)
+-{
+-	smu10_send_msg_to_smc(hwmgr,
+-			PPSMC_MSG_PowerUpSdma);
+-}
+-
+-static void smu10_smc_disable_sdma(struct pp_hwmgr *hwmgr)
+-{
+-	smu10_send_msg_to_smc(hwmgr,
+-			PPSMC_MSG_PowerDownSdma);
+-}
+-
+ /* vcn is disabled by default in vbios, need to re-enable in driver */
+ static void smu10_smc_enable_vcn(struct pp_hwmgr *hwmgr)
+ {
+@@ -218,7 +205,6 @@ static int smu10_smu_fini(struct pp_hwmgr *hwmgr)
+ 			(struct smu10_smumgr *)(hwmgr->smu_backend);
+ 
+ 	if (priv) {
+-		smu10_smc_disable_sdma(hwmgr);
+ 		smu10_smc_disable_vcn(hwmgr);
+ 		amdgpu_bo_free_kernel(&priv->smu_tables.entry[SMU10_WMTABLE].handle,
+ 					&priv->smu_tables.entry[SMU10_WMTABLE].mc_addr,
+@@ -243,7 +229,6 @@ static int smu10_start_smu(struct pp_hwmgr *hwmgr)
+ 
+ 	if (smu10_verify_smc_interface(hwmgr))
+ 		return -EINVAL;
+-	smu10_smc_enable_sdma(hwmgr);
+ 	smu10_smc_enable_vcn(hwmgr);
+ 	return 0;
+ }
+-- 
+2.7.4
+

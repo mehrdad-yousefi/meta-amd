@@ -1,0 +1,48 @@
+From a55ecf052163d381cd821f8d96cd011c8e7b0475 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <ckoenig.leichtzumerken@gmail.com>
+Date: Mon, 4 Jun 2018 12:59:52 +0200
+Subject: [PATCH 4594/5725] drm/amdgpu: fix clear_all and replace handling in
+ the VM (v2)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+v2: assign bo_va as well
+
+We need to put the lose ends on the invalid list because it is possible
+that we need to split up huge pages for them.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Junwei Zhang <Jerry.Zhang@amd.com> (v2)
+Reviewed-by: David Zhou <david1.zhou@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 1fcc586..4889137 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2153,7 +2153,8 @@ int amdgpu_vm_bo_clear_mappings(struct amdgpu_device *adev,
+ 			before->last = saddr - 1;
+ 			before->offset = tmp->offset;
+ 			before->flags = tmp->flags;
+-			list_add(&before->list, &tmp->list);
++			before->bo_va = tmp->bo_va;
++			list_add(&before->list, &tmp->bo_va->invalids);
+ 		}
+ 
+ 		/* Remember mapping split at the end */
+@@ -2163,7 +2164,8 @@ int amdgpu_vm_bo_clear_mappings(struct amdgpu_device *adev,
+ 			after->offset = tmp->offset;
+ 			after->offset += after->start - tmp->start;
+ 			after->flags = tmp->flags;
+-			list_add(&after->list, &tmp->list);
++			after->bo_va = tmp->bo_va;
++			list_add(&after->list, &tmp->bo_va->invalids);
+ 		}
+ 
+ 		list_del(&tmp->list);
+-- 
+2.7.4
+

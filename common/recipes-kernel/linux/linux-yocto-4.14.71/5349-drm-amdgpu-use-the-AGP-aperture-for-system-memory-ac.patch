@@ -1,0 +1,143 @@
+From 68951012a61fec3c237bf7b96be065a358105ce8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 27 Aug 2018 18:19:48 +0200
+Subject: [PATCH 5349/5725] drm/amdgpu: use the AGP aperture for system memory
+ access v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Start to use the old AGP aperture for system memory access.
+
+v2: Move that to amdgpu_ttm_alloc_gart
+
+Change-Id: I136cced8a259d40fa984f416b5d70b6c4ebb9b83
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c | 23 +++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h |  1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 44 +++++++++++++++++++--------------
+ 3 files changed, 49 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+index 0effe84..fec88f6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c
+@@ -80,6 +80,29 @@ uint64_t amdgpu_gmc_pd_addr(struct amdgpu_bo *bo)
+ }
+ 
+ /**
++ * amdgpu_gmc_agp_addr - return the address in the AGP address space
++ *
++ * @tbo: TTM BO which needs the address, must be in GTT domain
++ *
++ * Tries to figure out how to access the BO through the AGP aperture. Returns
++ * AMDGPU_BO_INVALID_OFFSET if that is not possible.
++ */
++uint64_t amdgpu_gmc_agp_addr(struct ttm_buffer_object *bo)
++{
++	struct amdgpu_device *adev = amdgpu_ttm_adev(bo->bdev);
++	struct ttm_dma_tt *ttm;
++
++	if (bo->num_pages != 1 || bo->ttm->caching_state == tt_cached)
++		return AMDGPU_BO_INVALID_OFFSET;
++
++	ttm = container_of(bo->ttm, struct ttm_dma_tt, ttm);
++	if (ttm->dma_address[0] + PAGE_SIZE >= adev->gmc.agp_size)
++		return AMDGPU_BO_INVALID_OFFSET;
++
++	return adev->gmc.agp_start + ttm->dma_address[0];
++}
++
++/**
+  * amdgpu_gmc_vram_location - try to find VRAM location
+  *
+  * @adev: amdgpu device structure holding all necessary informations
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+index 167aaf9..2189606 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+@@ -166,6 +166,7 @@ static inline uint64_t amdgpu_gmc_sign_extend(uint64_t addr)
+ void amdgpu_gmc_get_pde_for_bo(struct amdgpu_bo *bo, int level,
+ 			       uint64_t *addr, uint64_t *flags);
+ uint64_t amdgpu_gmc_pd_addr(struct amdgpu_bo *bo);
++uint64_t amdgpu_gmc_agp_addr(struct ttm_buffer_object *bo);
+ void amdgpu_gmc_vram_location(struct amdgpu_device *adev, struct amdgpu_gmc *mc,
+ 			      u64 base);
+ void amdgpu_gmc_gart_location(struct amdgpu_device *adev,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 4c7e231..f70687d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1139,30 +1139,34 @@ int amdgpu_ttm_alloc_gart(struct ttm_buffer_object *bo)
+ 
+ 	struct ttm_placement placement;
+ 	struct ttm_place placements;
+-	uint64_t flags;
++	uint64_t addr, flags;
+ 	int r;
+ 
+ 	if (bo->mem.start != AMDGPU_BO_INVALID_OFFSET)
+ 		return 0;
+ 
+-	/* allocate GART space */
+-	tmp = bo->mem;
+-	tmp.mm_node = NULL;
+-	placement.num_placement = 1;
+-	placement.placement = &placements;
+-	placement.num_busy_placement = 1;
+-	placement.busy_placement = &placements;
+-	placements.fpfn = 0;
+-	placements.lpfn = adev->gmc.gart_size >> PAGE_SHIFT;
+-	placements.flags = (bo->mem.placement & ~TTM_PL_MASK_MEM) |
+-		TTM_PL_FLAG_TT;
+-
+-	r = ttm_bo_mem_space(bo, &placement, &tmp, &ctx);
+-	if (unlikely(r))
+-		return r;
++	addr = amdgpu_gmc_agp_addr(bo);
++	if (addr != AMDGPU_BO_INVALID_OFFSET) {
++		bo->mem.start = addr >> PAGE_SHIFT;
++	} else {
++		/* allocate GART space */
++		tmp = bo->mem;
++		tmp.mm_node = NULL;
++		placement.num_placement = 1;
++		placement.placement = &placements;
++		placement.num_busy_placement = 1;
++		placement.busy_placement = &placements;
++		placements.fpfn = 0;
++		placements.lpfn = adev->gmc.gart_size >> PAGE_SHIFT;
++		placements.flags = (bo->mem.placement & ~TTM_PL_MASK_MEM) |
++			TTM_PL_FLAG_TT;
++
++		r = ttm_bo_mem_space(bo, &placement, &tmp, &ctx);
++		if (unlikely(r))
++			return r;
+ 	
+-	/* compute PTE flags for this buffer object */
+-	flags = amdgpu_ttm_tt_pte_flags(adev, bo->ttm, &tmp);
++		/* compute PTE flags for this buffer object */
++		flags = amdgpu_ttm_tt_pte_flags(adev, bo->ttm, &tmp);
+ 
+ 	/* Bind pages */
+ 	gtt->offset = (u64)tmp.start << PAGE_SHIFT;
+@@ -1170,10 +1174,12 @@ int amdgpu_ttm_alloc_gart(struct ttm_buffer_object *bo)
+ 	if (unlikely(r)) {
+ 		ttm_bo_mem_put(bo, &tmp);
+ 		return r;
+-	}
++		}
+ 
+ 	ttm_bo_mem_put(bo, &bo->mem);
+ 	bo->mem = tmp;
++	}
++
+ 	bo->offset = (bo->mem.start << PAGE_SHIFT) +
+ 		bo->bdev->man[bo->mem.mem_type].gpu_offset;
+ 
+-- 
+2.7.4
+

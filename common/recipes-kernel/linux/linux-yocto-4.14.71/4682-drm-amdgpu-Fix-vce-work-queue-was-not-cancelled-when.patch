@@ -1,0 +1,69 @@
+From 129370d4928b5c85cbdece39b654828686d705ca Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 27 Sep 2018 20:20:57 +0800
+Subject: [PATCH 4682/5725] drm/amdgpu: Fix vce work queue was not cancelled
+ when suspend
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The vce cancel_delayed_work_sync never be called.
+driver call the function in error path.
+
+This caused s3 hang on A+A when runtime pm enebled.
+As the smu will be visited in the idle queue, this will cause
+smu hang because the dgpu may be in suspend, and the dgpu
+will be waked up. As the smu has been hang, so the dgpu resume
+will failed.
+
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Feifei Xu <Feifei.Xu@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Cherry-picked-by: Jack Gui <Jack.Gui@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c | 3 ++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c | 4 ++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
+index 23d960e..acad299 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
+@@ -246,6 +246,8 @@ int amdgpu_vce_suspend(struct amdgpu_device *adev)
+ {
+ 	int i;
+ 
++	cancel_delayed_work_sync(&adev->vce.idle_work);
++
+ 	if (adev->vce.vcpu_bo == NULL)
+ 		return 0;
+ 
+@@ -256,7 +258,6 @@ int amdgpu_vce_suspend(struct amdgpu_device *adev)
+ 	if (i == AMDGPU_MAX_VCE_HANDLES)
+ 		return 0;
+ 
+-	cancel_delayed_work_sync(&adev->vce.idle_work);
+ 	/* TODO: suspending running encoding sessions isn't supported */
+ 	return -EINVAL;
+ }
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 7ea85c9..e836d7c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -132,11 +132,11 @@ int amdgpu_vcn_suspend(struct amdgpu_device *adev)
+ 	unsigned size;
+ 	void *ptr;
+ 
++	cancel_delayed_work_sync(&adev->vcn.idle_work);
++
+ 	if (adev->vcn.vcpu_bo == NULL)
+ 		return 0;
+ 
+-	cancel_delayed_work_sync(&adev->vcn.idle_work);
+-
+ 	size = amdgpu_bo_size(adev->vcn.vcpu_bo);
+ 	ptr = adev->vcn.cpu_addr;
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,54 @@
+From bea846ec51341d4256c2cc400aa7dc1d619863f9 Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Wed, 4 Jul 2018 10:27:30 -0700
+Subject: [PATCH 5381/5725] drm/amd/display: Use 2-factor allocator calls
+
+As already done treewide, switch from open-coded multiplication to
+2-factor allocation helper.
+
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Reviewed-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/modules/color/color_gamma.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+index e130aac..0fe9882 100644
+--- a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
++++ b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+@@ -32,6 +32,8 @@
+ #define NUM_REGIONS 32
+ #define MAX_HW_POINTS (NUM_PTS_IN_REGION*NUM_REGIONS)
+ 
++#define kvcalloc(n, size, gfp)  kvzalloc(((n)*(size)), gfp)
++
+ static struct hw_x_point coordinates_x[MAX_HW_POINTS + 2];
+ 
+ static struct fixed31_32 pq_table[MAX_HW_POINTS + 2];
+@@ -1721,8 +1723,8 @@ bool  mod_color_calculate_curve(enum dc_transfer_func_predefined trans,
+ 		kvfree(rgb_regamma);
+ 	} else if (trans == TRANSFER_FUNCTION_HLG ||
+ 		trans == TRANSFER_FUNCTION_HLG12) {
+-		rgb_regamma = kvzalloc(sizeof(*rgb_regamma) *
+-				       (MAX_HW_POINTS + _EXTRA_POINTS),
++		rgb_regamma = kvcalloc(MAX_HW_POINTS + _EXTRA_POINTS,
++				       sizeof(*rgb_regamma),
+ 				       GFP_KERNEL);
+ 		if (!rgb_regamma)
+ 			goto rgb_regamma_alloc_fail;
+@@ -1800,8 +1802,8 @@ bool  mod_color_calculate_degamma_curve(enum dc_transfer_func_predefined trans,
+ 		kvfree(rgb_degamma);
+ 	} else if (trans == TRANSFER_FUNCTION_HLG ||
+ 		trans == TRANSFER_FUNCTION_HLG12) {
+-		rgb_degamma = kvzalloc(sizeof(*rgb_degamma) *
+-				       (MAX_HW_POINTS + _EXTRA_POINTS),
++		rgb_degamma = kvcalloc(MAX_HW_POINTS + _EXTRA_POINTS,
++				       sizeof(*rgb_degamma),
+ 				       GFP_KERNEL);
+ 		if (!rgb_degamma)
+ 			goto rgb_degamma_alloc_fail;
+-- 
+2.7.4
+

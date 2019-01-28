@@ -1,0 +1,26 @@
+From 5a59641d10dc82da8d6e406e09800f3bb6f0a9d2 Mon Sep 17 00:00:00 2001
+From: Raveendra Talabattula <raveendra.talabattula@amd.com>
+Date: Fri, 2 Nov 2018 15:39:08 +0530
+Subject: [PATCH 4985/5725] patch correction
+ amdgpu-clean-up-UVD-instance-handling
+
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index 9c665d5..3536198 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -267,7 +267,7 @@ int amdgpu_uvd_sw_init(struct amdgpu_device *adev)
+ 	}
+ 	ring = &adev->uvd.inst[0].ring;
+ 	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+-	r = drm_sched_entity_init(&ring->sched, &adev->uvd.inst[0].entity,
++	r = drm_sched_entity_init(&ring->sched, &adev->uvd.entity,
+ 			rq, NULL);
+ 	if (r != 0) {
+ 		DRM_ERROR("Failed setting up UVD kernel entity.\n");
+-- 
+2.7.4
+

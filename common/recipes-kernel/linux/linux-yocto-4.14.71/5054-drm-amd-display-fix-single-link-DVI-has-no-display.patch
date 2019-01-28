@@ -1,0 +1,29 @@
+From 2956ab3a81e8825f03bbefe16f9f2518e5a91108 Mon Sep 17 00:00:00 2001
+From: Charlene Liu <charlene.liu@amd.com>
+Date: Mon, 30 Jul 2018 17:59:20 -0400
+Subject: [PATCH 5054/5725] drm/amd/display: fix single link DVI has no display
+
+Signed-off-by: Charlene Liu <charlene.liu@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index c3ca109..3bec439 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -1812,6 +1812,8 @@ static void enable_link_hdmi(struct pipe_ctx *pipe_ctx)
+ 	bool is_vga_mode = (stream->timing.h_addressable == 640)
+ 			&& (stream->timing.v_addressable == 480);
+ 
++	if (stream->phy_pix_clk == 0)
++		stream->phy_pix_clk = stream->timing.pix_clk_khz;
+ 	if (stream->phy_pix_clk > 340000)
+ 		is_over_340mhz = true;
+ 
+-- 
+2.7.4
+

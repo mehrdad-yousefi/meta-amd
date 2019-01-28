@@ -1,0 +1,38 @@
+From d6e5ea19d097d414359f9485d2c8a531d2d71392 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Thu, 23 Aug 2018 11:46:13 +0800
+Subject: [PATCH 5212/5725] drm/amdgpu: Remove duplicated power source update
+
+when ac/dc switch, driver will be notified by acpi event.
+then the power source will be updated. so don't need to
+get power source when set power state.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index 1e9ed55..4928c61 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -1932,14 +1932,6 @@ void amdgpu_pm_compute_clocks(struct amdgpu_device *adev)
+ 			amdgpu_fence_wait_empty(ring);
+ 	}
+ 
+-	mutex_lock(&adev->pm.mutex);
+-	/* update battery/ac status */
+-	if (power_supply_is_system_supplied() > 0)
+-		adev->pm.ac_power = true;
+-	else
+-		adev->pm.ac_power = false;
+-	mutex_unlock(&adev->pm.mutex);
+-
+ 	if (adev->powerplay.pp_funcs->dispatch_tasks) {
+ 		if (!amdgpu_device_has_dc_support(adev)) {
+ 			mutex_lock(&adev->pm.mutex);
+-- 
+2.7.4
+

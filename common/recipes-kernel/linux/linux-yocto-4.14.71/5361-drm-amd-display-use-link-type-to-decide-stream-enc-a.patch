@@ -1,0 +1,40 @@
+From 4ca03f41ec0e668ec717d2e8fce7f38dae9c172f Mon Sep 17 00:00:00 2001
+From: Eric Yang <Eric.Yang2@amd.com>
+Date: Fri, 24 Aug 2018 16:54:14 -0400
+Subject: [PATCH 5361/5725] drm/amd/display: use link type to decide stream enc
+ acquisition
+
+[Why]
+Virtual sink is used when set mode happens on a disconnected display
+to allow the mode set to proceed. This did not work with MST because
+the logic for acquiring stream encoder uses stream signal to determine
+the special handling is required, and stream signal is virtual instead
+of DP in this case.
+
+[How]
+Use link type to decide instead.
+
+Change-Id: Ied8056c5cfc035dd313ddb3631bca72442491cd6
+Signed-off-by: Eric Yang <Eric.Yang2@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index b2f6711..6d27db6 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1753,7 +1753,7 @@ static struct stream_encoder *find_first_free_match_stream_enc_for_link(
+ 	 * required for non DP connectors.
+ 	 */
+ 
+-	if (j >= 0 && dc_is_dp_signal(stream->signal))
++	if (j >= 0 && link->connector_signal == SIGNAL_TYPE_DISPLAY_PORT)
+ 		return pool->stream_enc[j];
+ 
+ 	return NULL;
+-- 
+2.7.4
+

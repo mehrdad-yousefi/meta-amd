@@ -1,0 +1,100 @@
+From 8d7fd13f802585147ea04537d32c12bd2ba828e5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 21 Aug 2018 11:11:36 +0200
+Subject: [PATCH 5206/5725] drm/amdgpu: add ring soft recovery v4
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Instead of hammering hard on the GPU try a soft recovery first.
+
+v2: reorder code a bit
+v3: increase timeout to 10ms, increment GPU reset counter
+v4: squash in compile fix (Christian)
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_job.c  |  6 ++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c | 25 +++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h |  4 ++++
+ 3 files changed, 35 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
+index f72d959..2d50825 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
+@@ -33,6 +33,12 @@ static void amdgpu_job_timedout(struct drm_sched_job *s_job)
+ 	struct amdgpu_ring *ring = to_amdgpu_ring(s_job->sched);
+ 	struct amdgpu_job *job = to_amdgpu_job(s_job);
+ 
++	if (amdgpu_ring_soft_recovery(ring, job->vmid, s_job->s_fence->parent)) {
++		DRM_ERROR("ring %s timeout, but soft recovered\n",
++			  s_job->sched->name);
++		return;
++	}
++
+ 	DRM_ERROR("ring %s timeout, signaled seq=%u, emitted seq=%u\n",
+ 		  job->base.sched->name, atomic_read(&ring->fence_drv.last_seq),
+ 		  ring->fence_drv.sync_seq);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
+index 93794a8..5a56d9a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.c
+@@ -481,6 +481,31 @@ void amdgpu_ring_emit_reg_write_reg_wait_helper(struct amdgpu_ring *ring,
+ 	amdgpu_ring_emit_reg_wait(ring, reg1, mask, mask);
+ }
+ 
++/**
++ * amdgpu_ring_soft_recovery - try to soft recover a ring lockup
++ *
++ * @ring: ring to try the recovery on
++ * @vmid: VMID we try to get going again
++ * @fence: timedout fence
++ *
++ * Tries to get a ring proceeding again when it is stuck.
++ */
++bool amdgpu_ring_soft_recovery(struct amdgpu_ring *ring, unsigned int vmid,
++			       struct dma_fence *fence)
++{
++	ktime_t deadline = ktime_add_us(ktime_get(), 10000);
++
++	if (!ring->funcs->soft_recovery)
++		return false;
++
++	atomic_inc(&ring->adev->gpu_reset_counter);
++	while (!dma_fence_is_signaled(fence) &&
++	       ktime_to_ns(ktime_sub(deadline, ktime_get())) > 0)
++		ring->funcs->soft_recovery(ring, vmid);
++
++	return dma_fence_is_signaled(fence);
++}
++
+ /*
+  * Debugfs info
+  */
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+index 1f5fcfd..6ea3827 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ring.h
+@@ -168,6 +168,8 @@ struct amdgpu_ring_funcs {
+ 	/* priority functions */
+ 	void (*set_priority) (struct amdgpu_ring *ring,
+ 			      enum drm_sched_priority priority);
++	/* Try to soft recover the ring to make the fence signal */
++	void (*soft_recovery)(struct amdgpu_ring *ring, unsigned vmid);
+ };
+ 
+ struct amdgpu_ring {
+@@ -265,6 +267,8 @@ void amdgpu_ring_lru_touch(struct amdgpu_device *adev, struct amdgpu_ring *ring)
+ void amdgpu_ring_emit_reg_write_reg_wait_helper(struct amdgpu_ring *ring,
+ 						uint32_t reg0, uint32_t val0,
+ 						uint32_t reg1, uint32_t val1);
++bool amdgpu_ring_soft_recovery(struct amdgpu_ring *ring, unsigned int vmid,
++			       struct dma_fence *fence);
+ 
+ static inline void amdgpu_ring_clear_ring(struct amdgpu_ring *ring)
+ {
+-- 
+2.7.4
+

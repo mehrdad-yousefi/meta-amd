@@ -1,0 +1,69 @@
+From 163e3edbfeb15c5e67637089e651c325316ddfb6 Mon Sep 17 00:00:00 2001
+From: Huang Rui <ray.huang@amd.com>
+Date: Fri, 15 Jun 2018 16:05:48 -0500
+Subject: [PATCH 5279/5725] drm/amdgpu:move get_rev_id at first before load
+ gpu_info firmware
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Rev id is used for identifying Raven2 series of chips. So we would better to
+initialize it at first.
+
+Change-Id: Id39580fd0ed559bf83640ef64a686064d9a613b0
+Signed-off-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15.c b/drivers/gpu/drm/amd/amdgpu/soc15.c
+index e338ad6..794cfe4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/soc15.c
++++ b/drivers/gpu/drm/amd/amdgpu/soc15.c
+@@ -479,6 +479,11 @@ static const struct amdgpu_ip_block_version vega10_common_ip_block =
+ 	.funcs = &soc15_common_ip_funcs,
+ };
+ 
++static uint32_t soc15_get_rev_id(struct amdgpu_device *adev)
++{
++	return adev->nbio_funcs->get_rev_id(adev);
++}
++
+ int soc15_set_ip_blocks(struct amdgpu_device *adev)
+ {
+ 	/* Set IP register base before any HW register access */
+@@ -507,6 +512,8 @@ int soc15_set_ip_blocks(struct amdgpu_device *adev)
+ 		adev->df_funcs = &df_v3_6_funcs;
+ 	else
+ 		adev->df_funcs = &df_v1_7_funcs;
++
++	adev->rev_id = soc15_get_rev_id(adev);
+ 	adev->nbio_funcs->detect_hw_virt(adev);
+ 
+ 	if (amdgpu_sriov_vf(adev))
+@@ -581,11 +588,6 @@ int soc15_set_ip_blocks(struct amdgpu_device *adev)
+ 	return 0;
+ }
+ 
+-static uint32_t soc15_get_rev_id(struct amdgpu_device *adev)
+-{
+-	return adev->nbio_funcs->get_rev_id(adev);
+-}
+-
+ static void soc15_flush_hdp(struct amdgpu_device *adev, struct amdgpu_ring *ring)
+ {
+ 	adev->nbio_funcs->hdp_flush(adev, ring);
+@@ -642,7 +644,6 @@ static int soc15_common_early_init(void *handle)
+ 
+ 	adev->asic_funcs = &soc15_asic_funcs;
+ 
+-	adev->rev_id = soc15_get_rev_id(adev);
+ 	adev->external_rev_id = 0xFF;
+ 	switch (adev->asic_type) {
+ 	case CHIP_VEGA10:
+-- 
+2.7.4
+

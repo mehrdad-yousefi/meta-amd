@@ -1,0 +1,56 @@
+From 1e9ce6c19886890163a626d509e5ce4fc312567c Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Thu, 4 Jan 2018 18:13:41 +0800
+Subject: [PATCH 5285/5725] drm/amdgpu/sdma4: Add raven2 golden setting
+
+Golden register settings from the hw team.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c | 21 ++++++++++++++++-----
+ 1 file changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+index 7aa1c47..31baa47 100644
+--- a/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/sdma_v4_0.c
+@@ -185,6 +185,12 @@ static const struct soc15_reg_golden golden_settings_sdma_rv1[] =
+ 	SOC15_REG_GOLDEN_VALUE(SDMA0, 0, mmSDMA0_GB_ADDR_CONFIG_READ, 0x0018773f, 0x00000002)
+ };
+ 
++static const struct soc15_reg_golden golden_settings_sdma_rv2[] =
++{
++	SOC15_REG_GOLDEN_VALUE(SDMA0, 0, mmSDMA0_GB_ADDR_CONFIG, 0x0018773f, 0x00003001),
++	SOC15_REG_GOLDEN_VALUE(SDMA0, 0, mmSDMA0_GB_ADDR_CONFIG_READ, 0x0018773f, 0x00003001)
++};
++
+ static u32 sdma_v4_0_get_reg_offset(struct amdgpu_device *adev,
+ 		u32 instance, u32 offset)
+ {
+@@ -225,11 +231,16 @@ static void sdma_v4_0_init_golden_registers(struct amdgpu_device *adev)
+ 	case CHIP_RAVEN:
+ 	case CHIP_PICASSO:
+ 		soc15_program_register_sequence(adev,
+-						 golden_settings_sdma_4_1,
+-						 ARRAY_SIZE(golden_settings_sdma_4_1));
+-		soc15_program_register_sequence(adev,
+-						 golden_settings_sdma_rv1,
+-						 ARRAY_SIZE(golden_settings_sdma_rv1));
++						golden_settings_sdma_4_1,
++						ARRAY_SIZE(golden_settings_sdma_4_1));
++		if (adev->rev_id >= 8)
++			soc15_program_register_sequence(adev,
++							golden_settings_sdma_rv2,
++							ARRAY_SIZE(golden_settings_sdma_rv2));
++		else
++			soc15_program_register_sequence(adev,
++							golden_settings_sdma_rv1,
++							ARRAY_SIZE(golden_settings_sdma_rv1));
+ 		break;
+ 	default:
+ 		break;
+-- 
+2.7.4
+

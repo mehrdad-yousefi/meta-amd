@@ -1,0 +1,66 @@
+From 56e4a6b522f82beaf5cc326eb2115bc09a4b9702 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Mon, 18 Jun 2018 18:49:07 +0800
+Subject: [PATCH 4841/5725] drm/amd/pp: Memory Latency is always 25us on Vega10
+
+For HBM, 25us latency is enough for memory clock switch.
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 22 +---------------------
+ 1 file changed, 1 insertion(+), 21 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 71a6e62..b293a68 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -55,12 +55,6 @@
+ 
+ static const uint32_t channel_number[] = {1, 2, 0, 4, 0, 8, 0, 16, 2};
+ 
+-#define MEM_FREQ_LOW_LATENCY        25000
+-#define MEM_FREQ_HIGH_LATENCY       80000
+-#define MEM_LATENCY_HIGH            245
+-#define MEM_LATENCY_LOW             35
+-#define MEM_LATENCY_ERR             0xFFFF
+-
+ #define mmDF_CS_AON0_DramBaseAddress0                                                                  0x0044
+ #define mmDF_CS_AON0_DramBaseAddress0_BASE_IDX                                                         0
+ 
+@@ -4093,18 +4087,6 @@ static void vega10_get_sclks(struct pp_hwmgr *hwmgr,
+ 
+ }
+ 
+-static uint32_t vega10_get_mem_latency(struct pp_hwmgr *hwmgr,
+-		uint32_t clock)
+-{
+-	if (clock >= MEM_FREQ_LOW_LATENCY &&
+-			clock < MEM_FREQ_HIGH_LATENCY)
+-		return MEM_LATENCY_HIGH;
+-	else if (clock >= MEM_FREQ_HIGH_LATENCY)
+-		return MEM_LATENCY_LOW;
+-	else
+-		return MEM_LATENCY_ERR;
+-}
+-
+ static void vega10_get_memclocks(struct pp_hwmgr *hwmgr,
+ 		struct pp_clock_levels_with_latency *clocks)
+ {
+@@ -4123,9 +4105,7 @@ static void vega10_get_memclocks(struct pp_hwmgr *hwmgr,
+ 			data->mclk_latency_table.entries[j].frequency =
+ 						dep_table->entries[i].clk;
+ 			clocks->data[j].latency_in_us =
+-				data->mclk_latency_table.entries[j].latency =
+-						vega10_get_mem_latency(hwmgr,
+-							dep_table->entries[i].clk);
++				data->mclk_latency_table.entries[j].latency = 25;
+ 			j++;		
+ 		}
+ 	}
+-- 
+2.7.4
+

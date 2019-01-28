@@ -1,0 +1,52 @@
+From b391f4c5e68604542ab9603027868de7b5648051 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <rex.zhu@amd.com>
+Date: Thu, 5 Jul 2018 16:45:21 +0800
+Subject: [PATCH 4865/5725] drm/amd/pp: Convert 10KHz to KHz as variable name
+
+The default clock unit in powerplay is 10KHz.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 2 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c | 3 +--
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 2f628c3..e94bffe 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -3820,7 +3820,7 @@ static int vega10_notify_smc_display_config_after_ps_adjustment(
+ 
+ 	if (i < dpm_table->count) {
+ 		clock_req.clock_type = amd_pp_dcef_clock;
+-		clock_req.clock_freq_in_khz = dpm_table->dpm_levels[i].value;
++		clock_req.clock_freq_in_khz = dpm_table->dpm_levels[i].value * 10;
+ 		if (!vega10_display_clock_voltage_request(hwmgr, &clock_req)) {
+ 			smum_send_msg_to_smc_with_parameter(
+ 					hwmgr, PPSMC_MSG_SetMinDeepSleepDcefclk,
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+index 5749287..ed17c56 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.c
+@@ -1361,7 +1361,6 @@ int vega12_display_clock_voltage_request(struct pp_hwmgr *hwmgr,
+ 	if (data->smu_features[GNLD_DPM_DCEFCLK].enabled) {
+ 		switch (clk_type) {
+ 		case amd_pp_dcef_clock:
+-			clk_freq = clock_req->clock_freq_in_khz / 100;
+ 			clk_select = PPCLK_DCEFCLK;
+ 			break;
+ 		case amd_pp_disp_clock:
+@@ -1410,7 +1409,7 @@ static int vega12_notify_smc_display_config_after_ps_adjustment(
+ 
+ 	if (data->smu_features[GNLD_DPM_DCEFCLK].supported) {
+ 		clock_req.clock_type = amd_pp_dcef_clock;
+-		clock_req.clock_freq_in_khz = min_clocks.dcefClock;
++		clock_req.clock_freq_in_khz = min_clocks.dcefClock/10;
+ 		if (!vega12_display_clock_voltage_request(hwmgr, &clock_req)) {
+ 			if (data->smu_features[GNLD_DS_DCEFCLK].supported)
+ 				PP_ASSERT_WITH_CODE(
+-- 
+2.7.4
+

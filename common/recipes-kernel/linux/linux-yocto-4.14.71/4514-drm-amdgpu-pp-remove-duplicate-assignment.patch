@@ -1,0 +1,31 @@
+From 0ee7084c714dead88e20e0ad9df1de97683470b2 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Mon, 21 May 2018 10:16:28 -0500
+Subject: [PATCH 4514/5725] drm/amdgpu/pp: remove duplicate assignment
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+is_dpm_running callback was assigned to the same value
+twice.  Drop the duplicate.
+
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
+index a40f714..2de4895 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
+@@ -2379,6 +2379,5 @@ const struct pp_smumgr_func vegam_smu_funcs = {
+ 	.update_sclk_threshold = vegam_update_sclk_threshold,
+ 	.is_hw_avfs_present = vegam_is_hw_avfs_present,
+ 	.thermal_avfs_enable = vegam_thermal_avfs_enable,
+-	.is_dpm_running = vegam_is_dpm_running,
+ 	.thermal_setup_fan_table = vegam_thermal_setup_fan_table,
+ };
+-- 
+2.7.4
+

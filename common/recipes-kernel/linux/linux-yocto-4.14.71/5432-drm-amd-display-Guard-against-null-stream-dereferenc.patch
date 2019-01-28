@@ -1,0 +1,61 @@
+From 51970066886573e65ae6cec0c6f3399019709247 Mon Sep 17 00:00:00 2001
+From: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Date: Tue, 11 Sep 2018 14:29:47 -0400
+Subject: [PATCH 5432/5725] drm/amd/display: Guard against null stream
+ dereference in do flip
+
+[Why]
+
+During suspend under some hardware configurations can result in a
+series of atomic commits with a NULL stream status - which
+causes a NULL pointer dereference. This should be guarded.
+
+[How]
+
+Exit early from the function - if we can't access the stream then
+there isn't anything that can be done here.
+
+Change-Id: Ie846cce9eba7098b77cac87122c41a2ae69bf905
+Signed-off-by: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Reviewed-by: Harry Wentland <Harry.Wentland@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 684bac8..9c1654d 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -4352,6 +4352,7 @@ static void amdgpu_dm_do_flip(struct drm_crtc *crtc,
+ 	/* TODO eliminate or rename surface_update */
+ 	struct dc_surface_update surface_updates[1] = { {0} };
+ 	struct dm_crtc_state *acrtc_state = to_dm_crtc_state(crtc->state);
++	struct dc_stream_status *stream_status;
+ 
+ 
+ 	/* Prepare wait for target vblank early - before the fence-waits */
+@@ -4409,7 +4410,19 @@ static void amdgpu_dm_do_flip(struct drm_crtc *crtc,
+ 
+ 	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
+ 
+-	surface_updates->surface = dc_stream_get_status(acrtc_state->stream)->plane_states[0];
++	stream_status = dc_stream_get_status(acrtc_state->stream);
++	if (!stream_status) {
++		DRM_ERROR("No stream status for CRTC: id=%d\n",
++			acrtc->crtc_id);
++		return;
++	}
++
++	surface_updates->surface = stream_status->plane_states[0];
++	if (!surface_updates->surface) {
++		DRM_ERROR("No surface for CRTC: id=%d\n",
++			acrtc->crtc_id);
++		return;
++	}
+ 	surface_updates->flip_addr = &addr;
+ 
+ 	dc_commit_updates_for_stream(adev->dm.dc,
+-- 
+2.7.4
+

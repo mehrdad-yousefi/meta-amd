@@ -1,0 +1,39 @@
+From 63eac2d24dff8a350a71a1dcd3ed2ad5c4bcf983 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Wed, 22 Aug 2018 14:11:19 +0200
+Subject: [PATCH 5341/5725] drm/amdgpu: add amdgpu_gmc_get_pde_for_bo helper v2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Helper to get the PDE for a PD/PT.
+
+v2: improve documentation
+
+Change-Id: I292ed8fe0ac5c31119568532ccd09c4981d8e5a8
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 04bc197..4c7e231 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1490,9 +1490,6 @@ uint64_t amdgpu_ttm_tt_pde_flags(struct ttm_tt *ttm, struct ttm_mem_reg *mem)
+ 			flags |= AMDGPU_PTE_SNOOPED;
+ 	}
+ 
+-	if (mem && mem->mem_type == AMDGPU_PL_DGMA_IMPORT)
+-		flags |= AMDGPU_PTE_SYSTEM;
+-
+ 	return flags;
+ }
+ 
+-- 
+2.7.4
+

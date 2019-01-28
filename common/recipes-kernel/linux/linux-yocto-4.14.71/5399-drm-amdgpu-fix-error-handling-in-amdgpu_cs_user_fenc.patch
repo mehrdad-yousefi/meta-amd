@@ -1,0 +1,69 @@
+From 89d9d72014cafc00f722161e1aa002a4c1083125 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 10 Sep 2018 15:52:55 +0200
+Subject: [PATCH 5399/5725] drm/amdgpu: fix error handling in
+ amdgpu_cs_user_fence_chunk
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Slowly leaking memory one page at a time :)
+
+Change-Id: Ia4831bb463402e5ae7b851c96f9deefb8ec6b7f6
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 23 +++++++++++++++--------
+ 1 file changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index a22d8ce..151eba0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -40,6 +40,7 @@ static int amdgpu_cs_user_fence_chunk(struct amdgpu_cs_parser *p,
+ {
+ 	struct drm_gem_object *gobj;
+ 	unsigned long size;
++	int r;
+ 
+ 	gobj = drm_gem_object_lookup(p->filp, data->handle);
+ 	if (gobj == NULL)
+@@ -51,20 +52,26 @@ static int amdgpu_cs_user_fence_chunk(struct amdgpu_cs_parser *p,
+ 	p->uf_entry.tv.shared = true;
+ 	p->uf_entry.user_pages = NULL;
+ 
+-	size = amdgpu_bo_size(p->uf_entry.robj);
+-	if (size != PAGE_SIZE || (data->offset + 8) > size)
+-		return -EINVAL;
+-
+-	*offset = data->offset;
+-
+ 	drm_gem_object_put_unlocked(gobj);
+ 
++	size = amdgpu_bo_size(p->uf_entry.robj);
++	if (size != PAGE_SIZE || (data->offset + 8) > size) {
++		r = -EINVAL;
++		goto error_unref;
++	}
++
+ 	if (amdgpu_ttm_tt_get_usermm(p->uf_entry.robj->tbo.ttm)) {
+-		amdgpu_bo_unref(&p->uf_entry.robj);
+-		return -EINVAL;
++		r = -EINVAL;
++		goto error_unref;
+ 	}
+ 
++	*offset = data->offset;
++
+ 	return 0;
++
++error_unref:
++	amdgpu_bo_unref(&p->uf_entry.robj);
++	return r;
+ }
+ 
+ static int amdgpu_cs_bo_handles_chunk(struct amdgpu_cs_parser *p,
+-- 
+2.7.4
+

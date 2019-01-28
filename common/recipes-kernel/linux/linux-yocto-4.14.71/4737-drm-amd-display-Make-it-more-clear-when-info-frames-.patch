@@ -1,0 +1,49 @@
+From b6dd520fb68fdc0add7c8fd88b38c67dab096122 Mon Sep 17 00:00:00 2001
+From: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Date: Wed, 30 May 2018 10:57:32 -0400
+Subject: [PATCH 4737/5725] drm/amd/display: Make it more clear when info
+ frames affect DP or HDMI
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 383b63d..57d8113 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -665,16 +665,25 @@ static enum dc_status bios_parser_crtc_source_select(
+ 
+ void dce110_update_info_frame(struct pipe_ctx *pipe_ctx)
+ {
++	bool is_hdmi;
++	bool is_dp;
++
+ 	ASSERT(pipe_ctx->stream);
+ 
+ 	if (pipe_ctx->stream_res.stream_enc == NULL)
+ 		return;  /* this is not root pipe */
+ 
+-	if (dc_is_hdmi_signal(pipe_ctx->stream->signal))
++	is_hdmi = dc_is_hdmi_signal(pipe_ctx->stream->signal);
++	is_dp = dc_is_dp_signal(pipe_ctx->stream->signal);
++
++	if (!is_hdmi && !is_dp)
++		return;
++
++	if (is_hdmi)
+ 		pipe_ctx->stream_res.stream_enc->funcs->update_hdmi_info_packets(
+ 			pipe_ctx->stream_res.stream_enc,
+ 			&pipe_ctx->stream_res.encoder_info_frame);
+-	else if (dc_is_dp_signal(pipe_ctx->stream->signal))
++	else
+ 		pipe_ctx->stream_res.stream_enc->funcs->update_dp_info_packets(
+ 			pipe_ctx->stream_res.stream_enc,
+ 			&pipe_ctx->stream_res.encoder_info_frame);
+-- 
+2.7.4
+

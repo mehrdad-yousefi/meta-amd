@@ -1,0 +1,47 @@
+From 7ea148f4ee22cf0f05e45ad384f11c8f1072e96f Mon Sep 17 00:00:00 2001
+From: Gary Kattan <gary.kattan@amd.com>
+Date: Mon, 20 Aug 2018 15:12:14 -0700
+Subject: [PATCH 5352/5725] drm/amd/display: Fix DAL217 tests modify DTN logs
+ for other tests
+
+[Why]Update Code to get DTN golden log check to pass for tests run after
+DAL217 tests.
+[How]Change how dcn10_log_hw_state function prints HW state info
+(CM_GAMUT_REMAP_Cx_Cx registers) when GAMUT REMAP is in bypass mode.
+
+Change-Id: I2c116ab220a7c2582c011474f6e5d7ab3018cde6
+Signed-off-by: Gary Kattan <gary.kattan@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+index 5f2054a..dcb3c55 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+@@ -116,12 +116,14 @@ void dpp_read_state(struct dpp *dpp_base,
+ 	REG_GET(CM_GAMUT_REMAP_CONTROL,
+ 			CM_GAMUT_REMAP_MODE, &s->gamut_remap_mode);
+ 
+-	s->gamut_remap_c11_c12 = REG_READ(CM_GAMUT_REMAP_C11_C12);
+-	s->gamut_remap_c13_c14 = REG_READ(CM_GAMUT_REMAP_C13_C14);
+-	s->gamut_remap_c21_c22 = REG_READ(CM_GAMUT_REMAP_C21_C22);
+-	s->gamut_remap_c23_c24 = REG_READ(CM_GAMUT_REMAP_C23_C24);
+-	s->gamut_remap_c31_c32 = REG_READ(CM_GAMUT_REMAP_C31_C32);
+-	s->gamut_remap_c33_c34 = REG_READ(CM_GAMUT_REMAP_C33_C34);
++	if (s->gamut_remap_mode) {
++		s->gamut_remap_c11_c12 = REG_READ(CM_GAMUT_REMAP_C11_C12);
++		s->gamut_remap_c13_c14 = REG_READ(CM_GAMUT_REMAP_C13_C14);
++		s->gamut_remap_c21_c22 = REG_READ(CM_GAMUT_REMAP_C21_C22);
++		s->gamut_remap_c23_c24 = REG_READ(CM_GAMUT_REMAP_C23_C24);
++		s->gamut_remap_c31_c32 = REG_READ(CM_GAMUT_REMAP_C31_C32);
++		s->gamut_remap_c33_c34 = REG_READ(CM_GAMUT_REMAP_C33_C34);
++	}
+ }
+ 
+ /* Program gamut remap in bypass mode */
+-- 
+2.7.4
+

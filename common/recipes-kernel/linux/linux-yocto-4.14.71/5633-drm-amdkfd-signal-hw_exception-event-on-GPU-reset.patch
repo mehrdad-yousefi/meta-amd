@@ -1,0 +1,62 @@
+From 50f70911de48a5002f7aa4bb871bb7417fd9bdf9 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Tue, 3 Apr 2018 16:11:00 -0400
+Subject: [PATCH 5633/5725] drm/amdkfd: signal hw_exception event on GPU reset
+
+Change-Id: I8fae18208103920796f81858f359a9cec563125c
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_events.c | 24 +++++++++++++++++++++++-
+ drivers/gpu/drm/amd/amdkfd/kfd_events.h |  1 +
+ 2 files changed, 24 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_events.c b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+index 09c1c31..24d8a21 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_events.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_events.c
+@@ -1012,5 +1012,27 @@ void kfd_signal_vm_fault_event(struct kfd_dev *dev, unsigned int pasid,
+ 
+ void kfd_signal_reset_event(struct kfd_dev *dev)
+ {
+-	/*todo*/
++	struct kfd_hsa_hw_exception_data hw_exception_data;
++	struct kfd_process *p;
++	struct kfd_event *ev;
++	unsigned int temp;
++	uint32_t id, idx;
++
++	/* Whole gpu reset caused by GPU hang , and  memory is lost */
++	memset(&hw_exception_data, 0, sizeof(hw_exception_data));
++	hw_exception_data.gpu_id = dev->id;
++	hw_exception_data.memory_lost = 1;
++
++	idx  = srcu_read_lock(&kfd_processes_srcu);
++	hash_for_each_rcu(kfd_processes_table, temp, p, kfd_processes) {
++		mutex_lock(&p->event_mutex);
++		id = KFD_FIRST_NONSIGNAL_EVENT_ID;
++		idr_for_each_entry_continue(&p->event_idr, ev, id)
++			if (ev->type == KFD_EVENT_TYPE_HW_EXCEPTION) {
++				ev->hw_exception_data = hw_exception_data;
++				set_event(ev);
++			}
++		mutex_unlock(&p->event_mutex);
++	}
++	srcu_read_unlock(&kfd_processes_srcu, idx);
+ }
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_events.h b/drivers/gpu/drm/amd/amdkfd/kfd_events.h
+index abca5bf..c7ac6c7 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_events.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_events.h
+@@ -66,6 +66,7 @@ struct kfd_event {
+ 	/* type specific data */
+ 	union {
+ 		struct kfd_hsa_memory_exception_data memory_exception_data;
++		struct kfd_hsa_hw_exception_data hw_exception_data;
+ 	};
+ };
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,71 @@
+From 2f2068367c27c186c4bd2dd5ae6807022f32c7f5 Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Tue, 8 May 2018 17:09:49 -0400
+Subject: [PATCH 4536/5725] drm/amd/display: add config for sending VSIF
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c       | 1 +
+ drivers/gpu/drm/amd/display/modules/freesync/freesync.c | 3 ++-
+ drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h  | 2 ++
+ 3 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 3bf451f..a0b16ac 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -4763,6 +4763,7 @@ void set_freesync_on_stream(struct amdgpu_display_manager *dm,
+                                 aconnector->min_vfreq * 1000000;
+                 config.max_refresh_in_uhz =
+                                 aconnector->max_vfreq * 1000000;
++		config.vsif_supported = true;
+         }
+ 
+         mod_freesync_build_vrr_params(dm->freesync_module,
+diff --git a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+index 769f467..e168890 100644
+--- a/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
++++ b/drivers/gpu/drm/amd/display/modules/freesync/freesync.c
+@@ -492,7 +492,7 @@ void mod_freesync_build_vrr_infopacket(struct mod_freesync *mod_freesync,
+ 	/* Check if Freesync is supported. Return if false. If true,
+ 	 * set the corresponding bit in the info packet
+ 	 */
+-	if (!vrr->supported)
++	if (!vrr->supported || !vrr->send_vsif)
+ 		return;
+ 
+ 	if (dc_is_hdmi_signal(stream->signal)) {
+@@ -634,6 +634,7 @@ void mod_freesync_build_vrr_params(struct mod_freesync *mod_freesync,
+ 		return;
+ 
+ 	in_out_vrr->state = in_config->state;
++	in_out_vrr->send_vsif = in_config->vsif_supported;
+ 
+ 	if (in_config->state == VRR_STATE_UNSUPPORTED) {
+ 		in_out_vrr->state = VRR_STATE_UNSUPPORTED;
+diff --git a/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h b/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h
+index 85c98af..a0f32cd 100644
+--- a/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h
++++ b/drivers/gpu/drm/amd/display/modules/inc/mod_freesync.h
+@@ -78,6 +78,7 @@ enum mod_vrr_state {
+ 
+ struct mod_freesync_config {
+ 	enum mod_vrr_state state;
++	bool vsif_supported;
+ 	bool ramping;
+ 	bool btr;
+ 	unsigned int min_refresh_in_uhz;
+@@ -103,6 +104,7 @@ struct mod_vrr_params_fixed_refresh {
+ 
+ struct mod_vrr_params {
+ 	bool supported;
++	bool send_vsif;
+ 	enum mod_vrr_state state;
+ 
+ 	uint32_t min_refresh_in_uhz;
+-- 
+2.7.4
+

@@ -1,0 +1,205 @@
+From 3fafa0e86b60212fd6fd117df600aa7096478202 Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Wed, 27 Jun 2018 17:25:53 -0400
+Subject: [PATCH 5397/5725] drm/amdgpu : Generate XGMI topology info from
+ driver level
+
+Driver will save an array of XGMI hive info, each hive will have a list of devices
+that have the same hive ID.
+
+Change-Id: Ia2934d5b624cffa3283bc0a37679eddbd387cbdd
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/Makefile        |   2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h        |   6 ++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c |   1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h    |   2 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_xgmi.c   | 119 +++++++++++++++++++++++++++++
+ 5 files changed, 129 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_xgmi.c
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/Makefile b/drivers/gpu/drm/amd/amdgpu/Makefile
+index 8c34388..3311402 100644
+--- a/drivers/gpu/drm/amd/amdgpu/Makefile
++++ b/drivers/gpu/drm/amd/amdgpu/Makefile
+@@ -52,7 +52,7 @@ amdgpu-y += amdgpu_device.o amdgpu_kms.o \
+ 	amdgpu_ucode.o amdgpu_bo_list.o amdgpu_ctx.o amdgpu_sync.o \
+ 	amdgpu_gtt_mgr.o amdgpu_vram_mgr.o amdgpu_virt.o amdgpu_atomfirmware.o \
+ 	amdgpu_queue_mgr.o amdgpu_vf_error.o amdgpu_sched.o amdgpu_sem.o amdgpu_gmc.o amdgpu_amdkfd_fence.o \
+-	amdgpu_debugfs.o amdgpu_ids.o
++	amdgpu_debugfs.o amdgpu_ids.o amdgpu_xgmi.o
+ 
+ # add asic specific block
+ amdgpu-$(CONFIG_DRM_AMDGPU_CIK)+= cik.o cik_ih.o kv_smc.o kv_dpm.o \
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index c7736d0..80fc9b3 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -1281,6 +1281,12 @@ void amdgpu_disable_vblank_kms(struct drm_device *dev, unsigned int pipe);
+ long amdgpu_kms_compat_ioctl(struct file *filp, unsigned int cmd,
+ 			     unsigned long arg);
+ 
++
++/*
++ * functions used by amdgpu_xgmi.c
++ */
++int amdgpu_xgmi_add_device(struct amdgpu_device *adev);
++
+ /*
+  * functions used by amdgpu_encoder.c
+  */
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 2db51ef..128ed6c 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1645,6 +1645,7 @@ static int amdgpu_device_ip_init(struct amdgpu_device *adev)
+ 		adev->ip_blocks[i].status.hw = true;
+ 	}
+ 
++	amdgpu_xgmi_add_device(adev);
+ 	amdgpu_amdkfd_device_init(adev);
+ 
+ 	if (amdgpu_sriov_vf(adev))
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+index 491100f..313442e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+@@ -97,6 +97,8 @@ struct amdgpu_xgmi {
+ 	unsigned physical_node_id;
+ 	/* number of nodes (0-4) */
+ 	unsigned num_physical_nodes;
++	/* gpu list in the same hive */
++	struct list_head head;
+ };
+ 
+ struct amdgpu_gmc {
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_xgmi.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_xgmi.c
+new file mode 100644
+index 0000000..897afbb
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_xgmi.c
+@@ -0,0 +1,119 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ *
++ */
++#include <linux/list.h>
++#include "amdgpu.h"
++#include "amdgpu_psp.h"
++
++
++static DEFINE_MUTEX(xgmi_mutex);
++
++#define AMDGPU_MAX_XGMI_HIVE			8
++#define AMDGPU_MAX_XGMI_DEVICE_PER_HIVE		4
++
++struct amdgpu_hive_info {
++	uint64_t		hive_id;
++	struct list_head	device_list;
++};
++
++static struct amdgpu_hive_info xgmi_hives[AMDGPU_MAX_XGMI_HIVE];
++static unsigned hive_count = 0;
++
++static struct amdgpu_hive_info *amdgpu_get_xgmi_hive(struct amdgpu_device *adev)
++{
++	int i;
++	struct amdgpu_hive_info *tmp;
++
++	if (!adev->gmc.xgmi.hive_id)
++		return NULL;
++	for (i = 0 ; i < hive_count; ++i) {
++		tmp = &xgmi_hives[i];
++		if (tmp->hive_id == adev->gmc.xgmi.hive_id)
++			return tmp;
++	}
++	if (i >= AMDGPU_MAX_XGMI_HIVE)
++		return NULL;
++
++	/* initialize new hive if not exist */
++	tmp = &xgmi_hives[hive_count++];
++	tmp->hive_id = adev->gmc.xgmi.hive_id;
++	INIT_LIST_HEAD(&tmp->device_list);
++	return tmp;
++}
++
++int amdgpu_xgmi_add_device(struct amdgpu_device *adev)
++{
++	struct psp_xgmi_topology_info tmp_topology[AMDGPU_MAX_XGMI_DEVICE_PER_HIVE];
++	struct amdgpu_hive_info *hive;
++	struct amdgpu_xgmi	*entry;
++	struct amdgpu_device 	*tmp_adev;
++
++	int count = 0, ret = -EINVAL;
++
++	if ((adev->asic_type < CHIP_VEGA20) ||
++		(adev->flags & AMD_IS_APU) )
++		return 0;
++	adev->gmc.xgmi.device_id = psp_xgmi_get_device_id(&adev->psp);
++	adev->gmc.xgmi.hive_id = psp_xgmi_get_hive_id(&adev->psp);
++
++	memset(&tmp_topology[0], 0, sizeof(tmp_topology));
++	mutex_lock(&xgmi_mutex);
++	hive = amdgpu_get_xgmi_hive(adev);
++	if (!hive)
++		goto exit;
++
++	list_add_tail(&adev->gmc.xgmi.head, &hive->device_list);
++	list_for_each_entry(entry, &hive->device_list, head)
++		tmp_topology[count++].device_id = entry->device_id;
++
++	ret = psp_xgmi_get_topology_info(&adev->psp, count, tmp_topology);
++	if (ret) {
++		dev_err(adev->dev,
++			"XGMI: Get topology failure on device %llx, hive %llx, ret %d",
++			adev->gmc.xgmi.device_id,
++			adev->gmc.xgmi.hive_id, ret);
++		goto exit;
++	}
++	/* Each psp need to set the latest topology */
++	list_for_each_entry(tmp_adev, &hive->device_list, gmc.xgmi.head) {
++		ret = psp_xgmi_set_topology_info(&tmp_adev->psp, count, tmp_topology);
++		if (ret) {
++			dev_err(tmp_adev->dev,
++				"XGMI: Set topology failure on device %llx, hive %llx, ret %d",
++				tmp_adev->gmc.xgmi.device_id,
++				tmp_adev->gmc.xgmi.hive_id, ret);
++			/* To do : continue with some  node failed or disable the  whole  hive */
++			break;
++		}
++	}
++	if (!ret)
++		dev_info(adev->dev, "XGMI: Add node %d to hive 0x%llx.\n",
++			adev->gmc.xgmi.physical_node_id,
++			adev->gmc.xgmi.hive_id);
++
++exit:
++	mutex_unlock(&xgmi_mutex);
++	return ret;
++}
++
++
+-- 
+2.7.4
+

@@ -1,0 +1,240 @@
+From 2faf9a526fde349ce29fbd76bd448525dd4a3dd0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Mon, 27 Aug 2018 18:22:31 +0200
+Subject: [PATCH 5348/5725] drm/amdgpu: correctly sign extend 48bit addresses
+ v3
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Correct sign extend the GMC addresses to 48bit.
+
+v2: sign extending turned out easier than thought.
+v3: clean up the defines and move them into amdgpu_gmc.h as well
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c |  2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c     |  2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c    | 10 +++++-----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h    | 26 ++++++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c    |  8 ++++----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c |  2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c   |  6 ++----
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c     |  7 ++++---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h     | 13 -------------
+ 9 files changed, 44 insertions(+), 32 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+index 589eca8..9ff80a5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
+@@ -158,7 +158,7 @@ void amdgpu_amdkfd_device_init(struct amdgpu_device *adev)
+ 			.num_queue_per_pipe = adev->gfx.mec.num_queue_per_pipe,
+ 			.gpuvm_size = min(adev->vm_manager.max_pfn
+ 					  << AMDGPU_GPU_PAGE_SHIFT,
+-					  AMDGPU_VA_HOLE_START),
++					  AMDGPU_GMC_HOLE_START),
+ 			.drm_render_minor = adev->ddev->render->index
+ 		};
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 67551d4..a22d8ce 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -920,7 +920,7 @@ static int amdgpu_cs_ib_vm_chunk(struct amdgpu_device *adev,
+ 			if (chunk->chunk_id != AMDGPU_CHUNK_ID_IB)
+ 				continue;
+ 
+-			va_start = chunk_ib->va_start & AMDGPU_VA_HOLE_MASK;
++			va_start = chunk_ib->va_start & AMDGPU_GMC_HOLE_MASK;
+ 			r = amdgpu_cs_find_mapping(p, va_start, &aobj, &m);
+ 			if (r) {
+ 				DRM_ERROR("IB va_start is invalid\n");
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index 3cd2b29..fc6da55 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -716,16 +716,16 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
+ 		return -EINVAL;
+ 	}
+ 
+-	if (args->va_address >= AMDGPU_VA_HOLE_START &&
+-	    args->va_address < AMDGPU_VA_HOLE_END) {
++	if (args->va_address >= AMDGPU_GMC_HOLE_START &&
++	    args->va_address < AMDGPU_GMC_HOLE_END) {
+ 		dev_dbg(&dev->pdev->dev,
+ 			"va_address 0x%LX is in VA hole 0x%LX-0x%LX\n",
+-			args->va_address, AMDGPU_VA_HOLE_START,
+-			AMDGPU_VA_HOLE_END);
++			args->va_address, AMDGPU_GMC_HOLE_START,
++			AMDGPU_GMC_HOLE_END);
+ 		return -EINVAL;
+ 	}
+ 
+-	args->va_address &= AMDGPU_VA_HOLE_MASK;
++	args->va_address &= AMDGPU_GMC_HOLE_MASK;
+ 
+ 	if ((args->flags & ~valid_flags) && (args->flags & ~prt_flags)) {
+ 		dev_dbg(&dev->pdev->dev, "invalid flags combination 0x%08X\n",
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+index 75447d9..167aaf9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h
+@@ -30,6 +30,19 @@
+ 
+ #include "amdgpu_irq.h"
+ 
++/* VA hole for 48bit addresses on Vega10 */
++#define AMDGPU_GMC_HOLE_START	0x0000800000000000ULL
++#define AMDGPU_GMC_HOLE_END	0xffff800000000000ULL
++
++/*
++ * Hardware is programmed as if the hole doesn't exists with start and end
++ * address values.
++ *
++ * This mask is used to remove the upper 16bits of the VA and so come up with
++ * the linear addr value.
++ */
++#define AMDGPU_GMC_HOLE_MASK	0x0000ffffffffffffULL
++
+ struct firmware;
+ 
+ /*
+@@ -137,6 +150,19 @@ static inline bool amdgpu_gmc_vram_full_visible(struct amdgpu_gmc *gmc)
+ 	return (gmc->real_vram_size == gmc->visible_vram_size);
+ }
+ 
++/**
++ * amdgpu_gmc_sign_extend - sign extend the given gmc address
++ *
++ * @addr: address to extend
++ */
++static inline uint64_t amdgpu_gmc_sign_extend(uint64_t addr)
++{
++	if (addr >= AMDGPU_GMC_HOLE_START)
++		addr |= AMDGPU_GMC_HOLE_END;
++
++	return addr;
++}
++
+ void amdgpu_gmc_get_pde_for_bo(struct amdgpu_bo *bo, int level,
+ 			       uint64_t *addr, uint64_t *flags);
+ uint64_t amdgpu_gmc_pd_addr(struct amdgpu_bo *bo);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index bca3e2c..42b9d30 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -659,11 +659,11 @@ static int amdgpu_info_ioctl(struct drm_device *dev, void *data, struct drm_file
+ 
+ 		dev_info.virtual_address_offset = AMDGPU_VA_RESERVED_SIZE;
+ 		dev_info.virtual_address_max =
+-			min(vm_size, AMDGPU_VA_HOLE_START);
++			min(vm_size, AMDGPU_GMC_HOLE_START);
+ 
+-		if (vm_size > AMDGPU_VA_HOLE_START) {
+-			dev_info.high_va_offset = AMDGPU_VA_HOLE_END;
+-			dev_info.high_va_max = AMDGPU_VA_HOLE_END | vm_size;
++		if (vm_size > AMDGPU_GMC_HOLE_START) {
++			dev_info.high_va_offset = AMDGPU_GMC_HOLE_END;
++			dev_info.high_va_max = AMDGPU_GMC_HOLE_END | vm_size;
+ 		}
+ 		dev_info.virtual_address_alignment = max((int)PAGE_SIZE, AMDGPU_GPU_PAGE_SIZE);
+ 		dev_info.pte_fragment_size = (1 << adev->vm_manager.fragment_size) * AMDGPU_GPU_PAGE_SIZE;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index a43ec44..b2947f4 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -1387,7 +1387,7 @@ u64 amdgpu_bo_gpu_offset(struct amdgpu_bo *bo)
+ 		     !(bo->flags & AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS));
+ 	WARN_ON_ONCE(bo->tbo.mem.mem_type == AMDGPU_PL_DGMA_IMPORT);
+ 
+-	return bo->tbo.offset;
++	return amdgpu_gmc_sign_extend(bo->tbo.offset);
+ }
+ 
+ /**
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
+index 3885636..f2f358a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_virt.c
+@@ -28,9 +28,7 @@ uint64_t amdgpu_csa_vaddr(struct amdgpu_device *adev)
+ 	uint64_t addr = adev->vm_manager.max_pfn << AMDGPU_GPU_PAGE_SHIFT;
+ 
+ 	addr -= AMDGPU_VA_RESERVED_SIZE;
+-
+-	if (addr >= AMDGPU_VA_HOLE_START)
+-		addr |= AMDGPU_VA_HOLE_END;
++	addr = amdgpu_gmc_sign_extend(addr);
+ 
+ 	return addr;
+ }
+@@ -73,7 +71,7 @@ void amdgpu_free_static_csa(struct amdgpu_device *adev) {
+ int amdgpu_map_static_csa(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 			  struct amdgpu_bo_va **bo_va)
+ {
+-	uint64_t csa_addr = amdgpu_csa_vaddr(adev) & AMDGPU_VA_HOLE_MASK;
++	uint64_t csa_addr = amdgpu_csa_vaddr(adev) & AMDGPU_GMC_HOLE_MASK;
+ 	struct ww_acquire_ctx ticket;
+ 	struct list_head list;
+ 	struct amdgpu_bo_list_entry pd;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 8b83cc4..063f0d0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -369,7 +369,7 @@ static int amdgpu_vm_clear_bo(struct amdgpu_device *adev,
+ 		if (level == adev->vm_manager.root_level) {
+ 			ats_entries = amdgpu_vm_level_shift(adev, level);
+ 			ats_entries += AMDGPU_GPU_PAGE_SHIFT;
+-			ats_entries = AMDGPU_VA_HOLE_START >> ats_entries;
++			ats_entries = AMDGPU_GMC_HOLE_START >> ats_entries;
+ 			ats_entries = min(ats_entries, entries);
+ 			entries -= ats_entries;
+ 		} else {
+@@ -599,7 +599,7 @@ int amdgpu_vm_alloc_pts(struct amdgpu_device *adev,
+ 	eaddr = saddr + size - 1;
+ 
+ 	if (vm->pte_support_ats)
+-		ats = saddr < AMDGPU_VA_HOLE_START;
++		ats = saddr < AMDGPU_GMC_HOLE_START;
+ 
+ 	saddr /= AMDGPU_GPU_PAGE_SIZE;
+ 	eaddr /= AMDGPU_GPU_PAGE_SIZE;
+@@ -1921,7 +1921,8 @@ int amdgpu_vm_clear_freed(struct amdgpu_device *adev,
+ 			struct amdgpu_bo_va_mapping, list);
+ 		list_del(&mapping->list);
+ 
+-		if (vm->pte_support_ats && mapping->start < AMDGPU_VA_HOLE_START)
++		if (vm->pte_support_ats &&
++		    mapping->start < AMDGPU_GMC_HOLE_START)
+ 			init_pte_value = AMDGPU_PTE_DEFAULT_ATC;
+ 
+ 		r = amdgpu_vm_bo_update_mapping(adev, NULL, NULL, vm,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 74c3b59..2cc41ef 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -103,19 +103,6 @@ struct amdgpu_bo_list_entry;
+ /* hardcode that limit for now */
+ #define AMDGPU_VA_RESERVED_SIZE			(1ULL << 20)
+ 
+-/* VA hole for 48bit addresses on Vega10 */
+-#define AMDGPU_VA_HOLE_START			0x0000800000000000ULL
+-#define AMDGPU_VA_HOLE_END			0xffff800000000000ULL
+-
+-/*
+- * Hardware is programmed as if the hole doesn't exists with start and end
+- * address values.
+- *
+- * This mask is used to remove the upper 16bits of the VA and so come up with
+- * the linear addr value.
+- */
+-#define AMDGPU_VA_HOLE_MASK			0x0000ffffffffffffULL
+-
+ /* max vmids dedicated for process */
+ #define AMDGPU_VM_MAX_RESERVED_VMID	1
+ 
+-- 
+2.7.4
+

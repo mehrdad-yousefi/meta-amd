@@ -1,0 +1,77 @@
+From c0192997187267019f2a5b514211c1839ec470a2 Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Thu, 12 Apr 2018 10:46:22 -0400
+Subject: [PATCH 4184/5725] Revert "drm/amd/display: disable CRTCs with NULL FB
+ on their primary plane (V2)"
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This seems to cause flickering and lock-ups for a wide range of users.
+Revert until we've found a proper fix for the flickering and lock-ups.
+
+This reverts commit 36cc549d59864b7161f0e23d710c1c4d1b9cf022.
+
+Cc: Shirish S <shirish.s@amd.com>
+Cc: Alex Deucher <alexander.deucher@amd.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+
+Change-Id: I200f4cc297e80d0a6673bf286853feaf5a8a8fe1
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 27 -----------------------
+ 1 file changed, 27 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 4bcd7f4..4760ff4 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -5098,30 +5098,6 @@ static int dm_update_planes_state(struct dc *dc,
+ 	return ret;
+ }
+ 
+-static int dm_atomic_check_plane_state_fb(struct drm_atomic_state *state,
+-					  struct drm_crtc *crtc)
+-{
+-	struct drm_plane *plane;
+-	struct drm_crtc_state *crtc_state;
+-
+-	WARN_ON(!drm_atomic_get_new_crtc_state(state, crtc));
+-
+-	drm_for_each_plane_mask(plane, state->dev, crtc->state->plane_mask) {
+-		struct drm_plane_state *plane_state =
+-			drm_atomic_get_plane_state(state, plane);
+-
+-		if (IS_ERR(plane_state))
+-			return -EDEADLK;
+-
+-		crtc_state = drm_atomic_get_crtc_state(plane_state->state, crtc);
+-		if (crtc->primary == plane && crtc_state->active) {
+-			if (!plane_state->fb)
+-				return -EINVAL;
+-		}
+-	}
+-	return 0;
+-}
+-
+ static int amdgpu_dm_atomic_check(struct drm_device *dev,
+ 				  struct drm_atomic_state *state)
+ {
+@@ -5148,9 +5124,6 @@ static int amdgpu_dm_atomic_check(struct drm_device *dev,
+                 struct dm_crtc_state *dm_new_crtc_state = to_dm_crtc_state(new_crtc_state);
+                 struct dm_crtc_state *dm_old_crtc_state  = to_dm_crtc_state(old_crtc_state);
+ 
+-                ret = dm_atomic_check_plane_state_fb(state, crtc);
+-                if (ret)
+-                        goto fail;
+                 if (!drm_atomic_crtc_needs_modeset(new_crtc_state) &&
+                     !new_crtc_state->color_mgmt_changed &&
+                     (dm_old_crtc_state->freesync_enabled == dm_new_crtc_state->freesync_enabled))
+-- 
+2.7.4
+

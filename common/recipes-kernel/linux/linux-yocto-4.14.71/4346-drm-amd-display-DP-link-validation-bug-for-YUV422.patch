@@ -1,0 +1,78 @@
+From ecce06487bbc9787f429050e7a366b4bf646841e Mon Sep 17 00:00:00 2001
+From: Hersen Wu <hersenxs.wu@amd.com>
+Date: Wed, 11 Apr 2018 15:22:10 -0400
+Subject: [PATCH 4346/5725] drm/amd/display: DP link validation bug for YUV422
+
+remove limit YUV422 color depth to 24bits which is
+workaround for old ASIC
+
+Signed-off-by: Hersen Wu <hersenxs.wu@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c | 47 +++++++++++-------------
+ 1 file changed, 21 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+index 7f0fdf7..cb376cf 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link_dp.c
+@@ -1379,34 +1379,29 @@ static uint32_t bandwidth_in_kbps_from_timing(
+ 	uint32_t bits_per_channel = 0;
+ 	uint32_t kbps;
+ 
+-	if (timing->pixel_encoding == PIXEL_ENCODING_YCBCR422)
++	switch (timing->display_color_depth) {
++	case COLOR_DEPTH_666:
++		bits_per_channel = 6;
++		break;
++	case COLOR_DEPTH_888:
++		bits_per_channel = 8;
++		break;
++	case COLOR_DEPTH_101010:
++		bits_per_channel = 10;
++		break;
++	case COLOR_DEPTH_121212:
+ 		bits_per_channel = 12;
+-	else{
+-
+-		switch (timing->display_color_depth) {
+-
+-		case COLOR_DEPTH_666:
+-			bits_per_channel = 6;
+-			break;
+-		case COLOR_DEPTH_888:
+-			bits_per_channel = 8;
+-			break;
+-		case COLOR_DEPTH_101010:
+-			bits_per_channel = 10;
+-			break;
+-		case COLOR_DEPTH_121212:
+-			bits_per_channel = 12;
+-			break;
+-		case COLOR_DEPTH_141414:
+-			bits_per_channel = 14;
+-			break;
+-		case COLOR_DEPTH_161616:
+-			bits_per_channel = 16;
+-			break;
+-		default:
+-			break;
+-		}
++		break;
++	case COLOR_DEPTH_141414:
++		bits_per_channel = 14;
++		break;
++	case COLOR_DEPTH_161616:
++		bits_per_channel = 16;
++		break;
++	default:
++		break;
+ 	}
++
+ 	ASSERT(bits_per_channel != 0);
+ 
+ 	kbps = timing->pix_clk_khz;
+-- 
+2.7.4
+

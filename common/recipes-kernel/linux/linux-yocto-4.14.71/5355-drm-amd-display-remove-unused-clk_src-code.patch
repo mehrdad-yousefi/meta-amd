@@ -1,0 +1,137 @@
+From 121ca5763d0c15f114d9a1c2bc02285429243b7c Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Mon, 30 Jul 2018 14:45:42 -0400
+Subject: [PATCH 5355/5725] drm/amd/display: remove unused clk_src code
+
+Change-Id: I54e39a4387c5abeec56a53e1a0a094a51b9839fe
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ .../gpu/drm/amd/display/dc/dce/dce_clock_source.c  | 87 +---------------------
+ drivers/gpu/drm/amd/display/dc/inc/clock_source.h  |  4 -
+ 2 files changed, 1 insertion(+), 90 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+index 9b38027..f7b22bcf 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+@@ -622,90 +622,6 @@ static uint32_t dce112_get_pix_clk_dividers(
+ 	return 0;
+ }
+ 
+-static uint32_t dce110_get_pll_pixel_rate_in_hz(
+-	struct clock_source *cs,
+-	struct pixel_clk_params *pix_clk_params,
+-	struct pll_settings *pll_settings)
+-{
+-	uint32_t inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+-	struct dc *dc_core = cs->ctx->dc;
+-	struct dc_state *context = dc_core->current_state;
+-	struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[inst];
+-
+-	/* This function need separate to different DCE version, before separate, just use pixel clock */
+-	return pipe_ctx->stream->phy_pix_clk;
+-
+-}
+-
+-static uint32_t dce110_get_dp_pixel_rate_from_combo_phy_pll(
+-	struct clock_source *cs,
+-	struct pixel_clk_params *pix_clk_params,
+-	struct pll_settings *pll_settings)
+-{
+-	uint32_t inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+-	struct dc *dc_core = cs->ctx->dc;
+-	struct dc_state *context = dc_core->current_state;
+-	struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[inst];
+-
+-	/* This function need separate to different DCE version, before separate, just use pixel clock */
+-	return pipe_ctx->stream->phy_pix_clk;
+-}
+-
+-static uint32_t dce110_get_d_to_pixel_rate_in_hz(
+-	struct clock_source *cs,
+-	struct pixel_clk_params *pix_clk_params,
+-	struct pll_settings *pll_settings)
+-{
+-	uint32_t inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+-	struct dce110_clk_src *clk_src = TO_DCE110_CLK_SRC(cs);
+-	int dto_enabled = 0;
+-	struct fixed31_32 pix_rate;
+-
+-	REG_GET(PIXEL_RATE_CNTL[inst], DP_DTO0_ENABLE, &dto_enabled);
+-
+-	if (dto_enabled) {
+-		uint32_t phase = 0;
+-		uint32_t modulo = 0;
+-		REG_GET(PHASE[inst], DP_DTO0_PHASE, &phase);
+-		REG_GET(MODULO[inst], DP_DTO0_MODULO, &modulo);
+-
+-		if (modulo == 0) {
+-			return 0;
+-		}
+-
+-		pix_rate = dc_fixpt_from_int(clk_src->ref_freq_khz);
+-		pix_rate = dc_fixpt_mul_int(pix_rate, 1000);
+-		pix_rate = dc_fixpt_mul_int(pix_rate, phase);
+-		pix_rate = dc_fixpt_div_int(pix_rate, modulo);
+-
+-		return dc_fixpt_round(pix_rate);
+-	} else {
+-		return dce110_get_dp_pixel_rate_from_combo_phy_pll(cs, pix_clk_params, pll_settings);
+-	}
+-}
+-
+-static uint32_t dce110_get_pix_rate_in_hz(
+-	struct clock_source *cs,
+-	struct pixel_clk_params *pix_clk_params,
+-	struct pll_settings *pll_settings)
+-{
+-	uint32_t pix_rate = 0;
+-	switch (pix_clk_params->signal_type) {
+-	case	SIGNAL_TYPE_DISPLAY_PORT:
+-	case	SIGNAL_TYPE_DISPLAY_PORT_MST:
+-	case	SIGNAL_TYPE_EDP:
+-	case	SIGNAL_TYPE_VIRTUAL:
+-		pix_rate = dce110_get_d_to_pixel_rate_in_hz(cs, pix_clk_params, pll_settings);
+-		break;
+-	case	SIGNAL_TYPE_HDMI_TYPE_A:
+-	default:
+-		pix_rate = dce110_get_pll_pixel_rate_in_hz(cs, pix_clk_params, pll_settings);
+-		break;
+-	}
+-
+-	return pix_rate;
+-}
+-
+ static bool disable_spread_spectrum(struct dce110_clk_src *clk_src)
+ {
+ 	enum bp_result result;
+@@ -1073,8 +989,7 @@ static const struct clock_source_funcs dce112_clk_src_funcs = {
+ static const struct clock_source_funcs dce110_clk_src_funcs = {
+ 	.cs_power_down = dce110_clock_source_power_down,
+ 	.program_pix_clk = dce110_program_pix_clk,
+-	.get_pix_clk_dividers = dce110_get_pix_clk_dividers,
+-	.get_pix_rate_in_hz = dce110_get_pix_rate_in_hz
++	.get_pix_clk_dividers = dce110_get_pix_clk_dividers
+ };
+ 
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/clock_source.h b/drivers/gpu/drm/amd/display/dc/inc/clock_source.h
+index ebcf67b..47ef904 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/clock_source.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/clock_source.h
+@@ -166,10 +166,6 @@ struct clock_source_funcs {
+ 			struct clock_source *,
+ 			struct pixel_clk_params *,
+ 			struct pll_settings *);
+-	uint32_t (*get_pix_rate_in_hz)(
+-			struct clock_source *,
+-			struct pixel_clk_params *,
+-			struct pll_settings *);
+ };
+ 
+ struct clock_source {
+-- 
+2.7.4
+

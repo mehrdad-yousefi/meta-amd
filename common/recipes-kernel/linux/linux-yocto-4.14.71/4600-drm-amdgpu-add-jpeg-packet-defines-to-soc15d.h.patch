@@ -1,0 +1,53 @@
+From 9d5925c4d690032072a58695f2d9c7c427c4a9b2 Mon Sep 17 00:00:00 2001
+From: Boyuan Zhang <boyuan.zhang@amd.com>
+Date: Mon, 30 Apr 2018 16:51:33 -0400
+Subject: [PATCH 4600/5725] drm/amdgpu: add jpeg packet defines to soc15d.h
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add new packet for vcn jpeg, including condition checks, types and packet
+
+Signed-off-by: Boyuan Zhang <boyuan.zhang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/soc15d.h | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/soc15d.h b/drivers/gpu/drm/amd/amdgpu/soc15d.h
+index 8dc2910..edfe508 100755
+--- a/drivers/gpu/drm/amd/amdgpu/soc15d.h
++++ b/drivers/gpu/drm/amd/amdgpu/soc15d.h
+@@ -53,6 +53,29 @@
+ 
+ #define PACKET3_COMPUTE(op, n) (PACKET3(op, n) | 1 << 1)
+ 
++#define	PACKETJ_CONDITION_CHECK0	0
++#define	PACKETJ_CONDITION_CHECK1	1
++#define	PACKETJ_CONDITION_CHECK2	2
++#define	PACKETJ_CONDITION_CHECK3	3
++#define	PACKETJ_CONDITION_CHECK4	4
++#define	PACKETJ_CONDITION_CHECK5	5
++#define	PACKETJ_CONDITION_CHECK6	6
++#define	PACKETJ_CONDITION_CHECK7	7
++
++#define	PACKETJ_TYPE0	0
++#define	PACKETJ_TYPE1	1
++#define	PACKETJ_TYPE2	2
++#define	PACKETJ_TYPE3	3
++#define	PACKETJ_TYPE4	4
++#define	PACKETJ_TYPE5	5
++#define	PACKETJ_TYPE6	6
++#define	PACKETJ_TYPE7	7
++
++#define PACKETJ(reg, r, cond, type)	((reg & 0x3FFFF) |			\
++			 ((r & 0x3F) << 18) |			\
++			 ((cond & 0xF) << 24) |				\
++			 ((type & 0xF) << 28))
++
+ /* Packet 3 types */
+ #define	PACKET3_NOP					0x10
+ #define	PACKET3_SET_BASE				0x11
+-- 
+2.7.4
+

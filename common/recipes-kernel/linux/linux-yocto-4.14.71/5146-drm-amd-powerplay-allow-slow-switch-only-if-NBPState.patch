@@ -1,0 +1,32 @@
+From 7fc868fa07ad1d1683f161cc7be09f9e0cc3083a Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Fri, 20 Jul 2018 10:56:21 +0800
+Subject: [PATCH 5146/5725] drm/amd/powerplay: allow slow switch only if
+ NBPState enabled
+
+Otherwise there may be potential SMU performance issues.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index c5bdb2b..1170f23 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -1896,7 +1896,8 @@ static int vega20_notify_smc_display_config_after_ps_adjustment(
+ 	int ret = 0;
+ 
+ 	if ((hwmgr->display_config->num_display > 1) &&
+-	     !hwmgr->display_config->multi_monitor_in_sync)
++	     !hwmgr->display_config->multi_monitor_in_sync &&
++	     !hwmgr->display_config->nb_pstate_switch_disable)
+ 		vega20_notify_smc_display_change(hwmgr, false);
+ 	else
+ 		vega20_notify_smc_display_change(hwmgr, true);
+-- 
+2.7.4
+

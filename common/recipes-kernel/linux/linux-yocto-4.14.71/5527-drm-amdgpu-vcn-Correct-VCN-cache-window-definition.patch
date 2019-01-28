@@ -1,0 +1,132 @@
+From 8c4c8f386001c2e4cda7d1768540119982d45122 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Wed, 9 Jan 2019 21:15:31 +0530
+Subject: [PATCH 5527/5725] drm/amdgpu/vcn:Correct VCN cache window definition
+
+Correct VCN cache window definition. The old one
+is reused from UVD, and it is not fully correct.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Leo Liu<leo.liu@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c |  3 +--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h |  6 +++---
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c   | 24 ++++++++++++++----------
+ 3 files changed, 18 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index b608f85..9aba3af 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -121,8 +121,7 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
+ 				version_major, version_minor, family_id);
+ 	}
+ 
+-	bo_size = AMDGPU_VCN_STACK_SIZE + AMDGPU_VCN_HEAP_SIZE
+-		  +  AMDGPU_VCN_SESSION_SIZE * 40;
++	bo_size = AMDGPU_VCN_STACK_SIZE + AMDGPU_VCN_CONTEXT_SIZE;
+ 	if (adev->firmware.load_type != AMDGPU_FW_LOAD_PSP)
+ 		bo_size += AMDGPU_GPU_PAGE_ALIGN(le32_to_cpu(hdr->ucode_size_bytes) + 8);
+ 	r = amdgpu_bo_create_kernel(adev, bo_size, PAGE_SIZE,
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+index 0b88a46..a0ad19a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+@@ -24,9 +24,9 @@
+ #ifndef __AMDGPU_VCN_H__
+ #define __AMDGPU_VCN_H__
+ 
+-#define AMDGPU_VCN_STACK_SIZE		(200*1024)
+-#define AMDGPU_VCN_HEAP_SIZE		(256*1024)
+-#define AMDGPU_VCN_SESSION_SIZE		(50*1024)
++#define AMDGPU_VCN_STACK_SIZE		(128*1024)
++#define AMDGPU_VCN_CONTEXT_SIZE	(512*1024)
++
+ #define AMDGPU_VCN_FIRMWARE_OFFSET	256
+ #define AMDGPU_VCN_MAX_ENC_RINGS	3
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index a62f0ce..9cf544d 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -278,6 +278,7 @@ static void vcn_v1_0_mc_resume_spg_mode(struct amdgpu_device *adev)
+ 	uint32_t size = AMDGPU_GPU_PAGE_ALIGN(adev->vcn.fw->size + 4);
+ 	uint32_t offset;
+ 
++	/* cache window 0: fw */
+ 	if (adev->firmware.load_type == AMDGPU_FW_LOAD_PSP) {
+ 		WREG32_SOC15(UVD, 0, mmUVD_LMI_VCPU_CACHE_64BIT_BAR_LOW,
+ 			     (adev->firmware.ucode[AMDGPU_UCODE_ID_VCN].tmr_mc_addr_lo));
+@@ -295,6 +296,7 @@ static void vcn_v1_0_mc_resume_spg_mode(struct amdgpu_device *adev)
+ 			     AMDGPU_UVD_FIRMWARE_OFFSET >> 3);
+ 	}
+ 
++	/* cache window 1: stack */
+ 	WREG32_SOC15(UVD, 0, mmUVD_VCPU_CACHE_SIZE0, size);
+ 
+ 	WREG32_SOC15(UVD, 0, mmUVD_LMI_VCPU_CACHE1_64BIT_BAR_LOW,
+@@ -302,15 +304,15 @@ static void vcn_v1_0_mc_resume_spg_mode(struct amdgpu_device *adev)
+ 	WREG32_SOC15(UVD, 0, mmUVD_LMI_VCPU_CACHE1_64BIT_BAR_HIGH,
+ 		     upper_32_bits(adev->vcn.gpu_addr + offset));
+ 	WREG32_SOC15(UVD, 0, mmUVD_VCPU_CACHE_OFFSET1, 0);
+-	WREG32_SOC15(UVD, 0, mmUVD_VCPU_CACHE_SIZE1, AMDGPU_VCN_HEAP_SIZE);
++	WREG32_SOC15(UVD, 0, mmUVD_VCPU_CACHE_SIZE1, AMDGPU_VCN_STACK_SIZE);
+ 
++	/* cache window 2: context */
+ 	WREG32_SOC15(UVD, 0, mmUVD_LMI_VCPU_CACHE2_64BIT_BAR_LOW,
+-		     lower_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_HEAP_SIZE));
++			lower_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_STACK_SIZE));
+ 	WREG32_SOC15(UVD, 0, mmUVD_LMI_VCPU_CACHE2_64BIT_BAR_HIGH,
+-		     upper_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_HEAP_SIZE));
++			upper_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_STACK_SIZE));
+ 	WREG32_SOC15(UVD, 0, mmUVD_VCPU_CACHE_OFFSET2, 0);
+-	WREG32_SOC15(UVD, 0, mmUVD_VCPU_CACHE_SIZE2,
+-			AMDGPU_VCN_STACK_SIZE + (AMDGPU_VCN_SESSION_SIZE * 40));
++	WREG32_SOC15(UVD, 0, mmUVD_VCPU_CACHE_SIZE2, AMDGPU_VCN_CONTEXT_SIZE);
+ 
+ 	WREG32_SOC15(UVD, 0, mmUVD_UDEC_ADDR_CONFIG,
+ 			adev->gfx.config.gb_addr_config);
+@@ -325,6 +327,7 @@ static void vcn_v1_0_mc_resume_dpg_mode(struct amdgpu_device *adev)
+ 	uint32_t size = AMDGPU_GPU_PAGE_ALIGN(adev->vcn.fw->size + 4);
+ 	uint32_t offset;
+ 
++	/* cache window 0: fw */
+ 	if (adev->firmware.load_type == AMDGPU_FW_LOAD_PSP) {
+ 		WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_LMI_VCPU_CACHE_64BIT_BAR_LOW,
+ 			     (adev->firmware.ucode[AMDGPU_UCODE_ID_VCN].tmr_mc_addr_lo),
+@@ -347,24 +350,25 @@ static void vcn_v1_0_mc_resume_dpg_mode(struct amdgpu_device *adev)
+ 
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_SIZE0, size, 0xFFFFFFFF, 0);
+ 
++	/* cache window 1: stack */
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_LMI_VCPU_CACHE1_64BIT_BAR_LOW,
+ 		     lower_32_bits(adev->vcn.gpu_addr + offset), 0xFFFFFFFF, 0);
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_LMI_VCPU_CACHE1_64BIT_BAR_HIGH,
+ 		     upper_32_bits(adev->vcn.gpu_addr + offset), 0xFFFFFFFF, 0);
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_OFFSET1, 0,
+ 			     0xFFFFFFFF, 0);
+-	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_SIZE1, AMDGPU_VCN_HEAP_SIZE,
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_SIZE1, AMDGPU_VCN_STACK_SIZE,
+ 			     0xFFFFFFFF, 0);
+ 
++	/* cache window 2: context */
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_LMI_VCPU_CACHE2_64BIT_BAR_LOW,
+-		     lower_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_HEAP_SIZE),
++		     lower_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_STACK_SIZE),
+ 			     0xFFFFFFFF, 0);
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_LMI_VCPU_CACHE2_64BIT_BAR_HIGH,
+-		     upper_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_HEAP_SIZE),
++		     upper_32_bits(adev->vcn.gpu_addr + offset + AMDGPU_VCN_STACK_SIZE),
+ 			     0xFFFFFFFF, 0);
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_OFFSET2, 0, 0xFFFFFFFF, 0);
+-	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_SIZE2,
+-			AMDGPU_VCN_STACK_SIZE + (AMDGPU_VCN_SESSION_SIZE * 40),
++	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_VCPU_CACHE_SIZE2, AMDGPU_VCN_CONTEXT_SIZE,
+ 			     0xFFFFFFFF, 0);
+ 
+ 	WREG32_SOC15_DPG_MODE(UVD, 0, mmUVD_UDEC_ADDR_CONFIG,
+-- 
+2.7.4
+

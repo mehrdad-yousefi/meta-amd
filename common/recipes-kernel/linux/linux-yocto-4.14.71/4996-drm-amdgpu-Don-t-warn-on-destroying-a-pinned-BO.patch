@@ -1,0 +1,39 @@
+From a731e025852ecf95d69e790ed543fd00cde3a4bb Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Thu, 19 Jul 2018 17:38:18 +0200
+Subject: [PATCH 4996/5725] drm/amdgpu: Don't warn on destroying a pinned BO
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The warning turned out to be not so useful, as BO destruction tends to
+be deferred to a workqueue.
+
+Also, we should be preventing any damage from this now, so not really
+important anymore to fix code doing this.
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Tested-by: Mike Lothian <mike@fireburn.co.uk>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index aecee98..352d6b1 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -93,7 +93,7 @@ static void amdgpu_ttm_bo_destroy(struct ttm_buffer_object *tbo)
+ 	if (bo->tbo.mem.mem_type == AMDGPU_PL_DGMA_IMPORT)
+ 		kfree(tbo->mem.bus.addr);
+ 
+-	if (WARN_ON_ONCE(bo->pin_count > 0))
++	if (bo->pin_count > 0)
+ 		amdgpu_bo_subtract_pin_size(bo);
+ 
+ 	if (bo->kfd_bo)
+-- 
+2.7.4
+

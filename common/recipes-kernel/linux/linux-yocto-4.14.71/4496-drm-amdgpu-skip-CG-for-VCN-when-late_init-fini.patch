@@ -1,0 +1,37 @@
+From 05a5f4e203c4c5b7475b5755ad0fbb4400dc6924 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Wed, 16 May 2018 20:06:53 +0800
+Subject: [PATCH 4496/5725] drm/amdgpu: skip CG for VCN when late_init/fini
+
+VCN clockgating is handled manually like VCE and UVD.
+
+Change-Id: Icb285a3acae6d2664f543d004486654373f0dc91
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_device.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+index 0adc774..1d20967 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c
+@@ -1764,6 +1764,7 @@ static int amdgpu_device_ip_late_set_cg_state(struct amdgpu_device *adev)
+ 		/* skip CG for VCE/UVD, it's handled specially */
+ 		if (adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_UVD &&
+ 		    adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_VCE &&
++		    adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_VCN &&
+ 		    adev->ip_blocks[i].version->funcs->set_clockgating_state) {
+ 			/* enable clockgating to save power */
+ 			r = adev->ip_blocks[i].version->funcs->set_clockgating_state((void *)adev,
+@@ -1875,6 +1876,7 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
+ 
+ 		if (adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_UVD &&
+ 			adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_VCE &&
++			adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_VCN &&
+ 			adev->ip_blocks[i].version->funcs->set_clockgating_state) {
+ 			/* ungate blocks before hw fini so that we can shutdown the blocks safely */
+ 			r = adev->ip_blocks[i].version->funcs->set_clockgating_state((void *)adev,
+-- 
+2.7.4
+

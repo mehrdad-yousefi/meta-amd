@@ -1,0 +1,64 @@
+From 0880629ed07eb5ff116ab0eeea26616144f413c8 Mon Sep 17 00:00:00 2001
+From: Julian Parkin <jparkin@amd.com>
+Date: Tue, 17 Apr 2018 11:49:06 -0400
+Subject: [PATCH 4356/5725] drm/amd/display: reprogram infoframe during
+ apply_ctx_to_hw
+
+To ensure the infoframe gets updated during an SDR/HDR switch
+this change adds a new function to to check if the HDR static
+metadata has changed and adds it to is_timing_changed and
+pipe_need_reprogram checks
+
+Signed-off-by: Julian Parkin <jparkin@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index ad41b64..60cf748 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -1309,6 +1309,19 @@ bool dc_add_all_planes_for_stream(
+ }
+ 
+ 
++static bool is_hdr_static_meta_changed(struct dc_stream_state *cur_stream,
++	struct dc_stream_state *new_stream)
++{
++	if (cur_stream == NULL)
++		return true;
++
++	if (memcmp(&cur_stream->hdr_static_metadata,
++			&new_stream->hdr_static_metadata,
++			sizeof(struct dc_info_packet)) != 0)
++		return true;
++
++	return false;
++}
+ 
+ static bool is_timing_changed(struct dc_stream_state *cur_stream,
+ 		struct dc_stream_state *new_stream)
+@@ -1344,6 +1357,9 @@ static bool are_stream_backends_same(
+ 	if (is_timing_changed(stream_a, stream_b))
+ 		return false;
+ 
++	if (is_hdr_static_meta_changed(stream_a, stream_b))
++		return false;
++
+ 	return true;
+ }
+ 
+@@ -2441,6 +2457,8 @@ bool pipe_need_reprogram(
+ 	if (is_timing_changed(pipe_ctx_old->stream, pipe_ctx->stream))
+ 		return true;
+ 
++	if (is_hdr_static_meta_changed(pipe_ctx_old->stream, pipe_ctx->stream))
++		return true;
+ 
+ 	return false;
+ }
+-- 
+2.7.4
+

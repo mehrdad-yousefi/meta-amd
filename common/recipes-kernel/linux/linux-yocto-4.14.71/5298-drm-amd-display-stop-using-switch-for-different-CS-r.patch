@@ -1,0 +1,521 @@
+From a6c56d556cf36920a49cfd80e18aee5b55379fc4 Mon Sep 17 00:00:00 2001
+From: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Date: Wed, 29 Aug 2018 16:23:59 -0400
+Subject: [PATCH 5298/5725] drm/amd/display: stop using switch for different CS
+ revisions
+
+Clock sources currently have support for asic specific
+function pointers. But actual separation into functions
+was never performed, leaving us with giant functions that
+rely on switch.
+
+This change creates separate functions, removing switch use.
+
+Change-Id: I28e514e57ea5fcd93b44f6d3298ba2323d90a885
+Signed-off-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ .../gpu/drm/amd/display/dc/dce/dce_clock_source.c  | 371 ++++++++++++---------
+ .../gpu/drm/amd/display/dc/dce/dce_clock_source.h  |   9 +
+ .../drm/amd/display/dc/dce112/dce112_resource.c    |   2 +-
+ .../drm/amd/display/dc/dce120/dce120_resource.c    |   2 +-
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_resource.c  |   2 +-
+ 5 files changed, 218 insertions(+), 168 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+index 8e0a00b..9b38027 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.c
+@@ -584,34 +584,42 @@ static uint32_t dce110_get_pix_clk_dividers(
+ 		return 0;
+ 	}
+ 
+-	switch (cs->ctx->dce_version) {
+-	case DCE_VERSION_8_0:
+-	case DCE_VERSION_8_1:
+-	case DCE_VERSION_8_3:
+-	case DCE_VERSION_10_0:
+-	case DCE_VERSION_11_0:
+-		pll_calc_error =
+-			dce110_get_pix_clk_dividers_helper(clk_src,
++	pll_calc_error = dce110_get_pix_clk_dividers_helper(clk_src,
+ 			pll_settings, pix_clk_params);
+-		break;
+-	case DCE_VERSION_11_2:
+-	case DCE_VERSION_11_22:
+-	case DCE_VERSION_12_0:
+-#ifdef CONFIG_X86
+-	case DCN_VERSION_1_0:
+-#endif
+ 
+-#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
+-	case DCN_VERSION_1_01:
+-#endif
+-		dce112_get_pix_clk_dividers_helper(clk_src,
+-				pll_settings, pix_clk_params);
+-		break;
+-	default:
+-		break;
++	return pll_calc_error;
++}
++
++static uint32_t dce112_get_pix_clk_dividers(
++		struct clock_source *cs,
++		struct pixel_clk_params *pix_clk_params,
++		struct pll_settings *pll_settings)
++{
++	struct dce110_clk_src *clk_src = TO_DCE110_CLK_SRC(cs);
++	DC_LOGGER_INIT();
++
++	if (pix_clk_params == NULL || pll_settings == NULL
++			|| pix_clk_params->requested_pix_clk == 0) {
++		DC_LOG_ERROR(
++			"%s: Invalid parameters!!\n", __func__);
++		return -1;
+ 	}
+ 
+-	return pll_calc_error;
++	memset(pll_settings, 0, sizeof(*pll_settings));
++
++	if (cs->id == CLOCK_SOURCE_ID_DP_DTO ||
++			cs->id == CLOCK_SOURCE_ID_EXTERNAL) {
++		pll_settings->adjusted_pix_clk = clk_src->ext_clk_khz;
++		pll_settings->calculated_pix_clk = clk_src->ext_clk_khz;
++		pll_settings->actual_pix_clk =
++					pix_clk_params->requested_pix_clk;
++		return -1;
++	}
++
++	dce112_get_pix_clk_dividers_helper(clk_src,
++			pll_settings, pix_clk_params);
++
++	return 0;
+ }
+ 
+ static uint32_t dce110_get_pll_pixel_rate_in_hz(
+@@ -917,7 +925,66 @@ static bool dce110_program_pix_clk(
+ 	struct dce110_clk_src *clk_src = TO_DCE110_CLK_SRC(clock_source);
+ 	struct bp_pixel_clock_parameters bp_pc_params = {0};
+ 
+-#ifdef CONFIG_X86
++	/* First disable SS
++	 * ATOMBIOS will enable by default SS on PLL for DP,
++	 * do not disable it here
++	 */
++	if (clock_source->id != CLOCK_SOURCE_ID_EXTERNAL &&
++			!dc_is_dp_signal(pix_clk_params->signal_type) &&
++			clock_source->ctx->dce_version <= DCE_VERSION_11_0)
++		disable_spread_spectrum(clk_src);
++
++	/*ATOMBIOS expects pixel rate adjusted by deep color ratio)*/
++	bp_pc_params.controller_id = pix_clk_params->controller_id;
++	bp_pc_params.pll_id = clock_source->id;
++	bp_pc_params.target_pixel_clock = pll_settings->actual_pix_clk;
++	bp_pc_params.encoder_object_id = pix_clk_params->encoder_object_id;
++	bp_pc_params.signal_type = pix_clk_params->signal_type;
++
++	bp_pc_params.reference_divider = pll_settings->reference_divider;
++	bp_pc_params.feedback_divider = pll_settings->feedback_divider;
++	bp_pc_params.fractional_feedback_divider =
++			pll_settings->fract_feedback_divider;
++	bp_pc_params.pixel_clock_post_divider =
++			pll_settings->pix_clk_post_divider;
++	bp_pc_params.flags.SET_EXTERNAL_REF_DIV_SRC =
++					pll_settings->use_external_clk;
++
++	if (clk_src->bios->funcs->set_pixel_clock(
++			clk_src->bios, &bp_pc_params) != BP_RESULT_OK)
++		return false;
++	/* Enable SS
++	 * ATOMBIOS will enable by default SS for DP on PLL ( DP ID clock),
++	 * based on HW display PLL team, SS control settings should be programmed
++	 * during PLL Reset, but they do not have effect
++	 * until SS_EN is asserted.*/
++	if (clock_source->id != CLOCK_SOURCE_ID_EXTERNAL
++			&& !dc_is_dp_signal(pix_clk_params->signal_type)) {
++
++		if (pix_clk_params->flags.ENABLE_SS)
++			if (!enable_spread_spectrum(clk_src,
++							pix_clk_params->signal_type,
++							pll_settings))
++				return false;
++
++		/* Resync deep color DTO */
++		dce110_program_pixel_clk_resync(clk_src,
++					pix_clk_params->signal_type,
++					pix_clk_params->color_depth);
++	}
++
++	return true;
++}
++
++static bool dce112_program_pix_clk(
++		struct clock_source *clock_source,
++		struct pixel_clk_params *pix_clk_params,
++		struct pll_settings *pll_settings)
++{
++	struct dce110_clk_src *clk_src = TO_DCE110_CLK_SRC(clock_source);
++	struct bp_pixel_clock_parameters bp_pc_params = {0};
++
++#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+ 	if (IS_FPGA_MAXIMUS_DC(clock_source->ctx->dce_environment)) {
+ 		unsigned int inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+ 		unsigned dp_dto_ref_kHz = 700000;
+@@ -948,82 +1015,29 @@ static bool dce110_program_pix_clk(
+ 	bp_pc_params.encoder_object_id = pix_clk_params->encoder_object_id;
+ 	bp_pc_params.signal_type = pix_clk_params->signal_type;
+ 
+-	switch (clock_source->ctx->dce_version) {
+-	case DCE_VERSION_8_0:
+-	case DCE_VERSION_8_1:
+-	case DCE_VERSION_8_3:
+-	case DCE_VERSION_10_0:
+-	case DCE_VERSION_11_0:
+-		bp_pc_params.reference_divider = pll_settings->reference_divider;
+-		bp_pc_params.feedback_divider = pll_settings->feedback_divider;
+-		bp_pc_params.fractional_feedback_divider =
+-				pll_settings->fract_feedback_divider;
+-		bp_pc_params.pixel_clock_post_divider =
+-				pll_settings->pix_clk_post_divider;
+-		bp_pc_params.flags.SET_EXTERNAL_REF_DIV_SRC =
++	if (clock_source->id != CLOCK_SOURCE_ID_DP_DTO) {
++		bp_pc_params.flags.SET_GENLOCK_REF_DIV_SRC =
+ 						pll_settings->use_external_clk;
+-
+-		if (clk_src->bios->funcs->set_pixel_clock(
+-				clk_src->bios, &bp_pc_params) != BP_RESULT_OK)
+-			return false;
+-		/* Enable SS
+-		 * ATOMBIOS will enable by default SS for DP on PLL ( DP ID clock),
+-		 * based on HW display PLL team, SS control settings should be programmed
+-		 * during PLL Reset, but they do not have effect
+-		 * until SS_EN is asserted.*/
+-		if (clock_source->id != CLOCK_SOURCE_ID_EXTERNAL
+-				&& !dc_is_dp_signal(pix_clk_params->signal_type)) {
+-
+-			if (pix_clk_params->flags.ENABLE_SS)
+-				if (!enable_spread_spectrum(clk_src,
+-								pix_clk_params->signal_type,
+-								pll_settings))
+-					return false;
+-
+-			/* Resync deep color DTO */
+-			dce110_program_pixel_clk_resync(clk_src,
+-						pix_clk_params->signal_type,
+-						pix_clk_params->color_depth);
++		bp_pc_params.flags.SET_XTALIN_REF_SRC =
++						!pll_settings->use_external_clk;
++		if (pix_clk_params->flags.SUPPORT_YCBCR420) {
++			bp_pc_params.flags.SUPPORT_YUV_420 = 1;
+ 		}
+-
+-		break;
+-	case DCE_VERSION_11_2:
+-	case DCE_VERSION_11_22:
+-	case DCE_VERSION_12_0:
+-#ifdef CONFIG_X86
+-	case DCN_VERSION_1_0:
+-#endif
+-
+-#if defined(CONFIG_DRM_AMD_DC_DCN1_01)
+-	case DCN_VERSION_1_01:
+-#endif
+-
+-		if (clock_source->id != CLOCK_SOURCE_ID_DP_DTO) {
+-			bp_pc_params.flags.SET_GENLOCK_REF_DIV_SRC =
+-							pll_settings->use_external_clk;
+-			bp_pc_params.flags.SET_XTALIN_REF_SRC =
+-							!pll_settings->use_external_clk;
+-			if (pix_clk_params->flags.SUPPORT_YCBCR420) {
+-				bp_pc_params.flags.SUPPORT_YUV_420 = 1;
+-			}
+-		}
+-		if (clk_src->bios->funcs->set_pixel_clock(
+-				clk_src->bios, &bp_pc_params) != BP_RESULT_OK)
+-			return false;
+-		/* Resync deep color DTO */
+-		if (clock_source->id != CLOCK_SOURCE_ID_DP_DTO)
+-			dce112_program_pixel_clk_resync(clk_src,
+-						pix_clk_params->signal_type,
+-						pix_clk_params->color_depth,
+-						pix_clk_params->flags.SUPPORT_YCBCR420);
+-		break;
+-	default:
+-		break;
+ 	}
++	if (clk_src->bios->funcs->set_pixel_clock(
++			clk_src->bios, &bp_pc_params) != BP_RESULT_OK)
++		return false;
++	/* Resync deep color DTO */
++	if (clock_source->id != CLOCK_SOURCE_ID_DP_DTO)
++		dce112_program_pixel_clk_resync(clk_src,
++					pix_clk_params->signal_type,
++					pix_clk_params->color_depth,
++					pix_clk_params->flags.SUPPORT_YCBCR420);
+ 
+ 	return true;
+ }
+ 
++
+ static bool dce110_clock_source_power_down(
+ 		struct clock_source *clk_src)
+ {
+@@ -1050,6 +1064,12 @@ static bool dce110_clock_source_power_down(
+ /*****************************************/
+ /* Constructor                           */
+ /*****************************************/
++
++static const struct clock_source_funcs dce112_clk_src_funcs = {
++	.cs_power_down = dce110_clock_source_power_down,
++	.program_pix_clk = dce112_program_pix_clk,
++	.get_pix_clk_dividers = dce112_get_pix_clk_dividers
++};
+ static const struct clock_source_funcs dce110_clk_src_funcs = {
+ 	.cs_power_down = dce110_clock_source_power_down,
+ 	.program_pix_clk = dce110_program_pix_clk,
+@@ -1057,6 +1077,7 @@ static const struct clock_source_funcs dce110_clk_src_funcs = {
+ 	.get_pix_rate_in_hz = dce110_get_pix_rate_in_hz
+ };
+ 
++
+ static void get_ss_info_from_atombios(
+ 		struct dce110_clk_src *clk_src,
+ 		enum as_signal_type as_signal,
+@@ -1310,81 +1331,70 @@ bool dce110_clk_src_construct(
+ 	clk_src->ext_clk_khz =
+ 			fw_info.external_clock_source_frequency_for_dp;
+ 
+-	switch (clk_src->base.ctx->dce_version) {
+-	case DCE_VERSION_8_0:
+-	case DCE_VERSION_8_1:
+-	case DCE_VERSION_8_3:
+-	case DCE_VERSION_10_0:
+-	case DCE_VERSION_11_0:
+-
+-		/* structure normally used with PLL ranges from ATOMBIOS; DS on by default */
+-		calc_pll_cs_init_data.bp = bios;
+-		calc_pll_cs_init_data.min_pix_clk_pll_post_divider = 1;
+-		calc_pll_cs_init_data.max_pix_clk_pll_post_divider =
+-				clk_src->cs_mask->PLL_POST_DIV_PIXCLK;
+-		calc_pll_cs_init_data.min_pll_ref_divider =	1;
+-		calc_pll_cs_init_data.max_pll_ref_divider =	clk_src->cs_mask->PLL_REF_DIV;
+-		/* when 0 use minInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
+-		calc_pll_cs_init_data.min_override_input_pxl_clk_pll_freq_khz =	0;
+-		/* when 0 use maxInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
+-		calc_pll_cs_init_data.max_override_input_pxl_clk_pll_freq_khz =	0;
+-		/*numberOfFractFBDividerDecimalPoints*/
+-		calc_pll_cs_init_data.num_fract_fb_divider_decimal_point =
+-				FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
+-		/*number of decimal point to round off for fractional feedback divider value*/
+-		calc_pll_cs_init_data.num_fract_fb_divider_decimal_point_precision =
+-				FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
+-		calc_pll_cs_init_data.ctx =	ctx;
+-
+-		/*structure for HDMI, no SS or SS% <= 0.06% for 27 MHz Ref clock */
+-		calc_pll_cs_init_data_hdmi.bp = bios;
+-		calc_pll_cs_init_data_hdmi.min_pix_clk_pll_post_divider = 1;
+-		calc_pll_cs_init_data_hdmi.max_pix_clk_pll_post_divider =
+-				clk_src->cs_mask->PLL_POST_DIV_PIXCLK;
+-		calc_pll_cs_init_data_hdmi.min_pll_ref_divider = 1;
+-		calc_pll_cs_init_data_hdmi.max_pll_ref_divider = clk_src->cs_mask->PLL_REF_DIV;
+-		/* when 0 use minInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
+-		calc_pll_cs_init_data_hdmi.min_override_input_pxl_clk_pll_freq_khz = 13500;
+-		/* when 0 use maxInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
+-		calc_pll_cs_init_data_hdmi.max_override_input_pxl_clk_pll_freq_khz = 27000;
+-		/*numberOfFractFBDividerDecimalPoints*/
+-		calc_pll_cs_init_data_hdmi.num_fract_fb_divider_decimal_point =
+-				FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
+-		/*number of decimal point to round off for fractional feedback divider value*/
+-		calc_pll_cs_init_data_hdmi.num_fract_fb_divider_decimal_point_precision =
+-				FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
+-		calc_pll_cs_init_data_hdmi.ctx = ctx;
+-
+-		clk_src->ref_freq_khz = fw_info.pll_info.crystal_frequency;
+-
+-		if (clk_src->base.id == CLOCK_SOURCE_ID_EXTERNAL)
+-			return true;
+-
+-		/* PLL only from here on */
+-		ss_info_from_atombios_create(clk_src);
+-
+-		if (!calc_pll_max_vco_construct(
+-				&clk_src->calc_pll,
+-				&calc_pll_cs_init_data)) {
+-			ASSERT_CRITICAL(false);
+-			goto unexpected_failure;
+-		}
++	/* structure normally used with PLL ranges from ATOMBIOS; DS on by default */
++	calc_pll_cs_init_data.bp = bios;
++	calc_pll_cs_init_data.min_pix_clk_pll_post_divider = 1;
++	calc_pll_cs_init_data.max_pix_clk_pll_post_divider =
++			clk_src->cs_mask->PLL_POST_DIV_PIXCLK;
++	calc_pll_cs_init_data.min_pll_ref_divider =	1;
++	calc_pll_cs_init_data.max_pll_ref_divider =	clk_src->cs_mask->PLL_REF_DIV;
++	/* when 0 use minInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
++	calc_pll_cs_init_data.min_override_input_pxl_clk_pll_freq_khz =	0;
++	/* when 0 use maxInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
++	calc_pll_cs_init_data.max_override_input_pxl_clk_pll_freq_khz =	0;
++	/*numberOfFractFBDividerDecimalPoints*/
++	calc_pll_cs_init_data.num_fract_fb_divider_decimal_point =
++			FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
++	/*number of decimal point to round off for fractional feedback divider value*/
++	calc_pll_cs_init_data.num_fract_fb_divider_decimal_point_precision =
++			FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
++	calc_pll_cs_init_data.ctx =	ctx;
++
++	/*structure for HDMI, no SS or SS% <= 0.06% for 27 MHz Ref clock */
++	calc_pll_cs_init_data_hdmi.bp = bios;
++	calc_pll_cs_init_data_hdmi.min_pix_clk_pll_post_divider = 1;
++	calc_pll_cs_init_data_hdmi.max_pix_clk_pll_post_divider =
++			clk_src->cs_mask->PLL_POST_DIV_PIXCLK;
++	calc_pll_cs_init_data_hdmi.min_pll_ref_divider = 1;
++	calc_pll_cs_init_data_hdmi.max_pll_ref_divider = clk_src->cs_mask->PLL_REF_DIV;
++	/* when 0 use minInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
++	calc_pll_cs_init_data_hdmi.min_override_input_pxl_clk_pll_freq_khz = 13500;
++	/* when 0 use maxInputPxlClkPLLFrequencyInKHz from firmwareInfo*/
++	calc_pll_cs_init_data_hdmi.max_override_input_pxl_clk_pll_freq_khz = 27000;
++	/*numberOfFractFBDividerDecimalPoints*/
++	calc_pll_cs_init_data_hdmi.num_fract_fb_divider_decimal_point =
++			FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
++	/*number of decimal point to round off for fractional feedback divider value*/
++	calc_pll_cs_init_data_hdmi.num_fract_fb_divider_decimal_point_precision =
++			FRACT_FB_DIVIDER_DEC_POINTS_MAX_NUM;
++	calc_pll_cs_init_data_hdmi.ctx = ctx;
++
++	clk_src->ref_freq_khz = fw_info.pll_info.crystal_frequency;
++
++	if (clk_src->base.id == CLOCK_SOURCE_ID_EXTERNAL)
++		return true;
+ 
++	/* PLL only from here on */
++	ss_info_from_atombios_create(clk_src);
+ 
+-		calc_pll_cs_init_data_hdmi.
+-				min_override_input_pxl_clk_pll_freq_khz = clk_src->ref_freq_khz/2;
+-		calc_pll_cs_init_data_hdmi.
+-				max_override_input_pxl_clk_pll_freq_khz = clk_src->ref_freq_khz;
++	if (!calc_pll_max_vco_construct(
++			&clk_src->calc_pll,
++			&calc_pll_cs_init_data)) {
++		ASSERT_CRITICAL(false);
++		goto unexpected_failure;
++	}
+ 
+ 
+-		if (!calc_pll_max_vco_construct(
+-				&clk_src->calc_pll_hdmi, &calc_pll_cs_init_data_hdmi)) {
+-			ASSERT_CRITICAL(false);
+-			goto unexpected_failure;
+-		}
+-		break;
+-	default:
+-		break;
++	calc_pll_cs_init_data_hdmi.
++			min_override_input_pxl_clk_pll_freq_khz = clk_src->ref_freq_khz/2;
++	calc_pll_cs_init_data_hdmi.
++			max_override_input_pxl_clk_pll_freq_khz = clk_src->ref_freq_khz;
++
++
++	if (!calc_pll_max_vco_construct(
++			&clk_src->calc_pll_hdmi, &calc_pll_cs_init_data_hdmi)) {
++		ASSERT_CRITICAL(false);
++		goto unexpected_failure;
+ 	}
+ 
+ 	return true;
+@@ -1393,3 +1403,34 @@ bool dce110_clk_src_construct(
+ 	return false;
+ }
+ 
++bool dce112_clk_src_construct(
++	struct dce110_clk_src *clk_src,
++	struct dc_context *ctx,
++	struct dc_bios *bios,
++	enum clock_source_id id,
++	const struct dce110_clk_src_regs *regs,
++	const struct dce110_clk_src_shift *cs_shift,
++	const struct dce110_clk_src_mask *cs_mask)
++{
++	struct dc_firmware_info fw_info = { { 0 } };
++
++	clk_src->base.ctx = ctx;
++	clk_src->bios = bios;
++	clk_src->base.id = id;
++	clk_src->base.funcs = &dce112_clk_src_funcs;
++
++	clk_src->regs = regs;
++	clk_src->cs_shift = cs_shift;
++	clk_src->cs_mask = cs_mask;
++
++	if (clk_src->bios->funcs->get_firmware_info(
++			clk_src->bios, &fw_info) != BP_RESULT_OK) {
++		ASSERT_CRITICAL(false);
++		return false;
++	}
++
++	clk_src->ext_clk_khz = fw_info.external_clock_source_frequency_for_dp;
++
++	return true;
++}
++
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h
+index e1f20ed..b8e0e2c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clock_source.h
+@@ -144,4 +144,13 @@ bool dce110_clk_src_construct(
+ 	const struct dce110_clk_src_shift *cs_shift,
+ 	const struct dce110_clk_src_mask *cs_mask);
+ 
++bool dce112_clk_src_construct(
++	struct dce110_clk_src *clk_src,
++	struct dc_context *ctx,
++	struct dc_bios *bios,
++	enum clock_source_id id,
++	const struct dce110_clk_src_regs *regs,
++	const struct dce110_clk_src_shift *cs_shift,
++	const struct dce110_clk_src_mask *cs_mask);
++
+ #endif
+diff --git a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+index d35dc730..f3d55a6 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+@@ -668,7 +668,7 @@ struct clock_source *dce112_clock_source_create(
+ 	if (!clk_src)
+ 		return NULL;
+ 
+-	if (dce110_clk_src_construct(clk_src, ctx, bios, id,
++	if (dce112_clk_src_construct(clk_src, ctx, bios, id,
+ 			regs, &cs_shift, &cs_mask)) {
+ 		clk_src->base.dp_clk_src = dp_clk_src;
+ 		return &clk_src->base;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+index b2fb06f3..8afa43a 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+@@ -455,7 +455,7 @@ struct clock_source *dce120_clock_source_create(
+ 	if (!clk_src)
+ 		return NULL;
+ 
+-	if (dce110_clk_src_construct(clk_src, ctx, bios, id,
++	if (dce112_clk_src_construct(clk_src, ctx, bios, id,
+ 				     regs, &cs_shift, &cs_mask)) {
+ 		clk_src->base.dp_clk_src = dp_clk_src;
+ 		return &clk_src->base;
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index e44031e..e8a22d5 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -748,7 +748,7 @@ struct clock_source *dcn10_clock_source_create(
+ 	if (!clk_src)
+ 		return NULL;
+ 
+-	if (dce110_clk_src_construct(clk_src, ctx, bios, id,
++	if (dce112_clk_src_construct(clk_src, ctx, bios, id,
+ 			regs, &cs_shift, &cs_mask)) {
+ 		clk_src->base.dp_clk_src = dp_clk_src;
+ 		return &clk_src->base;
+-- 
+2.7.4
+

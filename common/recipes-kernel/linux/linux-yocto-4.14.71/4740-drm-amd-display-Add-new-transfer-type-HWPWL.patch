@@ -1,0 +1,48 @@
+From 753f0e0229ffe78b003ff5d143e01ee3345963cd Mon Sep 17 00:00:00 2001
+From: Vitaly Prosyak <vitaly.prosyak@amd.com>
+Date: Fri, 25 May 2018 08:37:36 -0500
+Subject: [PATCH 4740/5725] drm/amd/display: Add new transfer type HWPWL
+
+It is used when curve register settings are generated
+by 'matlab', i.e. bypass color module calculation.
+
+Signed-off-by: Vitaly Prosyak <vitaly.prosyak@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc.h | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 096098e..7cd4d5e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -358,6 +358,7 @@ enum dc_transfer_func_type {
+ 	TF_TYPE_PREDEFINED,
+ 	TF_TYPE_DISTRIBUTED_POINTS,
+ 	TF_TYPE_BYPASS,
++	TF_TYPE_HWPWL
+ };
+ 
+ struct dc_transfer_func_distributed_points {
+@@ -383,12 +384,15 @@ enum dc_transfer_func_predefined {
+ 
+ struct dc_transfer_func {
+ 	struct kref refcount;
+-	struct dc_transfer_func_distributed_points tf_pts;
+ 	enum dc_transfer_func_type type;
+ 	enum dc_transfer_func_predefined tf;
+ 	/* FP16 1.0 reference level in nits, default is 80 nits, only for PQ*/
+ 	uint32_t sdr_ref_white_level;
+ 	struct dc_context *ctx;
++	union {
++		struct pwl_params pwl;
++		struct dc_transfer_func_distributed_points tf_pts;
++	};
+ };
+ 
+ /*
+-- 
+2.7.4
+

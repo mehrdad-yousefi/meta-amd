@@ -1,0 +1,4098 @@
+From d0e5327e3e959cc98085660776742acb3a1ede91 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 2 Aug 2018 15:55:33 -0500
+Subject: [PATCH 5128/5725] drm/amd/powerplay: add the hw manager for vega20
+ (v3)
+
+hwmgr is the interface for the driver to setup state
+structures which are used by the smu for managing the
+power state.
+
+v2: squash in fixes:
+- update set_watermarks_for_clocks_ranges to use common code
+- drop unsupported apis
+- correct MAX_REGULAR_DPM_NUMBER value
+- multimonitor fixes
+- add check for vbios pptable version
+- revise dpm table setup
+- init fclk dpm state
+- Remove unused definition in vega20_hwmgr
+- support power limit setup
+- enable vega20 to honour DAL clock limits
+- comment out dump_table debugging
+v3: switch to SOC15 register access macros
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/Makefile       |    4 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c        |    8 +-
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 2099 ++++++++++++++++++++
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h |  519 +++++
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_powertune.c |   70 +
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_powertune.h |   32 +
+ .../amd/powerplay/hwmgr/vega20_processpptables.c   |  919 +++++++++
+ .../amd/powerplay/hwmgr/vega20_processpptables.h   |   31 +
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c   |  212 ++
+ .../gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h   |   64 +
+ 10 files changed, 3956 insertions(+), 2 deletions(-)
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.c
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.h
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.h
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
+ create mode 100644 drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/Makefile b/drivers/gpu/drm/amd/powerplay/hwmgr/Makefile
+index 789d577..95621c1 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/Makefile
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/Makefile
+@@ -13,7 +13,9 @@ HARDWARE_MGR = hwmgr.o processpptables.o \
+ 		vega10_thermal.o smu10_hwmgr.o pp_psm.o\
+ 		vega12_processpptables.o vega12_hwmgr.o \
+ 		vega12_thermal.o \
+-		pp_overdriver.o smu_helper.o
++		pp_overdriver.o smu_helper.o \
++		vega20_processpptables.o vega20_hwmgr.o vega20_powertune.o \
++		vega20_thermal.o
+ 
+ AMD_PP_HWMGR = $(addprefix $(AMD_PP_PATH)/hwmgr/,$(HARDWARE_MGR))
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+index 8994aa5..7500a3e 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+@@ -44,11 +44,13 @@ extern const struct pp_smumgr_func vegam_smu_funcs;
+ extern const struct pp_smumgr_func vega10_smu_funcs;
+ extern const struct pp_smumgr_func vega12_smu_funcs;
+ extern const struct pp_smumgr_func smu10_smu_funcs;
++extern const struct pp_smumgr_func vega20_smu_funcs;
+ 
+ extern int smu7_init_function_pointers(struct pp_hwmgr *hwmgr);
+ extern int smu8_init_function_pointers(struct pp_hwmgr *hwmgr);
+ extern int vega10_hwmgr_init(struct pp_hwmgr *hwmgr);
+ extern int vega12_hwmgr_init(struct pp_hwmgr *hwmgr);
++extern int vega20_hwmgr_init(struct pp_hwmgr *hwmgr);
+ extern int smu10_init_function_pointers(struct pp_hwmgr *hwmgr);
+ 
+ static int polaris_set_asic_special_caps(struct pp_hwmgr *hwmgr);
+@@ -149,7 +151,6 @@ int hwmgr_early_init(struct pp_hwmgr *hwmgr)
+ 	case AMDGPU_FAMILY_AI:
+ 		switch (hwmgr->chip_id) {
+ 		case CHIP_VEGA10:
+-		case CHIP_VEGA20:
+ 			hwmgr->feature_mask &= ~PP_GFXOFF_MASK;
+ 			hwmgr->smumgr_funcs = &vega10_smu_funcs;
+ 			vega10_hwmgr_init(hwmgr);
+@@ -158,6 +159,11 @@ int hwmgr_early_init(struct pp_hwmgr *hwmgr)
+ 			hwmgr->smumgr_funcs = &vega12_smu_funcs;
+ 			vega12_hwmgr_init(hwmgr);
+ 			break;
++		case CHIP_VEGA20:
++			hwmgr->feature_mask &= ~PP_GFXOFF_MASK;
++			hwmgr->smumgr_funcs = &vega20_smu_funcs;
++			vega20_hwmgr_init(hwmgr);
++			break;
+ 		default:
+ 			return -EINVAL;
+ 		}
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+new file mode 100644
+index 0000000..40f0717
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -0,0 +1,2099 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#include <linux/delay.h>
++#include <linux/fb.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++
++#include "hwmgr.h"
++#include "amd_powerplay.h"
++#include "vega20_smumgr.h"
++#include "hardwaremanager.h"
++#include "ppatomfwctrl.h"
++#include "atomfirmware.h"
++#include "cgs_common.h"
++#include "vega20_powertune.h"
++#include "vega20_inc.h"
++#include "pppcielanes.h"
++#include "vega20_hwmgr.h"
++#include "vega20_processpptables.h"
++#include "vega20_pptable.h"
++#include "vega20_thermal.h"
++#include "vega20_ppsmc.h"
++#include "pp_debug.h"
++#include "amd_pcie_helpers.h"
++#include "ppinterrupt.h"
++#include "pp_overdriver.h"
++#include "pp_thermal.h"
++
++static void vega20_set_default_registry_data(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++
++	data->gfxclk_average_alpha = PPVEGA20_VEGA20GFXCLKAVERAGEALPHA_DFLT;
++	data->socclk_average_alpha = PPVEGA20_VEGA20SOCCLKAVERAGEALPHA_DFLT;
++	data->uclk_average_alpha = PPVEGA20_VEGA20UCLKCLKAVERAGEALPHA_DFLT;
++	data->gfx_activity_average_alpha = PPVEGA20_VEGA20GFXACTIVITYAVERAGEALPHA_DFLT;
++	data->lowest_uclk_reserved_for_ulv = PPVEGA20_VEGA20LOWESTUCLKRESERVEDFORULV_DFLT;
++
++	data->display_voltage_mode = PPVEGA20_VEGA20DISPLAYVOLTAGEMODE_DFLT;
++	data->dcef_clk_quad_eqn_a = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->dcef_clk_quad_eqn_b = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->dcef_clk_quad_eqn_c = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->disp_clk_quad_eqn_a = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->disp_clk_quad_eqn_b = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->disp_clk_quad_eqn_c = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->pixel_clk_quad_eqn_a = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->pixel_clk_quad_eqn_b = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->pixel_clk_quad_eqn_c = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->phy_clk_quad_eqn_a = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->phy_clk_quad_eqn_b = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++	data->phy_clk_quad_eqn_c = PPREGKEY_VEGA20QUADRATICEQUATION_DFLT;
++
++	data->registry_data.disallowed_features = 0x0;
++	data->registry_data.od_state_in_dc_support = 0;
++	data->registry_data.thermal_support = 1;
++	data->registry_data.skip_baco_hardware = 0;
++
++	data->registry_data.log_avfs_param = 0;
++	data->registry_data.sclk_throttle_low_notification = 1;
++	data->registry_data.force_dpm_high = 0;
++	data->registry_data.stable_pstate_sclk_dpm_percentage = 75;
++
++	data->registry_data.didt_support = 0;
++	if (data->registry_data.didt_support) {
++		data->registry_data.didt_mode = 6;
++		data->registry_data.sq_ramping_support = 1;
++		data->registry_data.db_ramping_support = 0;
++		data->registry_data.td_ramping_support = 0;
++		data->registry_data.tcp_ramping_support = 0;
++		data->registry_data.dbr_ramping_support = 0;
++		data->registry_data.edc_didt_support = 1;
++		data->registry_data.gc_didt_support = 0;
++		data->registry_data.psm_didt_support = 0;
++	}
++
++	data->registry_data.pcie_lane_override = 0xff;
++	data->registry_data.pcie_speed_override = 0xff;
++	data->registry_data.pcie_clock_override = 0xffffffff;
++	data->registry_data.regulator_hot_gpio_support = 1;
++	data->registry_data.ac_dc_switch_gpio_support = 0;
++	data->registry_data.quick_transition_support = 0;
++	data->registry_data.zrpm_start_temp = 0xffff;
++	data->registry_data.zrpm_stop_temp = 0xffff;
++	data->registry_data.odn_feature_enable = 1;
++	data->registry_data.disable_water_mark = 0;
++	data->registry_data.disable_pp_tuning = 0;
++	data->registry_data.disable_xlpp_tuning = 0;
++	data->registry_data.disable_workload_policy = 0;
++	data->registry_data.perf_ui_tuning_profile_turbo = 0x19190F0F;
++	data->registry_data.perf_ui_tuning_profile_powerSave = 0x19191919;
++	data->registry_data.perf_ui_tuning_profile_xl = 0x00000F0A;
++	data->registry_data.force_workload_policy_mask = 0;
++	data->registry_data.disable_3d_fs_detection = 0;
++	data->registry_data.fps_support = 1;
++	data->registry_data.disable_auto_wattman = 1;
++	data->registry_data.auto_wattman_debug = 0;
++	data->registry_data.auto_wattman_sample_period = 100;
++	data->registry_data.auto_wattman_threshold = 50;
++	data->registry_data.gfxoff_controlled_by_driver = 1;
++	data->gfxoff_allowed = false;
++	data->counter_gfxoff = 0;
++}
++
++static int vega20_set_features_platform_caps(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	struct amdgpu_device *adev = hwmgr->adev;
++
++	if (data->vddci_control == VEGA20_VOLTAGE_CONTROL_NONE)
++		phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_ControlVDDCI);
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_TablelessHardwareInterface);
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_EnableSMU7ThermalManagement);
++
++	if (adev->pg_flags & AMD_PG_SUPPORT_UVD)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_UVDPowerGating);
++
++	if (adev->pg_flags & AMD_PG_SUPPORT_VCE)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_VCEPowerGating);
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_UnTabledHardwareInterface);
++
++	if (data->registry_data.odn_feature_enable)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_ODNinACSupport);
++	else {
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_OD6inACSupport);
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_OD6PlusinACSupport);
++	}
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_ActivityReporting);
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_FanSpeedInTableIsRPM);
++
++	if (data->registry_data.od_state_in_dc_support) {
++		if (data->registry_data.odn_feature_enable)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_ODNinDCSupport);
++		else {
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_OD6inDCSupport);
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_OD6PlusinDCSupport);
++		}
++	}
++
++	if (data->registry_data.thermal_support &&
++	    data->registry_data.fuzzy_fan_control_support &&
++	    hwmgr->thermal_controller.advanceFanControlParameters.usTMax)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_ODFuzzyFanControlSupport);
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_DynamicPowerManagement);
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_SMC);
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_ThermalPolicyDelay);
++
++	if (data->registry_data.force_dpm_high)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_ExclusiveModeAlwaysHigh);
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_DynamicUVDState);
++
++	if (data->registry_data.sclk_throttle_low_notification)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_SclkThrottleLowNotification);
++
++	/* power tune caps */
++	/* assume disabled */
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_PowerContainment);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_DiDtSupport);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_SQRamping);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_DBRamping);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_TDRamping);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_TCPRamping);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_DBRRamping);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_DiDtEDCEnable);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_GCEDC);
++	phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_PSM);
++
++	if (data->registry_data.didt_support) {
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_DiDtSupport);
++		if (data->registry_data.sq_ramping_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_SQRamping);
++		if (data->registry_data.db_ramping_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_DBRamping);
++		if (data->registry_data.td_ramping_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_TDRamping);
++		if (data->registry_data.tcp_ramping_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_TCPRamping);
++		if (data->registry_data.dbr_ramping_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_DBRRamping);
++		if (data->registry_data.edc_didt_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_DiDtEDCEnable);
++		if (data->registry_data.gc_didt_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_GCEDC);
++		if (data->registry_data.psm_didt_support)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_PSM);
++	}
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++			PHM_PlatformCaps_RegulatorHot);
++
++	if (data->registry_data.ac_dc_switch_gpio_support) {
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_AutomaticDCTransition);
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_SMCtoPPLIBAcdcGpioScheme);
++	}
++
++	if (data->registry_data.quick_transition_support) {
++		phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_AutomaticDCTransition);
++		phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_SMCtoPPLIBAcdcGpioScheme);
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_Falcon_QuickTransition);
++	}
++
++	if (data->lowest_uclk_reserved_for_ulv != PPVEGA20_VEGA20LOWESTUCLKRESERVEDFORULV_DFLT) {
++		phm_cap_unset(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_LowestUclkReservedForUlv);
++		if (data->lowest_uclk_reserved_for_ulv == 1)
++			phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++					PHM_PlatformCaps_LowestUclkReservedForUlv);
++	}
++
++	if (data->registry_data.custom_fan_support)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_CustomFanControlSupport);
++
++	return 0;
++}
++
++static void vega20_init_dpm_defaults(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	int i;
++
++	data->smu_features[GNLD_DPM_PREFETCHER].smu_feature_id =
++			FEATURE_DPM_PREFETCHER_BIT;
++	data->smu_features[GNLD_DPM_GFXCLK].smu_feature_id =
++			FEATURE_DPM_GFXCLK_BIT;
++	data->smu_features[GNLD_DPM_UCLK].smu_feature_id =
++			FEATURE_DPM_UCLK_BIT;
++	data->smu_features[GNLD_DPM_SOCCLK].smu_feature_id =
++			FEATURE_DPM_SOCCLK_BIT;
++	data->smu_features[GNLD_DPM_UVD].smu_feature_id =
++			FEATURE_DPM_UVD_BIT;
++	data->smu_features[GNLD_DPM_VCE].smu_feature_id =
++			FEATURE_DPM_VCE_BIT;
++	data->smu_features[GNLD_ULV].smu_feature_id =
++			FEATURE_ULV_BIT;
++	data->smu_features[GNLD_DPM_MP0CLK].smu_feature_id =
++			FEATURE_DPM_MP0CLK_BIT;
++	data->smu_features[GNLD_DPM_LINK].smu_feature_id =
++			FEATURE_DPM_LINK_BIT;
++	data->smu_features[GNLD_DPM_DCEFCLK].smu_feature_id =
++			FEATURE_DPM_DCEFCLK_BIT;
++	data->smu_features[GNLD_DS_GFXCLK].smu_feature_id =
++			FEATURE_DS_GFXCLK_BIT;
++	data->smu_features[GNLD_DS_SOCCLK].smu_feature_id =
++			FEATURE_DS_SOCCLK_BIT;
++	data->smu_features[GNLD_DS_LCLK].smu_feature_id =
++			FEATURE_DS_LCLK_BIT;
++	data->smu_features[GNLD_PPT].smu_feature_id =
++			FEATURE_PPT_BIT;
++	data->smu_features[GNLD_TDC].smu_feature_id =
++			FEATURE_TDC_BIT;
++	data->smu_features[GNLD_THERMAL].smu_feature_id =
++			FEATURE_THERMAL_BIT;
++	data->smu_features[GNLD_GFX_PER_CU_CG].smu_feature_id =
++			FEATURE_GFX_PER_CU_CG_BIT;
++	data->smu_features[GNLD_RM].smu_feature_id =
++			FEATURE_RM_BIT;
++	data->smu_features[GNLD_DS_DCEFCLK].smu_feature_id =
++			FEATURE_DS_DCEFCLK_BIT;
++	data->smu_features[GNLD_ACDC].smu_feature_id =
++			FEATURE_ACDC_BIT;
++	data->smu_features[GNLD_VR0HOT].smu_feature_id =
++			FEATURE_VR0HOT_BIT;
++	data->smu_features[GNLD_VR1HOT].smu_feature_id =
++			FEATURE_VR1HOT_BIT;
++	data->smu_features[GNLD_FW_CTF].smu_feature_id =
++			FEATURE_FW_CTF_BIT;
++	data->smu_features[GNLD_LED_DISPLAY].smu_feature_id =
++			FEATURE_LED_DISPLAY_BIT;
++	data->smu_features[GNLD_FAN_CONTROL].smu_feature_id =
++			FEATURE_FAN_CONTROL_BIT;
++	data->smu_features[GNLD_DIDT].smu_feature_id = FEATURE_GFX_EDC_BIT;
++	data->smu_features[GNLD_GFXOFF].smu_feature_id = FEATURE_GFXOFF_BIT;
++	data->smu_features[GNLD_CG].smu_feature_id = FEATURE_CG_BIT;
++	data->smu_features[GNLD_DPM_FCLK].smu_feature_id = FEATURE_DPM_FCLK_BIT;
++	data->smu_features[GNLD_DS_FCLK].smu_feature_id = FEATURE_DS_FCLK_BIT;
++	data->smu_features[GNLD_DS_MP1CLK].smu_feature_id = FEATURE_DS_MP1CLK_BIT;
++	data->smu_features[GNLD_DS_MP0CLK].smu_feature_id = FEATURE_DS_MP0CLK_BIT;
++	data->smu_features[GNLD_XGMI].smu_feature_id = FEATURE_XGMI_BIT;
++
++	for (i = 0; i < GNLD_FEATURES_MAX; i++) {
++		data->smu_features[i].smu_feature_bitmap =
++			(uint64_t)(1ULL << data->smu_features[i].smu_feature_id);
++		data->smu_features[i].allowed =
++			((data->registry_data.disallowed_features >> i) & 1) ?
++			false : true;
++	}
++}
++
++static int vega20_set_private_data_based_on_pptable(struct pp_hwmgr *hwmgr)
++{
++	return 0;
++}
++
++static int vega20_hwmgr_backend_fini(struct pp_hwmgr *hwmgr)
++{
++	kfree(hwmgr->backend);
++	hwmgr->backend = NULL;
++
++	return 0;
++}
++
++static int vega20_hwmgr_backend_init(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data;
++	struct amdgpu_device *adev = hwmgr->adev;
++
++	data = kzalloc(sizeof(struct vega20_hwmgr), GFP_KERNEL);
++	if (data == NULL)
++		return -ENOMEM;
++
++	hwmgr->backend = data;
++
++	vega20_set_default_registry_data(hwmgr);
++
++	data->disable_dpm_mask = 0xff;
++	data->workload_mask = 0xff;
++
++	/* need to set voltage control types before EVV patching */
++	data->vddc_control = VEGA20_VOLTAGE_CONTROL_NONE;
++	data->mvdd_control = VEGA20_VOLTAGE_CONTROL_NONE;
++	data->vddci_control = VEGA20_VOLTAGE_CONTROL_NONE;
++
++	data->water_marks_bitmap = 0;
++	data->avfs_exist = false;
++
++	vega20_set_features_platform_caps(hwmgr);
++
++	vega20_init_dpm_defaults(hwmgr);
++
++	/* Parse pptable data read from VBIOS */
++	vega20_set_private_data_based_on_pptable(hwmgr);
++
++	data->is_tlu_enabled = false;
++
++	hwmgr->platform_descriptor.hardwareActivityPerformanceLevels =
++			VEGA20_MAX_HARDWARE_POWERLEVELS;
++	hwmgr->platform_descriptor.hardwarePerformanceLevels = 2;
++	hwmgr->platform_descriptor.minimumClocksReductionPercentage = 50;
++
++	hwmgr->platform_descriptor.vbiosInterruptId = 0x20000400; /* IRQ_SOURCE1_SW_INT */
++	/* The true clock step depends on the frequency, typically 4.5 or 9 MHz. Here we use 5. */
++	hwmgr->platform_descriptor.clockStep.engineClock = 500;
++	hwmgr->platform_descriptor.clockStep.memoryClock = 500;
++
++	data->total_active_cus = adev->gfx.cu_info.number;
++
++	return 0;
++}
++
++static int vega20_init_sclk_threshold(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++
++	data->low_sclk_interrupt_threshold = 0;
++
++	return 0;
++}
++
++static int vega20_setup_asic_task(struct pp_hwmgr *hwmgr)
++{
++	int ret = 0;
++
++	ret = vega20_init_sclk_threshold(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to init sclk threshold!",
++			return ret);
++
++	return 0;
++}
++
++/*
++ * @fn vega20_init_dpm_state
++ * @brief Function to initialize all Soft Min/Max and Hard Min/Max to 0xff.
++ *
++ * @param    dpm_state - the address of the DPM Table to initiailize.
++ * @return   None.
++ */
++static void vega20_init_dpm_state(struct vega20_dpm_state *dpm_state)
++{
++	dpm_state->soft_min_level = 0x0;
++	dpm_state->soft_max_level = 0xffff;
++	dpm_state->hard_min_level = 0x0;
++	dpm_state->hard_max_level = 0xffff;
++}
++
++static int vega20_get_number_of_dpm_level(struct pp_hwmgr *hwmgr,
++		PPCLK_e clk_id, uint32_t *num_of_levels)
++{
++	int ret = 0;
++
++	ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_GetDpmFreqByIndex,
++			(clk_id << 16 | 0xFF));
++	PP_ASSERT_WITH_CODE(!ret,
++			"[GetNumOfDpmLevel] failed to get dpm levels!",
++			return ret);
++
++	vega20_read_arg_from_smc(hwmgr, num_of_levels);
++	PP_ASSERT_WITH_CODE(*num_of_levels > 0,
++			"[GetNumOfDpmLevel] number of clk levels is invalid!",
++			return -EINVAL);
++
++	return ret;
++}
++
++static int vega20_get_dpm_frequency_by_index(struct pp_hwmgr *hwmgr,
++		PPCLK_e clk_id, uint32_t index, uint32_t *clk)
++{
++	int ret = 0;
++
++	ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_GetDpmFreqByIndex,
++			(clk_id << 16 | index));
++	PP_ASSERT_WITH_CODE(!ret,
++			"[GetDpmFreqByIndex] failed to get dpm freq by index!",
++			return ret);
++
++	vega20_read_arg_from_smc(hwmgr, clk);
++	PP_ASSERT_WITH_CODE(*clk,
++			"[GetDpmFreqByIndex] clk value is invalid!",
++			return -EINVAL);
++
++	return ret;
++}
++
++static int vega20_setup_single_dpm_table(struct pp_hwmgr *hwmgr,
++		struct vega20_single_dpm_table *dpm_table, PPCLK_e clk_id)
++{
++	int ret = 0;
++	uint32_t i, num_of_levels, clk;
++
++	ret = vega20_get_number_of_dpm_level(hwmgr, clk_id, &num_of_levels);
++	PP_ASSERT_WITH_CODE(!ret,
++			"[SetupSingleDpmTable] failed to get clk levels!",
++			return ret);
++
++	dpm_table->count = num_of_levels;
++
++	for (i = 0; i < num_of_levels; i++) {
++		ret = vega20_get_dpm_frequency_by_index(hwmgr, clk_id, i, &clk);
++		PP_ASSERT_WITH_CODE(!ret,
++			"[SetupSingleDpmTable] failed to get clk of specific level!",
++			return ret);
++		dpm_table->dpm_levels[i].value = clk;
++		dpm_table->dpm_levels[i].enabled = true;
++	}
++
++	return ret;
++}
++
++
++/*
++ * This function is to initialize all DPM state tables
++ * for SMU based on the dependency table.
++ * Dynamic state patching function will then trim these
++ * state tables to the allowed range based
++ * on the power policy or external client requests,
++ * such as UVD request, etc.
++ */
++static int vega20_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	struct vega20_single_dpm_table *dpm_table;
++	int ret = 0;
++
++	memset(&data->dpm_table, 0, sizeof(data->dpm_table));
++
++	/* socclk */
++	dpm_table = &(data->dpm_table.soc_table);
++	if (data->smu_features[GNLD_DPM_SOCCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_SOCCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get socclk dpm levels!",
++				return ret);
++	} else {
++		dpm_table->count = 1;
++		dpm_table->dpm_levels[0].value = data->vbios_boot_state.soc_clock / 100;
++	}
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* gfxclk */
++	dpm_table = &(data->dpm_table.gfx_table);
++	if (data->smu_features[GNLD_DPM_GFXCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_GFXCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get gfxclk dpm levels!",
++				return ret);
++	} else {
++		dpm_table->count = 1;
++		dpm_table->dpm_levels[0].value = data->vbios_boot_state.gfx_clock / 100;
++	}
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* memclk */
++	dpm_table = &(data->dpm_table.mem_table);
++	if (data->smu_features[GNLD_DPM_UCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_UCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get memclk dpm levels!",
++				return ret);
++	} else {
++		dpm_table->count = 1;
++		dpm_table->dpm_levels[0].value = data->vbios_boot_state.mem_clock / 100;
++	}
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* eclk */
++	dpm_table = &(data->dpm_table.eclk_table);
++	if (data->smu_features[GNLD_DPM_VCE].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_ECLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get eclk dpm levels!",
++				return ret);
++	} else {
++		dpm_table->count = 1;
++		dpm_table->dpm_levels[0].value = data->vbios_boot_state.eclock / 100;
++	}
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* vclk */
++	dpm_table = &(data->dpm_table.vclk_table);
++	if (data->smu_features[GNLD_DPM_UVD].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_VCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get vclk dpm levels!",
++				return ret);
++	} else {
++		dpm_table->count = 1;
++		dpm_table->dpm_levels[0].value = data->vbios_boot_state.vclock / 100;
++	}
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* dclk */
++	dpm_table = &(data->dpm_table.dclk_table);
++	if (data->smu_features[GNLD_DPM_UVD].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_DCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get dclk dpm levels!",
++				return ret);
++	} else {
++		dpm_table->count = 1;
++		dpm_table->dpm_levels[0].value = data->vbios_boot_state.dclock / 100;
++	}
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* dcefclk */
++	dpm_table = &(data->dpm_table.dcef_table);
++	if (data->smu_features[GNLD_DPM_DCEFCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_DCEFCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get dcefclk dpm levels!",
++				return ret);
++	} else {
++		dpm_table->count = 1;
++		dpm_table->dpm_levels[0].value = data->vbios_boot_state.dcef_clock / 100;
++	}
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* pixclk */
++	dpm_table = &(data->dpm_table.pixel_table);
++	if (data->smu_features[GNLD_DPM_DCEFCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_PIXCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get pixclk dpm levels!",
++				return ret);
++	} else
++		dpm_table->count = 0;
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* dispclk */
++	dpm_table = &(data->dpm_table.display_table);
++	if (data->smu_features[GNLD_DPM_DCEFCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_DISPCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get dispclk dpm levels!",
++				return ret);
++	} else
++		dpm_table->count = 0;
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* phyclk */
++	dpm_table = &(data->dpm_table.phy_table);
++	if (data->smu_features[GNLD_DPM_DCEFCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_PHYCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get phyclk dpm levels!",
++				return ret);
++	} else
++		dpm_table->count = 0;
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* fclk */
++	dpm_table = &(data->dpm_table.fclk_table);
++	if (data->smu_features[GNLD_DPM_FCLK].enabled) {
++		ret = vega20_setup_single_dpm_table(hwmgr, dpm_table, PPCLK_FCLK);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[SetupDefaultDpmTable] failed to get fclk dpm levels!",
++				return ret);
++	} else
++		dpm_table->count = 0;
++	vega20_init_dpm_state(&(dpm_table->dpm_state));
++
++	/* save a copy of the default DPM table */
++	memcpy(&(data->golden_dpm_table), &(data->dpm_table),
++			sizeof(struct vega20_dpm_table));
++
++	return 0;
++}
++
++/**
++* Initializes the SMC table and uploads it
++*
++* @param    hwmgr  the address of the powerplay hardware manager.
++* @param    pInput  the pointer to input data (PowerState)
++* @return   always 0
++*/
++static int vega20_init_smc_table(struct pp_hwmgr *hwmgr)
++{
++	int result;
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	PPTable_t *pp_table = &(data->smc_state_table.pp_table);
++	struct pp_atomfwctrl_bios_boot_up_values boot_up_values;
++	struct phm_ppt_v3_information *pptable_information =
++		(struct phm_ppt_v3_information *)hwmgr->pptable;
++
++	result = pp_atomfwctrl_get_vbios_bootup_values(hwmgr, &boot_up_values);
++	PP_ASSERT_WITH_CODE(!result,
++			"[InitSMCTable] Failed to get vbios bootup values!",
++			return result);
++
++	data->vbios_boot_state.vddc     = boot_up_values.usVddc;
++	data->vbios_boot_state.vddci    = boot_up_values.usVddci;
++	data->vbios_boot_state.mvddc    = boot_up_values.usMvddc;
++	data->vbios_boot_state.gfx_clock = boot_up_values.ulGfxClk;
++	data->vbios_boot_state.mem_clock = boot_up_values.ulUClk;
++	data->vbios_boot_state.soc_clock = boot_up_values.ulSocClk;
++	data->vbios_boot_state.dcef_clock = boot_up_values.ulDCEFClk;
++	data->vbios_boot_state.eclock = boot_up_values.ulEClk;
++	data->vbios_boot_state.vclock = boot_up_values.ulVClk;
++	data->vbios_boot_state.dclock = boot_up_values.ulDClk;
++	data->vbios_boot_state.uc_cooling_id = boot_up_values.ucCoolingID;
++	if (0 != boot_up_values.usVddc) {
++		smum_send_msg_to_smc_with_parameter(hwmgr,
++					PPSMC_MSG_SetFloorSocVoltage,
++					(boot_up_values.usVddc * 4));
++		data->vbios_boot_state.bsoc_vddc_lock = true;
++	} else {
++		data->vbios_boot_state.bsoc_vddc_lock = false;
++	}
++	smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_SetMinDeepSleepDcefclk,
++		(uint32_t)(data->vbios_boot_state.dcef_clock / 100));
++
++	memcpy(pp_table, pptable_information->smc_pptable, sizeof(PPTable_t));
++
++	result = vega20_copy_table_to_smc(hwmgr,
++			(uint8_t *)pp_table, TABLE_PPTABLE);
++	PP_ASSERT_WITH_CODE(!result,
++			"[InitSMCTable] Failed to upload PPtable!",
++			return result);
++
++	return 0;
++}
++
++static int vega20_set_allowed_featuresmask(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	uint32_t allowed_features_low = 0, allowed_features_high = 0;
++	int i;
++	int ret = 0;
++
++	for (i = 0; i < GNLD_FEATURES_MAX; i++)
++		if (data->smu_features[i].allowed)
++			data->smu_features[i].smu_feature_id > 31 ?
++				(allowed_features_high |=
++				 ((data->smu_features[i].smu_feature_bitmap >> SMU_FEATURES_HIGH_SHIFT)
++				  & 0xFFFFFFFF)) :
++				(allowed_features_low |=
++				 ((data->smu_features[i].smu_feature_bitmap >> SMU_FEATURES_LOW_SHIFT)
++				  & 0xFFFFFFFF));
++
++	ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++		PPSMC_MSG_SetAllowedFeaturesMaskHigh, allowed_features_high);
++	PP_ASSERT_WITH_CODE(!ret,
++		"[SetAllowedFeaturesMask] Attempt to set allowed features mask(high) failed!",
++		return ret);
++
++	ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++		PPSMC_MSG_SetAllowedFeaturesMaskLow, allowed_features_low);
++	PP_ASSERT_WITH_CODE(!ret,
++		"[SetAllowedFeaturesMask] Attempt to set allowed features mask (low) failed!",
++		return ret);
++
++	return 0;
++}
++
++static int vega20_enable_all_smu_features(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	uint64_t features_enabled;
++	int i;
++	bool enabled;
++	int ret = 0;
++
++	PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc(hwmgr,
++			PPSMC_MSG_EnableAllSmuFeatures)) == 0,
++			"[EnableAllSMUFeatures] Failed to enable all smu features!",
++			return ret);
++
++	ret = vega20_get_enabled_smc_features(hwmgr, &features_enabled);
++	PP_ASSERT_WITH_CODE(!ret,
++			"[EnableAllSmuFeatures] Failed to get enabled smc features!",
++			return ret);
++
++	for (i = 0; i < GNLD_FEATURES_MAX; i++) {
++		enabled = (features_enabled & data->smu_features[i].smu_feature_bitmap) ?
++			true : false;
++		data->smu_features[i].enabled = enabled;
++		data->smu_features[i].supported = enabled;
++
++#if 0
++		if (data->smu_features[i].allowed && !enabled)
++			pr_info("[EnableAllSMUFeatures] feature %d is expected enabled!", i);
++		else if (!data->smu_features[i].allowed && enabled)
++			pr_info("[EnableAllSMUFeatures] feature %d is expected disabled!", i);
++#endif
++	}
++
++	return 0;
++}
++
++static int vega20_disable_all_smu_features(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	uint64_t features_enabled;
++	int i;
++	bool enabled;
++	int ret = 0;
++
++	PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc(hwmgr,
++			PPSMC_MSG_DisableAllSmuFeatures)) == 0,
++			"[DisableAllSMUFeatures] Failed to disable all smu features!",
++			return ret);
++
++	ret = vega20_get_enabled_smc_features(hwmgr, &features_enabled);
++	PP_ASSERT_WITH_CODE(!ret,
++			"[DisableAllSMUFeatures] Failed to get enabled smc features!",
++			return ret);
++
++	for (i = 0; i < GNLD_FEATURES_MAX; i++) {
++		enabled = (features_enabled & data->smu_features[i].smu_feature_bitmap) ?
++			true : false;
++		data->smu_features[i].enabled = enabled;
++		data->smu_features[i].supported = enabled;
++	}
++
++	return 0;
++}
++
++static int vega20_odn_initialize_default_settings(
++		struct pp_hwmgr *hwmgr)
++{
++	return 0;
++}
++
++static int vega20_get_max_sustainable_clock(struct pp_hwmgr *hwmgr,
++		PP_Clock *clock, PPCLK_e clock_select)
++{
++	int ret = 0;
++
++	PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_GetDcModeMaxDpmFreq,
++			(clock_select << 16))) == 0,
++			"[GetMaxSustainableClock] Failed to get max DC clock from SMC!",
++			return ret);
++	vega20_read_arg_from_smc(hwmgr, clock);
++
++	/* if DC limit is zero, return AC limit */
++	if (*clock == 0) {
++		PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_GetMaxDpmFreq,
++			(clock_select << 16))) == 0,
++			"[GetMaxSustainableClock] failed to get max AC clock from SMC!",
++			return ret);
++		vega20_read_arg_from_smc(hwmgr, clock);
++	}
++
++	return 0;
++}
++
++static int vega20_init_max_sustainable_clocks(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++		(struct vega20_hwmgr *)(hwmgr->backend);
++	struct vega20_max_sustainable_clocks *max_sustainable_clocks =
++		&(data->max_sustainable_clocks);
++	int ret = 0;
++
++	max_sustainable_clocks->uclock = data->vbios_boot_state.mem_clock / 100;
++	max_sustainable_clocks->soc_clock = data->vbios_boot_state.soc_clock / 100;
++	max_sustainable_clocks->dcef_clock = data->vbios_boot_state.dcef_clock / 100;
++	max_sustainable_clocks->display_clock = 0xFFFFFFFF;
++	max_sustainable_clocks->phy_clock = 0xFFFFFFFF;
++	max_sustainable_clocks->pixel_clock = 0xFFFFFFFF;
++
++	if (data->smu_features[GNLD_DPM_UCLK].enabled)
++		PP_ASSERT_WITH_CODE((ret = vega20_get_max_sustainable_clock(hwmgr,
++				&(max_sustainable_clocks->uclock),
++				PPCLK_UCLK)) == 0,
++				"[InitMaxSustainableClocks] failed to get max UCLK from SMC!",
++				return ret);
++
++	if (data->smu_features[GNLD_DPM_SOCCLK].enabled)
++		PP_ASSERT_WITH_CODE((ret = vega20_get_max_sustainable_clock(hwmgr,
++				&(max_sustainable_clocks->soc_clock),
++				PPCLK_SOCCLK)) == 0,
++				"[InitMaxSustainableClocks] failed to get max SOCCLK from SMC!",
++				return ret);
++
++	if (data->smu_features[GNLD_DPM_DCEFCLK].enabled) {
++		PP_ASSERT_WITH_CODE((ret = vega20_get_max_sustainable_clock(hwmgr,
++				&(max_sustainable_clocks->dcef_clock),
++				PPCLK_DCEFCLK)) == 0,
++				"[InitMaxSustainableClocks] failed to get max DCEFCLK from SMC!",
++				return ret);
++		PP_ASSERT_WITH_CODE((ret = vega20_get_max_sustainable_clock(hwmgr,
++				&(max_sustainable_clocks->display_clock),
++				PPCLK_DISPCLK)) == 0,
++				"[InitMaxSustainableClocks] failed to get max DISPCLK from SMC!",
++				return ret);
++		PP_ASSERT_WITH_CODE((ret = vega20_get_max_sustainable_clock(hwmgr,
++				&(max_sustainable_clocks->phy_clock),
++				PPCLK_PHYCLK)) == 0,
++				"[InitMaxSustainableClocks] failed to get max PHYCLK from SMC!",
++				return ret);
++		PP_ASSERT_WITH_CODE((ret = vega20_get_max_sustainable_clock(hwmgr,
++				&(max_sustainable_clocks->pixel_clock),
++				PPCLK_PIXCLK)) == 0,
++				"[InitMaxSustainableClocks] failed to get max PIXCLK from SMC!",
++				return ret);
++	}
++
++	if (max_sustainable_clocks->soc_clock < max_sustainable_clocks->uclock)
++		max_sustainable_clocks->uclock = max_sustainable_clocks->soc_clock;
++
++	if (max_sustainable_clocks->uclock < max_sustainable_clocks->dcef_clock)
++		max_sustainable_clocks->dcef_clock = max_sustainable_clocks->uclock;
++
++	return 0;
++}
++
++static int vega20_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
++{
++	int result = 0;
++
++	smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_NumOfDisplays, 0);
++
++	result = vega20_set_allowed_featuresmask(hwmgr);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableDPMTasks] Failed to set allowed featuresmask!\n",
++			return result);
++
++	result = vega20_init_smc_table(hwmgr);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableDPMTasks] Failed to initialize SMC table!",
++			return result);
++
++	result = vega20_enable_all_smu_features(hwmgr);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableDPMTasks] Failed to enable all smu features!",
++			return result);
++
++	result = vega20_setup_default_dpm_tables(hwmgr);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableDPMTasks] Failed to setup default DPM tables!",
++			return result);
++
++	result = vega20_init_max_sustainable_clocks(hwmgr);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableDPMTasks] Failed to get maximum sustainable clocks!",
++			return result);
++
++	result = vega20_power_control_set_level(hwmgr);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableDPMTasks] Failed to power control set level!",
++			return result);
++
++	result = vega20_odn_initialize_default_settings(hwmgr);
++	PP_ASSERT_WITH_CODE(!result,
++			"[EnableDPMTasks] Failed to initialize odn settings!",
++			return result);
++
++	return result;
++}
++
++static uint32_t vega20_find_lowest_dpm_level(
++		struct vega20_single_dpm_table *table)
++{
++	uint32_t i;
++
++	for (i = 0; i < table->count; i++) {
++		if (table->dpm_levels[i].enabled)
++			break;
++	}
++	if (i >= table->count) {
++		i = 0;
++		table->dpm_levels[i].enabled = true;
++	}
++
++	return i;
++}
++
++static uint32_t vega20_find_highest_dpm_level(
++		struct vega20_single_dpm_table *table)
++{
++	uint32_t i = 0;
++
++	PP_ASSERT_WITH_CODE(table != NULL,
++			"[FindHighestDPMLevel] DPM Table does not exist!",
++			return 0);
++	PP_ASSERT_WITH_CODE(table->count > 0,
++			"[FindHighestDPMLevel] DPM Table has no entry!",
++			return 0);
++	PP_ASSERT_WITH_CODE(table->count <= MAX_REGULAR_DPM_NUMBER,
++			"[FindHighestDPMLevel] DPM Table has too many entries!",
++			return MAX_REGULAR_DPM_NUMBER - 1);
++
++	for (i = table->count - 1; i >= 0; i--) {
++		if (table->dpm_levels[i].enabled)
++			break;
++	}
++	if (i < 0) {
++		i = 0;
++		table->dpm_levels[i].enabled = true;
++	}
++
++	return i;
++}
++
++static int vega20_upload_dpm_min_level(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	if (data->smu_features[GNLD_DPM_GFXCLK].enabled)
++		PP_ASSERT_WITH_CODE(!(ret = smum_send_msg_to_smc_with_parameter(
++					hwmgr, PPSMC_MSG_SetSoftMinByFreq,
++					PPCLK_GFXCLK << 16 |
++					data->dpm_table.gfx_table.dpm_state.soft_min_level)),
++					"Failed to set soft min gfxclk !",
++					return ret);
++
++	if (data->smu_features[GNLD_DPM_UCLK].enabled) {
++		PP_ASSERT_WITH_CODE(!(ret = smum_send_msg_to_smc_with_parameter(
++					hwmgr, PPSMC_MSG_SetSoftMinByFreq,
++					PPCLK_UCLK << 16 |
++					data->dpm_table.mem_table.dpm_state.soft_min_level)),
++					"Failed to set soft min memclk !",
++					return ret);
++		PP_ASSERT_WITH_CODE(!(ret = smum_send_msg_to_smc_with_parameter(
++					hwmgr, PPSMC_MSG_SetHardMinByFreq,
++					PPCLK_UCLK << 16 |
++					data->dpm_table.mem_table.dpm_state.hard_min_level)),
++					"Failed to set hard min memclk !",
++					return ret);
++	}
++
++	return ret;
++}
++
++static int vega20_upload_dpm_max_level(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	if (data->smu_features[GNLD_DPM_GFXCLK].enabled)
++		PP_ASSERT_WITH_CODE(!(ret = smum_send_msg_to_smc_with_parameter(
++					hwmgr, PPSMC_MSG_SetSoftMaxByFreq,
++					PPCLK_GFXCLK << 16 |
++					data->dpm_table.gfx_table.dpm_state.soft_max_level)),
++					"Failed to set soft max gfxclk!",
++					return ret);
++
++	if (data->smu_features[GNLD_DPM_UCLK].enabled)
++		PP_ASSERT_WITH_CODE(!(ret = smum_send_msg_to_smc_with_parameter(
++					hwmgr, PPSMC_MSG_SetSoftMaxByFreq,
++					PPCLK_UCLK << 16 |
++					data->dpm_table.mem_table.dpm_state.soft_max_level)),
++					"Failed to set soft max memclk!",
++					return ret);
++
++	return ret;
++}
++
++int vega20_enable_disable_vce_dpm(struct pp_hwmgr *hwmgr, bool enable)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	if (data->smu_features[GNLD_DPM_VCE].supported) {
++		if (data->smu_features[GNLD_DPM_VCE].enabled == enable) {
++			if (enable)
++				PP_DBG_LOG("[EnableDisableVCEDPM] feature VCE DPM already enabled!\n");
++			else
++				PP_DBG_LOG("[EnableDisableVCEDPM] feature VCE DPM already disabled!\n");
++		}
++
++		ret = vega20_enable_smc_features(hwmgr,
++				enable,
++				data->smu_features[GNLD_DPM_VCE].smu_feature_bitmap);
++		PP_ASSERT_WITH_CODE(!ret,
++				"Attempt to Enable/Disable DPM VCE Failed!",
++				return ret);
++		data->smu_features[GNLD_DPM_VCE].enabled = enable;
++	}
++
++	return 0;
++}
++
++static int vega20_get_clock_ranges(struct pp_hwmgr *hwmgr,
++		uint32_t *clock,
++		PPCLK_e clock_select,
++		bool max)
++{
++	int ret;
++	*clock = 0;
++
++	if (max) {
++		PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++				PPSMC_MSG_GetMaxDpmFreq, (clock_select << 16))) == 0,
++				"[GetClockRanges] Failed to get max clock from SMC!",
++				return ret);
++		vega20_read_arg_from_smc(hwmgr, clock);
++	} else {
++		PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++				PPSMC_MSG_GetMinDpmFreq,
++				(clock_select << 16))) == 0,
++				"[GetClockRanges] Failed to get min clock from SMC!",
++				return ret);
++		vega20_read_arg_from_smc(hwmgr, clock);
++	}
++
++	return 0;
++}
++
++static uint32_t vega20_dpm_get_sclk(struct pp_hwmgr *hwmgr, bool low)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	uint32_t gfx_clk;
++	int ret = 0;
++
++	PP_ASSERT_WITH_CODE(data->smu_features[GNLD_DPM_GFXCLK].enabled,
++			"[GetSclks]: gfxclk dpm not enabled!\n",
++			return -EPERM);
++
++	if (low) {
++		ret = vega20_get_clock_ranges(hwmgr, &gfx_clk, PPCLK_GFXCLK, false);
++		PP_ASSERT_WITH_CODE(!ret,
++			"[GetSclks]: fail to get min PPCLK_GFXCLK\n",
++			return ret);
++	} else {
++		ret = vega20_get_clock_ranges(hwmgr, &gfx_clk, PPCLK_GFXCLK, true);
++		PP_ASSERT_WITH_CODE(!ret,
++			"[GetSclks]: fail to get max PPCLK_GFXCLK\n",
++			return ret);
++	}
++
++	return (gfx_clk * 100);
++}
++
++static uint32_t vega20_dpm_get_mclk(struct pp_hwmgr *hwmgr, bool low)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	uint32_t mem_clk;
++	int ret = 0;
++
++	PP_ASSERT_WITH_CODE(data->smu_features[GNLD_DPM_UCLK].enabled,
++			"[MemMclks]: memclk dpm not enabled!\n",
++			return -EPERM);
++
++	if (low) {
++		ret = vega20_get_clock_ranges(hwmgr, &mem_clk, PPCLK_UCLK, false);
++		PP_ASSERT_WITH_CODE(!ret,
++			"[GetMclks]: fail to get min PPCLK_UCLK\n",
++			return ret);
++	} else {
++		ret = vega20_get_clock_ranges(hwmgr, &mem_clk, PPCLK_UCLK, true);
++		PP_ASSERT_WITH_CODE(!ret,
++			"[GetMclks]: fail to get max PPCLK_UCLK\n",
++			return ret);
++	}
++
++	return (mem_clk * 100);
++}
++
++static int vega20_get_gpu_power(struct pp_hwmgr *hwmgr,
++		uint32_t *query)
++{
++	int ret = 0;
++	SmuMetrics_t metrics_table;
++
++	ret = vega20_copy_table_from_smc(hwmgr, (uint8_t *)&metrics_table, TABLE_SMU_METRICS);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to export SMU METRICS table!",
++			return ret);
++
++	*query = metrics_table.CurrSocketPower << 8;
++
++	return ret;
++}
++
++static int vega20_get_current_gfx_clk_freq(struct pp_hwmgr *hwmgr, uint32_t *gfx_freq)
++{
++	uint32_t gfx_clk = 0;
++	int ret = 0;
++
++	*gfx_freq = 0;
++
++	PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_GetDpmClockFreq, (PPCLK_GFXCLK << 16))) == 0,
++			"[GetCurrentGfxClkFreq] Attempt to get Current GFXCLK Frequency Failed!",
++			return ret);
++	vega20_read_arg_from_smc(hwmgr, &gfx_clk);
++
++	*gfx_freq = gfx_clk * 100;
++
++	return 0;
++}
++
++static int vega20_get_current_mclk_freq(struct pp_hwmgr *hwmgr, uint32_t *mclk_freq)
++{
++	uint32_t mem_clk = 0;
++	int ret = 0;
++
++	*mclk_freq = 0;
++
++	PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_GetDpmClockFreq, (PPCLK_UCLK << 16))) == 0,
++			"[GetCurrentMClkFreq] Attempt to get Current MCLK Frequency Failed!",
++			return ret);
++	vega20_read_arg_from_smc(hwmgr, &mem_clk);
++
++	*mclk_freq = mem_clk * 100;
++
++	return 0;
++}
++
++static int vega20_get_current_activity_percent(struct pp_hwmgr *hwmgr,
++		uint32_t *activity_percent)
++{
++	int ret = 0;
++	SmuMetrics_t metrics_table;
++
++	ret = vega20_copy_table_from_smc(hwmgr, (uint8_t *)&metrics_table, TABLE_SMU_METRICS);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to export SMU METRICS table!",
++			return ret);
++
++	*activity_percent = metrics_table.AverageGfxActivity;
++
++	return ret;
++}
++
++static int vega20_read_sensor(struct pp_hwmgr *hwmgr, int idx,
++			      void *value, int *size)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	switch (idx) {
++	case AMDGPU_PP_SENSOR_GFX_SCLK:
++		ret = vega20_get_current_gfx_clk_freq(hwmgr, (uint32_t *)value);
++		if (!ret)
++			*size = 4;
++		break;
++	case AMDGPU_PP_SENSOR_GFX_MCLK:
++		ret = vega20_get_current_mclk_freq(hwmgr, (uint32_t *)value);
++		if (!ret)
++			*size = 4;
++		break;
++	case AMDGPU_PP_SENSOR_GPU_LOAD:
++		ret = vega20_get_current_activity_percent(hwmgr, (uint32_t *)value);
++		if (!ret)
++			*size = 4;
++		break;
++	case AMDGPU_PP_SENSOR_GPU_TEMP:
++		*((uint32_t *)value) = vega20_thermal_get_temperature(hwmgr);
++		*size = 4;
++		break;
++	case AMDGPU_PP_SENSOR_UVD_POWER:
++		*((uint32_t *)value) = data->uvd_power_gated ? 0 : 1;
++		*size = 4;
++		break;
++	case AMDGPU_PP_SENSOR_VCE_POWER:
++		*((uint32_t *)value) = data->vce_power_gated ? 0 : 1;
++		*size = 4;
++		break;
++	case AMDGPU_PP_SENSOR_GPU_POWER:
++		*size = 16;
++		ret = vega20_get_gpu_power(hwmgr, (uint32_t *)value);
++		break;
++	default:
++		ret = -EINVAL;
++		break;
++	}
++	return ret;
++}
++
++static int vega20_notify_smc_display_change(struct pp_hwmgr *hwmgr,
++		bool has_disp)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++
++	if (data->smu_features[GNLD_DPM_UCLK].enabled)
++		return smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_SetUclkFastSwitch,
++			has_disp ? 0 : 1);
++
++	return 0;
++}
++
++int vega20_display_clock_voltage_request(struct pp_hwmgr *hwmgr,
++		struct pp_display_clock_request *clock_req)
++{
++	int result = 0;
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	enum amd_pp_clock_type clk_type = clock_req->clock_type;
++	uint32_t clk_freq = clock_req->clock_freq_in_khz / 1000;
++	PPCLK_e clk_select = 0;
++	uint32_t clk_request = 0;
++
++	if (data->smu_features[GNLD_DPM_DCEFCLK].enabled) {
++		switch (clk_type) {
++		case amd_pp_dcef_clock:
++			clk_freq = clock_req->clock_freq_in_khz / 100;
++			clk_select = PPCLK_DCEFCLK;
++			break;
++		case amd_pp_disp_clock:
++			clk_select = PPCLK_DISPCLK;
++			break;
++		case amd_pp_pixel_clock:
++			clk_select = PPCLK_PIXCLK;
++			break;
++		case amd_pp_phy_clock:
++			clk_select = PPCLK_PHYCLK;
++			break;
++		default:
++			pr_info("[DisplayClockVoltageRequest]Invalid Clock Type!");
++			result = -EINVAL;
++			break;
++		}
++
++		if (!result) {
++			clk_request = (clk_select << 16) | clk_freq;
++			result = smum_send_msg_to_smc_with_parameter(hwmgr,
++					PPSMC_MSG_SetHardMinByFreq,
++					clk_request);
++		}
++	}
++
++	return result;
++}
++
++static int vega20_notify_smc_display_config_after_ps_adjustment(
++		struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	struct PP_Clocks min_clocks = {0};
++	struct pp_display_clock_request clock_req;
++	int ret = 0;
++
++	if ((hwmgr->display_config->num_display > 1) &&
++	     !hwmgr->display_config->multi_monitor_in_sync)
++		vega20_notify_smc_display_change(hwmgr, false);
++	else
++		vega20_notify_smc_display_change(hwmgr, true);
++
++	min_clocks.dcefClock = hwmgr->display_config->min_dcef_set_clk;
++	min_clocks.dcefClockInSR = hwmgr->display_config->min_dcef_deep_sleep_set_clk;
++	min_clocks.memoryClock = hwmgr->display_config->min_mem_set_clock;
++
++	if (data->smu_features[GNLD_DPM_DCEFCLK].supported) {
++		clock_req.clock_type = amd_pp_dcef_clock;
++		clock_req.clock_freq_in_khz = min_clocks.dcefClock;
++		if (!vega20_display_clock_voltage_request(hwmgr, &clock_req)) {
++			if (data->smu_features[GNLD_DS_DCEFCLK].supported)
++				PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc_with_parameter(
++					hwmgr, PPSMC_MSG_SetMinDeepSleepDcefclk,
++					min_clocks.dcefClockInSR / 100)) == 0,
++					"Attempt to set divider for DCEFCLK Failed!",
++					return ret);
++		} else {
++			pr_info("Attempt to set Hard Min for DCEFCLK Failed!");
++		}
++	}
++
++	return 0;
++}
++
++static int vega20_force_dpm_highest(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	data->smc_state_table.gfx_boot_level =
++	data->smc_state_table.gfx_max_level =
++			vega20_find_highest_dpm_level(&(data->dpm_table.gfx_table));
++	data->smc_state_table.mem_boot_level =
++	data->smc_state_table.mem_max_level =
++			vega20_find_highest_dpm_level(&(data->dpm_table.mem_table));
++
++	ret = vega20_upload_dpm_min_level(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload boot level to highest!",
++			return ret);
++
++	ret = vega20_upload_dpm_max_level(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload dpm max level to highest!",
++			return ret);
++
++	return 0;
++}
++
++static int vega20_force_dpm_lowest(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	data->smc_state_table.gfx_boot_level =
++	data->smc_state_table.gfx_max_level =
++			vega20_find_lowest_dpm_level(&(data->dpm_table.gfx_table));
++	data->smc_state_table.mem_boot_level =
++	data->smc_state_table.mem_max_level =
++			vega20_find_lowest_dpm_level(&(data->dpm_table.mem_table));
++
++	ret = vega20_upload_dpm_min_level(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload boot level to highest!",
++			return ret);
++
++	ret = vega20_upload_dpm_max_level(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload dpm max level to highest!",
++			return ret);
++
++	return 0;
++
++}
++
++static int vega20_unforce_dpm_levels(struct pp_hwmgr *hwmgr)
++{
++	int ret = 0;
++
++	ret = vega20_upload_dpm_min_level(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload DPM Bootup Levels!",
++			return ret);
++
++	ret = vega20_upload_dpm_max_level(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload DPM Max Levels!",
++			return ret);
++
++	return 0;
++}
++
++#if 0
++static int vega20_get_profiling_clk_mask(struct pp_hwmgr *hwmgr, enum amd_dpm_forced_level level,
++				uint32_t *sclk_mask, uint32_t *mclk_mask, uint32_t *soc_mask)
++{
++	struct phm_ppt_v2_information *table_info =
++			(struct phm_ppt_v2_information *)(hwmgr->pptable);
++
++	if (table_info->vdd_dep_on_sclk->count > VEGA20_UMD_PSTATE_GFXCLK_LEVEL &&
++		table_info->vdd_dep_on_socclk->count > VEGA20_UMD_PSTATE_SOCCLK_LEVEL &&
++		table_info->vdd_dep_on_mclk->count > VEGA20_UMD_PSTATE_MCLK_LEVEL) {
++		*sclk_mask = VEGA20_UMD_PSTATE_GFXCLK_LEVEL;
++		*soc_mask = VEGA20_UMD_PSTATE_SOCCLK_LEVEL;
++		*mclk_mask = VEGA20_UMD_PSTATE_MCLK_LEVEL;
++	}
++
++	if (level == AMD_DPM_FORCED_LEVEL_PROFILE_MIN_SCLK) {
++		*sclk_mask = 0;
++	} else if (level == AMD_DPM_FORCED_LEVEL_PROFILE_MIN_MCLK) {
++		*mclk_mask = 0;
++	} else if (level == AMD_DPM_FORCED_LEVEL_PROFILE_PEAK) {
++		*sclk_mask = table_info->vdd_dep_on_sclk->count - 1;
++		*soc_mask = table_info->vdd_dep_on_socclk->count - 1;
++		*mclk_mask = table_info->vdd_dep_on_mclk->count - 1;
++	}
++	return 0;
++}
++#endif
++
++static int vega20_force_clock_level(struct pp_hwmgr *hwmgr,
++		enum pp_clock_type type, uint32_t mask)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	switch (type) {
++	case PP_SCLK:
++		data->smc_state_table.gfx_boot_level = mask ? (ffs(mask) - 1) : 0;
++		data->smc_state_table.gfx_max_level = mask ? (fls(mask) - 1) : 0;
++
++		ret = vega20_upload_dpm_min_level(hwmgr);
++		PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload boot level to lowest!",
++			return ret);
++
++		ret = vega20_upload_dpm_max_level(hwmgr);
++		PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload dpm max level to highest!",
++			return ret);
++		break;
++
++	case PP_MCLK:
++		data->smc_state_table.mem_boot_level = mask ? (ffs(mask) - 1) : 0;
++		data->smc_state_table.mem_max_level = mask ? (fls(mask) - 1) : 0;
++
++		ret = vega20_upload_dpm_min_level(hwmgr);
++		PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload boot level to lowest!",
++			return ret);
++
++		ret = vega20_upload_dpm_max_level(hwmgr);
++		PP_ASSERT_WITH_CODE(!ret,
++			"Failed to upload dpm max level to highest!",
++			return ret);
++
++		break;
++
++	case PP_PCIE:
++		break;
++
++	default:
++		break;
++	}
++
++	return 0;
++}
++
++static int vega20_dpm_force_dpm_level(struct pp_hwmgr *hwmgr,
++				enum amd_dpm_forced_level level)
++{
++	int ret = 0;
++#if 0
++	uint32_t sclk_mask = 0;
++	uint32_t mclk_mask = 0;
++	uint32_t soc_mask = 0;
++#endif
++
++	switch (level) {
++	case AMD_DPM_FORCED_LEVEL_HIGH:
++		ret = vega20_force_dpm_highest(hwmgr);
++		break;
++	case AMD_DPM_FORCED_LEVEL_LOW:
++		ret = vega20_force_dpm_lowest(hwmgr);
++		break;
++	case AMD_DPM_FORCED_LEVEL_AUTO:
++		ret = vega20_unforce_dpm_levels(hwmgr);
++		break;
++	case AMD_DPM_FORCED_LEVEL_PROFILE_STANDARD:
++	case AMD_DPM_FORCED_LEVEL_PROFILE_MIN_SCLK:
++	case AMD_DPM_FORCED_LEVEL_PROFILE_MIN_MCLK:
++	case AMD_DPM_FORCED_LEVEL_PROFILE_PEAK:
++#if 0
++		ret = vega20_get_profiling_clk_mask(hwmgr, level, &sclk_mask, &mclk_mask, &soc_mask);
++		if (ret)
++			return ret;
++		vega20_force_clock_level(hwmgr, PP_SCLK, 1<<sclk_mask);
++		vega20_force_clock_level(hwmgr, PP_MCLK, 1<<mclk_mask);
++#endif
++		break;
++	case AMD_DPM_FORCED_LEVEL_MANUAL:
++	case AMD_DPM_FORCED_LEVEL_PROFILE_EXIT:
++	default:
++		break;
++	}
++#if 0
++	if (!ret) {
++		if (level == AMD_DPM_FORCED_LEVEL_PROFILE_PEAK && hwmgr->dpm_level != AMD_DPM_FORCED_LEVEL_PROFILE_PEAK)
++			vega20_set_fan_control_mode(hwmgr, AMD_FAN_CTRL_NONE);
++		else if (level != AMD_DPM_FORCED_LEVEL_PROFILE_PEAK && hwmgr->dpm_level == AMD_DPM_FORCED_LEVEL_PROFILE_PEAK)
++			vega20_set_fan_control_mode(hwmgr, AMD_FAN_CTRL_AUTO);
++	}
++#endif
++	return ret;
++}
++
++static uint32_t vega20_get_fan_control_mode(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++
++	if (data->smu_features[GNLD_FAN_CONTROL].enabled == false)
++		return AMD_FAN_CTRL_MANUAL;
++	else
++		return AMD_FAN_CTRL_AUTO;
++}
++
++static int vega20_get_dal_power_level(struct pp_hwmgr *hwmgr,
++		struct amd_pp_simple_clock_info *info)
++{
++#if 0
++	struct phm_ppt_v2_information *table_info =
++			(struct phm_ppt_v2_information *)hwmgr->pptable;
++	struct phm_clock_and_voltage_limits *max_limits =
++			&table_info->max_clock_voltage_on_ac;
++
++	info->engine_max_clock = max_limits->sclk;
++	info->memory_max_clock = max_limits->mclk;
++#endif
++	return 0;
++}
++
++
++static int vega20_get_sclks(struct pp_hwmgr *hwmgr,
++		struct pp_clock_levels_with_latency *clocks)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	struct vega20_single_dpm_table *dpm_table = &(data->dpm_table.gfx_table);
++	int i, count;
++
++	PP_ASSERT_WITH_CODE(data->smu_features[GNLD_DPM_GFXCLK].enabled,
++		"[GetSclks]: gfxclk dpm not enabled!\n",
++		return -EPERM);
++
++	count = (dpm_table->count > MAX_NUM_CLOCKS) ? MAX_NUM_CLOCKS : dpm_table->count;
++	clocks->num_levels = count;
++
++	for (i = 0; i < count; i++) {
++		clocks->data[i].clocks_in_khz =
++			dpm_table->dpm_levels[i].value * 100;
++		clocks->data[i].latency_in_us = 0;
++	}
++
++	return 0;
++}
++
++static uint32_t vega20_get_mem_latency(struct pp_hwmgr *hwmgr,
++		uint32_t clock)
++{
++	return 25;
++}
++
++static int vega20_get_memclocks(struct pp_hwmgr *hwmgr,
++		struct pp_clock_levels_with_latency *clocks)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	struct vega20_single_dpm_table *dpm_table = &(data->dpm_table.mem_table);
++	int i, count;
++
++	PP_ASSERT_WITH_CODE(data->smu_features[GNLD_DPM_UCLK].enabled,
++		"[GetMclks]: uclk dpm not enabled!\n",
++		return -EPERM);
++
++	count = (dpm_table->count > MAX_NUM_CLOCKS) ? MAX_NUM_CLOCKS : dpm_table->count;
++	clocks->num_levels = data->mclk_latency_table.count = count;
++
++	for (i = 0; i < count; i++) {
++		clocks->data[i].clocks_in_khz =
++			data->mclk_latency_table.entries[i].frequency =
++			dpm_table->dpm_levels[i].value * 100;
++		clocks->data[i].latency_in_us =
++			data->mclk_latency_table.entries[i].latency =
++			vega20_get_mem_latency(hwmgr, dpm_table->dpm_levels[i].value);
++	}
++
++	return 0;
++}
++
++static int vega20_get_dcefclocks(struct pp_hwmgr *hwmgr,
++		struct pp_clock_levels_with_latency *clocks)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	struct vega20_single_dpm_table *dpm_table = &(data->dpm_table.dcef_table);
++	int i, count;
++
++	PP_ASSERT_WITH_CODE(data->smu_features[GNLD_DPM_DCEFCLK].enabled,
++		"[GetDcfclocks]: dcefclk dpm not enabled!\n",
++		return -EPERM);
++
++	count = (dpm_table->count > MAX_NUM_CLOCKS) ? MAX_NUM_CLOCKS : dpm_table->count;
++	clocks->num_levels = count;
++
++	for (i = 0; i < count; i++) {
++		clocks->data[i].clocks_in_khz =
++			dpm_table->dpm_levels[i].value * 100;
++		clocks->data[i].latency_in_us = 0;
++	}
++
++	return 0;
++}
++
++static int vega20_get_socclocks(struct pp_hwmgr *hwmgr,
++		struct pp_clock_levels_with_latency *clocks)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	struct vega20_single_dpm_table *dpm_table = &(data->dpm_table.soc_table);
++	int i, count;
++
++	PP_ASSERT_WITH_CODE(data->smu_features[GNLD_DPM_SOCCLK].enabled,
++		"[GetSocclks]: socclk dpm not enabled!\n",
++		return -EPERM);
++
++	count = (dpm_table->count > MAX_NUM_CLOCKS) ? MAX_NUM_CLOCKS : dpm_table->count;
++	clocks->num_levels = count;
++
++	for (i = 0; i < count; i++) {
++		clocks->data[i].clocks_in_khz =
++			dpm_table->dpm_levels[i].value * 100;
++		clocks->data[i].latency_in_us = 0;
++	}
++
++	return 0;
++
++}
++
++static int vega20_get_clock_by_type_with_latency(struct pp_hwmgr *hwmgr,
++		enum amd_pp_clock_type type,
++		struct pp_clock_levels_with_latency *clocks)
++{
++	int ret;
++
++	switch (type) {
++	case amd_pp_sys_clock:
++		ret = vega20_get_sclks(hwmgr, clocks);
++		break;
++	case amd_pp_mem_clock:
++		ret = vega20_get_memclocks(hwmgr, clocks);
++		break;
++	case amd_pp_dcef_clock:
++		ret = vega20_get_dcefclocks(hwmgr, clocks);
++		break;
++	case amd_pp_soc_clock:
++		ret = vega20_get_socclocks(hwmgr, clocks);
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return ret;
++}
++
++static int vega20_get_clock_by_type_with_voltage(struct pp_hwmgr *hwmgr,
++		enum amd_pp_clock_type type,
++		struct pp_clock_levels_with_voltage *clocks)
++{
++	clocks->num_levels = 0;
++
++	return 0;
++}
++
++static int vega20_set_watermarks_for_clocks_ranges(struct pp_hwmgr *hwmgr,
++						   void *clock_ranges)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	Watermarks_t *table = &(data->smc_state_table.water_marks_table);
++	struct dm_pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges = clock_ranges;
++
++	if (!data->registry_data.disable_water_mark &&
++	    data->smu_features[GNLD_DPM_DCEFCLK].supported &&
++	    data->smu_features[GNLD_DPM_SOCCLK].supported) {
++		smu_set_watermarks_for_clocks_ranges(table, wm_with_clock_ranges);
++		data->water_marks_bitmap |= WaterMarksExist;
++		data->water_marks_bitmap &= ~WaterMarksLoaded;
++	}
++
++	return 0;
++}
++
++static int vega20_print_clock_levels(struct pp_hwmgr *hwmgr,
++		enum pp_clock_type type, char *buf)
++{
++	int i, now, size = 0;
++	struct pp_clock_levels_with_latency clocks;
++	int ret = 0;
++
++	switch (type) {
++	case PP_SCLK:
++		ret = vega20_get_current_gfx_clk_freq(hwmgr, &now);
++		PP_ASSERT_WITH_CODE(!ret,
++				"Attempt to get current gfx clk Failed!",
++				return ret);
++
++		ret = vega20_get_sclks(hwmgr, &clocks);
++		PP_ASSERT_WITH_CODE(!ret,
++				"Attempt to get gfx clk levels Failed!",
++				return ret);
++
++		for (i = 0; i < clocks.num_levels; i++)
++			size += sprintf(buf + size, "%d: %uMhz %s\n",
++				i, clocks.data[i].clocks_in_khz / 100,
++				(clocks.data[i].clocks_in_khz == now) ? "*" : "");
++		break;
++
++	case PP_MCLK:
++		ret = vega20_get_current_mclk_freq(hwmgr, &now);
++		PP_ASSERT_WITH_CODE(!ret,
++				"Attempt to get current mclk freq Failed!",
++				return ret);
++
++		ret = vega20_get_memclocks(hwmgr, &clocks);
++		PP_ASSERT_WITH_CODE(!ret,
++				"Attempt to get memory clk levels Failed!",
++				return ret);
++
++		for (i = 0; i < clocks.num_levels; i++)
++			size += sprintf(buf + size, "%d: %uMhz %s\n",
++				i, clocks.data[i].clocks_in_khz / 100,
++				(clocks.data[i].clocks_in_khz == now) ? "*" : "");
++		break;
++
++	case PP_PCIE:
++		break;
++
++	default:
++		break;
++	}
++	return size;
++}
++
++static int vega20_display_configuration_changed_task(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	int result = 0;
++	Watermarks_t *wm_table = &(data->smc_state_table.water_marks_table);
++
++	if ((data->water_marks_bitmap & WaterMarksExist) &&
++	    !(data->water_marks_bitmap & WaterMarksLoaded)) {
++		result = vega20_copy_table_to_smc(hwmgr,
++			(uint8_t *)wm_table, TABLE_WATERMARKS);
++		PP_ASSERT_WITH_CODE(!result,
++				"Failed to update WMTABLE!",
++				return result);
++		data->water_marks_bitmap |= WaterMarksLoaded;
++	}
++
++	if ((data->water_marks_bitmap & WaterMarksExist) &&
++	    data->smu_features[GNLD_DPM_DCEFCLK].supported &&
++	    data->smu_features[GNLD_DPM_SOCCLK].supported) {
++		result = smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_NumOfDisplays,
++			hwmgr->display_config->num_display);
++	}
++
++	return result;
++}
++
++int vega20_enable_disable_uvd_dpm(struct pp_hwmgr *hwmgr, bool enable)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++	int ret = 0;
++
++	if (data->smu_features[GNLD_DPM_UVD].supported) {
++		if (data->smu_features[GNLD_DPM_UVD].enabled == enable) {
++			if (enable)
++				PP_DBG_LOG("[EnableDisableUVDDPM] feature DPM UVD already enabled!\n");
++			else
++				PP_DBG_LOG("[EnableDisableUVDDPM] feature DPM UVD already disabled!\n");
++		}
++
++		ret = vega20_enable_smc_features(hwmgr,
++				enable,
++				data->smu_features[GNLD_DPM_UVD].smu_feature_bitmap);
++		PP_ASSERT_WITH_CODE(!ret,
++				"[EnableDisableUVDDPM] Attempt to Enable/Disable DPM UVD Failed!",
++				return ret);
++		data->smu_features[GNLD_DPM_UVD].enabled = enable;
++	}
++
++	return 0;
++}
++
++static void vega20_power_gate_vce(struct pp_hwmgr *hwmgr, bool bgate)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++
++	data->vce_power_gated = bgate;
++	vega20_enable_disable_vce_dpm(hwmgr, !bgate);
++}
++
++static void vega20_power_gate_uvd(struct pp_hwmgr *hwmgr, bool bgate)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++
++	data->uvd_power_gated = bgate;
++	vega20_enable_disable_uvd_dpm(hwmgr, !bgate);
++}
++
++static int vega20_apply_clocks_adjust_rules(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	struct vega20_single_dpm_table *dpm_table;
++	bool vblank_too_short = false;
++	bool disable_mclk_switching;
++	uint32_t i, latency;
++
++	disable_mclk_switching = ((1 < hwmgr->display_config->num_display) &&
++                           !hwmgr->display_config->multi_monitor_in_sync) ||
++                            vblank_too_short;
++    latency = hwmgr->display_config->dce_tolerable_mclk_in_active_latency;
++
++	/* gfxclk */
++	dpm_table = &(data->dpm_table.gfx_table);
++	dpm_table->dpm_state.soft_min_level = dpm_table->dpm_levels[0].value;
++	dpm_table->dpm_state.soft_max_level = dpm_table->dpm_levels[dpm_table->count - 1].value;
++	dpm_table->dpm_state.hard_min_level = dpm_table->dpm_levels[0].value;
++	dpm_table->dpm_state.hard_max_level = dpm_table->dpm_levels[dpm_table->count - 1].value;
++
++	/* memclk */
++	dpm_table = &(data->dpm_table.mem_table);
++	dpm_table->dpm_state.soft_min_level = dpm_table->dpm_levels[0].value;
++	dpm_table->dpm_state.soft_max_level = dpm_table->dpm_levels[dpm_table->count - 1].value;
++	dpm_table->dpm_state.hard_min_level = dpm_table->dpm_levels[0].value;
++	dpm_table->dpm_state.hard_max_level = dpm_table->dpm_levels[dpm_table->count - 1].value;
++
++	if (dpm_table->dpm_state.hard_min_level < (hwmgr->display_config->min_mem_set_clock / 100))
++		dpm_table->dpm_state.hard_min_level = hwmgr->display_config->min_mem_set_clock / 100;
++
++	if (disable_mclk_switching) {
++		dpm_table->dpm_state.hard_min_level = dpm_table->dpm_levels[dpm_table->count - 1].value;
++		for (i = 0; i < data->mclk_latency_table.count - 1; i++) {
++			if (data->mclk_latency_table.entries[i].latency <= latency) {
++				if (dpm_table->dpm_levels[i].value >= (hwmgr->display_config->min_mem_set_clock / 100)) {
++					dpm_table->dpm_state.hard_min_level = dpm_table->dpm_levels[i].value;
++					break;
++				}
++			}
++		}
++	}
++
++	if (hwmgr->display_config->nb_pstate_switch_disable)
++		dpm_table->dpm_state.hard_min_level = dpm_table->dpm_levels[dpm_table->count - 1].value;
++
++	return 0;
++}
++
++static bool
++vega20_check_smc_update_required_for_display_configuration(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	bool is_update_required = false;
++
++	if (data->display_timing.num_existing_displays !=
++			hwmgr->display_config->num_display)
++		is_update_required = true;
++
++	if (data->registry_data.gfx_clk_deep_sleep_support &&
++	   (data->display_timing.min_clock_in_sr !=
++	    hwmgr->display_config->min_core_set_clock_in_sr))
++		is_update_required = true;
++
++	return is_update_required;
++}
++
++static int vega20_disable_dpm_tasks(struct pp_hwmgr *hwmgr)
++{
++	int ret = 0;
++
++	ret = vega20_disable_all_smu_features(hwmgr);
++	PP_ASSERT_WITH_CODE(!ret,
++			"[DisableDpmTasks] Failed to disable all smu features!",
++			return ret);
++
++	return 0;
++}
++
++static int vega20_power_off_asic(struct pp_hwmgr *hwmgr)
++{
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	int result;
++
++	result = vega20_disable_dpm_tasks(hwmgr);
++	PP_ASSERT_WITH_CODE((0 == result),
++			"[PowerOffAsic] Failed to disable DPM!",
++			);
++	data->water_marks_bitmap &= ~(WaterMarksLoaded);
++
++	return result;
++}
++
++static int vega20_notify_cac_buffer_info(struct pp_hwmgr *hwmgr,
++					uint32_t virtual_addr_low,
++					uint32_t virtual_addr_hi,
++					uint32_t mc_addr_low,
++					uint32_t mc_addr_hi,
++					uint32_t size)
++{
++	smum_send_msg_to_smc_with_parameter(hwmgr,
++					PPSMC_MSG_SetSystemVirtualDramAddrHigh,
++					virtual_addr_hi);
++	smum_send_msg_to_smc_with_parameter(hwmgr,
++					PPSMC_MSG_SetSystemVirtualDramAddrLow,
++					virtual_addr_low);
++	smum_send_msg_to_smc_with_parameter(hwmgr,
++					PPSMC_MSG_DramLogSetDramAddrHigh,
++					mc_addr_hi);
++
++	smum_send_msg_to_smc_with_parameter(hwmgr,
++					PPSMC_MSG_DramLogSetDramAddrLow,
++					mc_addr_low);
++
++	smum_send_msg_to_smc_with_parameter(hwmgr,
++					PPSMC_MSG_DramLogSetDramSize,
++					size);
++	return 0;
++}
++
++static int vega20_get_thermal_temperature_range(struct pp_hwmgr *hwmgr,
++		struct PP_TemperatureRange *thermal_data)
++{
++	struct phm_ppt_v3_information *pptable_information =
++		(struct phm_ppt_v3_information *)hwmgr->pptable;
++
++	memcpy(thermal_data, &SMU7ThermalWithDelayPolicy[0], sizeof(struct PP_TemperatureRange));
++
++	thermal_data->max = pptable_information->us_software_shutdown_temp *
++		PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
++
++	return 0;
++}
++
++static const struct pp_hwmgr_func vega20_hwmgr_funcs = {
++	/* init/fini related */
++	.backend_init =
++		vega20_hwmgr_backend_init,
++	.backend_fini =
++		vega20_hwmgr_backend_fini,
++	.asic_setup =
++		vega20_setup_asic_task,
++	.power_off_asic =
++		vega20_power_off_asic,
++	.dynamic_state_management_enable =
++		vega20_enable_dpm_tasks,
++	.dynamic_state_management_disable =
++		vega20_disable_dpm_tasks,
++	/* power state related */
++	.apply_clocks_adjust_rules =
++		vega20_apply_clocks_adjust_rules,
++	.display_config_changed =
++		vega20_display_configuration_changed_task,
++	.check_smc_update_required_for_display_configuration =
++		vega20_check_smc_update_required_for_display_configuration,
++	.notify_smc_display_config_after_ps_adjustment =
++		vega20_notify_smc_display_config_after_ps_adjustment,
++	/* export to DAL */
++	.get_sclk =
++		vega20_dpm_get_sclk,
++	.get_mclk =
++		vega20_dpm_get_mclk,
++	.get_dal_power_level =
++		vega20_get_dal_power_level,
++	.get_clock_by_type_with_latency =
++		vega20_get_clock_by_type_with_latency,
++	.get_clock_by_type_with_voltage =
++		vega20_get_clock_by_type_with_voltage,
++	.set_watermarks_for_clocks_ranges =
++		vega20_set_watermarks_for_clocks_ranges,
++	.display_clock_voltage_request =
++		vega20_display_clock_voltage_request,
++	/* UMD pstate, profile related */
++	.force_dpm_level =
++		vega20_dpm_force_dpm_level,
++	.set_power_limit =
++		vega20_set_power_limit,
++	/* for sysfs to retrive/set gfxclk/memclk */
++	.force_clock_level =
++		vega20_force_clock_level,
++	.print_clock_levels =
++		vega20_print_clock_levels,
++	.read_sensor =
++		vega20_read_sensor,
++	/* powergate related */
++	.powergate_uvd =
++		vega20_power_gate_uvd,
++	.powergate_vce =
++		vega20_power_gate_vce,
++	/* thermal related */
++	.start_thermal_controller =
++		vega20_start_thermal_controller,
++	.stop_thermal_controller =
++		vega20_thermal_stop_thermal_controller,
++	.get_thermal_temperature_range =
++		vega20_get_thermal_temperature_range,
++	.register_irq_handlers =
++		smu9_register_irq_handlers,
++	.disable_smc_firmware_ctf =
++		vega20_thermal_disable_alert,
++	/* fan control related */
++	.get_fan_speed_info =
++		vega20_fan_ctrl_get_fan_speed_info,
++	.get_fan_speed_rpm =
++		vega20_fan_ctrl_get_fan_speed_rpm,
++	.get_fan_control_mode =
++		vega20_get_fan_control_mode,
++	/* smu memory related */
++	.notify_cac_buffer_info =
++		vega20_notify_cac_buffer_info,
++};
++
++int vega20_hwmgr_init(struct pp_hwmgr *hwmgr)
++{
++	hwmgr->hwmgr_func = &vega20_hwmgr_funcs;
++	hwmgr->pptable_func = &vega20_pptable_funcs;
++
++	return 0;
++}
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
+new file mode 100644
+index 0000000..59a59bc
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.h
+@@ -0,0 +1,519 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#ifndef _VEGA20_HWMGR_H_
++#define _VEGA20_HWMGR_H_
++
++#include "hwmgr.h"
++#include "smu11_driver_if.h"
++#include "ppatomfwctrl.h"
++
++#define VEGA20_MAX_HARDWARE_POWERLEVELS 2
++
++#define WaterMarksExist  1
++#define WaterMarksLoaded 2
++
++#define VG20_PSUEDO_NUM_GFXCLK_DPM_LEVELS   8
++#define VG20_PSUEDO_NUM_SOCCLK_DPM_LEVELS   8
++#define VG20_PSUEDO_NUM_DCEFCLK_DPM_LEVELS  8
++#define VG20_PSUEDO_NUM_UCLK_DPM_LEVELS     4
++
++typedef uint32_t PP_Clock;
++
++enum {
++	GNLD_DPM_PREFETCHER = 0,
++	GNLD_DPM_GFXCLK,
++	GNLD_DPM_UCLK,
++	GNLD_DPM_SOCCLK,
++	GNLD_DPM_UVD,
++	GNLD_DPM_VCE,
++	GNLD_ULV,
++	GNLD_DPM_MP0CLK,
++	GNLD_DPM_LINK,
++	GNLD_DPM_DCEFCLK,
++	GNLD_DS_GFXCLK,
++	GNLD_DS_SOCCLK,
++	GNLD_DS_LCLK,
++	GNLD_PPT,
++	GNLD_TDC,
++	GNLD_THERMAL,
++	GNLD_GFX_PER_CU_CG,
++	GNLD_RM,
++	GNLD_DS_DCEFCLK,
++	GNLD_ACDC,
++	GNLD_VR0HOT,
++	GNLD_VR1HOT,
++	GNLD_FW_CTF,
++	GNLD_LED_DISPLAY,
++	GNLD_FAN_CONTROL,
++	GNLD_DIDT,
++	GNLD_GFXOFF,
++	GNLD_CG,
++	GNLD_DPM_FCLK,
++	GNLD_DS_FCLK,
++	GNLD_DS_MP1CLK,
++	GNLD_DS_MP0CLK,
++	GNLD_XGMI,
++
++	GNLD_FEATURES_MAX
++};
++
++
++#define GNLD_DPM_MAX    (GNLD_DPM_DCEFCLK + 1)
++
++#define SMC_DPM_FEATURES    0x30F
++
++struct smu_features {
++	bool supported;
++	bool enabled;
++	bool allowed;
++	uint32_t smu_feature_id;
++	uint64_t smu_feature_bitmap;
++};
++
++struct vega20_performance_level {
++	uint32_t  soc_clock;
++	uint32_t  gfx_clock;
++	uint32_t  mem_clock;
++};
++
++struct vega20_bacos {
++	uint32_t                       baco_flags;
++	/* struct vega20_performance_level  performance_level; */
++};
++
++struct vega20_uvd_clocks {
++	uint32_t  vclk;
++	uint32_t  dclk;
++};
++
++struct vega20_vce_clocks {
++	uint32_t  evclk;
++	uint32_t  ecclk;
++};
++
++struct vega20_power_state {
++	uint32_t                  magic;
++	struct vega20_uvd_clocks    uvd_clks;
++	struct vega20_vce_clocks    vce_clks;
++	uint16_t                  performance_level_count;
++	bool                      dc_compatible;
++	uint32_t                  sclk_threshold;
++	struct vega20_performance_level  performance_levels[VEGA20_MAX_HARDWARE_POWERLEVELS];
++};
++
++struct vega20_dpm_level {
++	bool		enabled;
++	uint32_t	value;
++	uint32_t	param1;
++};
++
++#define VEGA20_MAX_DEEPSLEEP_DIVIDER_ID 5
++#define MAX_REGULAR_DPM_NUMBER 16
++#define MAX_PCIE_CONF 2
++#define VEGA20_MINIMUM_ENGINE_CLOCK 2500
++
++struct vega20_max_sustainable_clocks {
++	PP_Clock display_clock;
++	PP_Clock phy_clock;
++	PP_Clock pixel_clock;
++	PP_Clock uclock;
++	PP_Clock dcef_clock;
++	PP_Clock soc_clock;
++};
++
++struct vega20_dpm_state {
++	uint32_t  soft_min_level;
++	uint32_t  soft_max_level;
++	uint32_t  hard_min_level;
++	uint32_t  hard_max_level;
++};
++
++struct vega20_single_dpm_table {
++	uint32_t		count;
++	struct vega20_dpm_state	dpm_state;
++	struct vega20_dpm_level	dpm_levels[MAX_REGULAR_DPM_NUMBER];
++};
++
++struct vega20_odn_dpm_control {
++	uint32_t	count;
++	uint32_t	entries[MAX_REGULAR_DPM_NUMBER];
++};
++
++struct vega20_pcie_table {
++	uint16_t count;
++	uint8_t  pcie_gen[MAX_PCIE_CONF];
++	uint8_t  pcie_lane[MAX_PCIE_CONF];
++	uint32_t lclk[MAX_PCIE_CONF];
++};
++
++struct vega20_dpm_table {
++	struct vega20_single_dpm_table  soc_table;
++	struct vega20_single_dpm_table  gfx_table;
++	struct vega20_single_dpm_table  mem_table;
++	struct vega20_single_dpm_table  eclk_table;
++	struct vega20_single_dpm_table  vclk_table;
++	struct vega20_single_dpm_table  dclk_table;
++	struct vega20_single_dpm_table  dcef_table;
++	struct vega20_single_dpm_table  pixel_table;
++	struct vega20_single_dpm_table  display_table;
++	struct vega20_single_dpm_table  phy_table;
++	struct vega20_single_dpm_table  fclk_table;
++	struct vega20_pcie_table        pcie_table;
++};
++
++#define VEGA20_MAX_LEAKAGE_COUNT  8
++struct vega20_leakage_voltage {
++	uint16_t  count;
++	uint16_t  leakage_id[VEGA20_MAX_LEAKAGE_COUNT];
++	uint16_t  actual_voltage[VEGA20_MAX_LEAKAGE_COUNT];
++};
++
++struct vega20_display_timing {
++	uint32_t  min_clock_in_sr;
++	uint32_t  num_existing_displays;
++};
++
++struct vega20_dpmlevel_enable_mask {
++	uint32_t  uvd_dpm_enable_mask;
++	uint32_t  vce_dpm_enable_mask;
++	uint32_t  samu_dpm_enable_mask;
++	uint32_t  sclk_dpm_enable_mask;
++	uint32_t  mclk_dpm_enable_mask;
++};
++
++struct vega20_vbios_boot_state {
++	bool        bsoc_vddc_lock;
++	uint8_t     uc_cooling_id;
++	uint16_t    vddc;
++	uint16_t    vddci;
++	uint16_t    mvddc;
++	uint16_t    vdd_gfx;
++	uint32_t    gfx_clock;
++	uint32_t    mem_clock;
++	uint32_t    soc_clock;
++	uint32_t    dcef_clock;
++	uint32_t    eclock;
++	uint32_t    dclock;
++	uint32_t    vclock;
++};
++
++#define DPMTABLE_OD_UPDATE_SCLK     0x00000001
++#define DPMTABLE_OD_UPDATE_MCLK     0x00000002
++#define DPMTABLE_UPDATE_SCLK        0x00000004
++#define DPMTABLE_UPDATE_MCLK        0x00000008
++#define DPMTABLE_OD_UPDATE_VDDC     0x00000010
++#define DPMTABLE_OD_UPDATE_SCLK_MASK     0x00000020
++#define DPMTABLE_OD_UPDATE_MCLK_MASK     0x00000040
++
++// To determine if sclk and mclk are in overdrive state
++#define SCLK_MASK_OVERDRIVE_ENABLED      0x00000008
++#define MCLK_MASK_OVERDRIVE_ENABLED      0x00000010
++#define SOCCLK_OVERDRIVE_ENABLED         0x00000020
++
++struct vega20_smc_state_table {
++	uint32_t        soc_boot_level;
++	uint32_t        gfx_boot_level;
++	uint32_t        dcef_boot_level;
++	uint32_t        mem_boot_level;
++	uint32_t        uvd_boot_level;
++	uint32_t        vce_boot_level;
++	uint32_t        gfx_max_level;
++	uint32_t        mem_max_level;
++	uint8_t         vr_hot_gpio;
++	uint8_t         ac_dc_gpio;
++	uint8_t         therm_out_gpio;
++	uint8_t         therm_out_polarity;
++	uint8_t         therm_out_mode;
++	PPTable_t       pp_table;
++	Watermarks_t    water_marks_table;
++	AvfsDebugTable_t avfs_debug_table;
++	AvfsFuseOverride_t avfs_fuse_override_table;
++	SmuMetrics_t    smu_metrics;
++	DriverSmuConfig_t driver_smu_config;
++	DpmActivityMonitorCoeffInt_t dpm_activity_monitor_coeffint;
++	OverDriveTable_t overdrive_table;
++};
++
++struct vega20_mclk_latency_entries {
++	uint32_t  frequency;
++	uint32_t  latency;
++};
++
++struct vega20_mclk_latency_table {
++	uint32_t  count;
++	struct vega20_mclk_latency_entries  entries[MAX_REGULAR_DPM_NUMBER];
++};
++
++struct vega20_registry_data {
++	uint64_t  disallowed_features;
++	uint8_t   ac_dc_switch_gpio_support;
++	uint8_t   acg_loop_support;
++	uint8_t   clock_stretcher_support;
++	uint8_t   db_ramping_support;
++	uint8_t   didt_mode;
++	uint8_t   didt_support;
++	uint8_t   edc_didt_support;
++	uint8_t   force_dpm_high;
++	uint8_t   fuzzy_fan_control_support;
++	uint8_t   mclk_dpm_key_disabled;
++	uint8_t   od_state_in_dc_support;
++	uint8_t   pcie_lane_override;
++	uint8_t   pcie_speed_override;
++	uint32_t  pcie_clock_override;
++	uint8_t   pcie_dpm_key_disabled;
++	uint8_t   dcefclk_dpm_key_disabled;
++	uint8_t   prefetcher_dpm_key_disabled;
++	uint8_t   quick_transition_support;
++	uint8_t   regulator_hot_gpio_support;
++	uint8_t   master_deep_sleep_support;
++	uint8_t   gfx_clk_deep_sleep_support;
++	uint8_t   sclk_deep_sleep_support;
++	uint8_t   lclk_deep_sleep_support;
++	uint8_t   dce_fclk_deep_sleep_support;
++	uint8_t   sclk_dpm_key_disabled;
++	uint8_t   sclk_throttle_low_notification;
++	uint8_t   skip_baco_hardware;
++	uint8_t   socclk_dpm_key_disabled;
++	uint8_t   sq_ramping_support;
++	uint8_t   tcp_ramping_support;
++	uint8_t   td_ramping_support;
++	uint8_t   dbr_ramping_support;
++	uint8_t   gc_didt_support;
++	uint8_t   psm_didt_support;
++	uint8_t   thermal_support;
++	uint8_t   fw_ctf_enabled;
++	uint8_t   led_dpm_enabled;
++	uint8_t   fan_control_support;
++	uint8_t   ulv_support;
++	uint8_t   odn_feature_enable;
++	uint8_t   disable_water_mark;
++	uint8_t   disable_workload_policy;
++	uint32_t  force_workload_policy_mask;
++	uint8_t   disable_3d_fs_detection;
++	uint8_t   disable_pp_tuning;
++	uint8_t   disable_xlpp_tuning;
++	uint32_t  perf_ui_tuning_profile_turbo;
++	uint32_t  perf_ui_tuning_profile_powerSave;
++	uint32_t  perf_ui_tuning_profile_xl;
++	uint16_t  zrpm_stop_temp;
++	uint16_t  zrpm_start_temp;
++	uint32_t  stable_pstate_sclk_dpm_percentage;
++	uint8_t   fps_support;
++	uint8_t   vr0hot;
++	uint8_t   vr1hot;
++	uint8_t   disable_auto_wattman;
++	uint32_t  auto_wattman_debug;
++	uint32_t  auto_wattman_sample_period;
++	uint8_t   auto_wattman_threshold;
++	uint8_t   log_avfs_param;
++	uint8_t   enable_enginess;
++	uint8_t   custom_fan_support;
++	uint8_t   disable_pcc_limit_control;
++	uint8_t   gfxoff_controlled_by_driver;
++};
++
++struct vega20_odn_clock_voltage_dependency_table {
++	uint32_t count;
++	struct phm_ppt_v1_clock_voltage_dependency_record
++		entries[MAX_REGULAR_DPM_NUMBER];
++};
++
++struct vega20_odn_dpm_table {
++	struct vega20_odn_dpm_control		control_gfxclk_state;
++	struct vega20_odn_dpm_control		control_memclk_state;
++	struct phm_odn_clock_levels		odn_core_clock_dpm_levels;
++	struct phm_odn_clock_levels		odn_memory_clock_dpm_levels;
++	struct vega20_odn_clock_voltage_dependency_table		vdd_dependency_on_sclk;
++	struct vega20_odn_clock_voltage_dependency_table		vdd_dependency_on_mclk;
++	struct vega20_odn_clock_voltage_dependency_table		vdd_dependency_on_socclk;
++	uint32_t				odn_mclk_min_limit;
++};
++
++struct vega20_odn_fan_table {
++	uint32_t	target_fan_speed;
++	uint32_t	target_temperature;
++	uint32_t	min_performance_clock;
++	uint32_t	min_fan_limit;
++	bool		force_fan_pwm;
++};
++
++struct vega20_odn_temp_table {
++	uint16_t	target_operating_temp;
++	uint16_t	default_target_operating_temp;
++	uint16_t	operating_temp_min_limit;
++	uint16_t	operating_temp_max_limit;
++	uint16_t	operating_temp_step;
++};
++
++struct vega20_odn_data {
++	uint32_t	apply_overdrive_next_settings_mask;
++	uint32_t	overdrive_next_state;
++	uint32_t	overdrive_next_capabilities;
++	uint32_t	odn_sclk_dpm_enable_mask;
++	uint32_t	odn_mclk_dpm_enable_mask;
++	struct vega20_odn_dpm_table	odn_dpm_table;
++	struct vega20_odn_fan_table	odn_fan_table;
++	struct vega20_odn_temp_table	odn_temp_table;
++};
++
++struct vega20_hwmgr {
++	struct vega20_dpm_table          dpm_table;
++	struct vega20_dpm_table          golden_dpm_table;
++	struct vega20_registry_data      registry_data;
++	struct vega20_vbios_boot_state   vbios_boot_state;
++	struct vega20_mclk_latency_table mclk_latency_table;
++
++	struct vega20_max_sustainable_clocks max_sustainable_clocks;
++
++	struct vega20_leakage_voltage    vddc_leakage;
++
++	uint32_t                           vddc_control;
++	struct pp_atomfwctrl_voltage_table vddc_voltage_table;
++	uint32_t                           mvdd_control;
++	struct pp_atomfwctrl_voltage_table mvdd_voltage_table;
++	uint32_t                           vddci_control;
++	struct pp_atomfwctrl_voltage_table vddci_voltage_table;
++
++	uint32_t                           active_auto_throttle_sources;
++	struct vega20_bacos                bacos;
++
++	/* ---- General data ---- */
++	uint8_t                           need_update_dpm_table;
++
++	bool                           cac_enabled;
++	bool                           battery_state;
++	bool                           is_tlu_enabled;
++	bool                           avfs_exist;
++
++	uint32_t                       low_sclk_interrupt_threshold;
++
++	uint32_t                       total_active_cus;
++
++	uint32_t                       water_marks_bitmap;
++
++	struct vega20_display_timing display_timing;
++
++	/* ---- Vega20 Dyn Register Settings ---- */
++
++	uint32_t                       debug_settings;
++	uint32_t                       lowest_uclk_reserved_for_ulv;
++	uint32_t                       gfxclk_average_alpha;
++	uint32_t                       socclk_average_alpha;
++	uint32_t                       uclk_average_alpha;
++	uint32_t                       gfx_activity_average_alpha;
++	uint32_t                       display_voltage_mode;
++	uint32_t                       dcef_clk_quad_eqn_a;
++	uint32_t                       dcef_clk_quad_eqn_b;
++	uint32_t                       dcef_clk_quad_eqn_c;
++	uint32_t                       disp_clk_quad_eqn_a;
++	uint32_t                       disp_clk_quad_eqn_b;
++	uint32_t                       disp_clk_quad_eqn_c;
++	uint32_t                       pixel_clk_quad_eqn_a;
++	uint32_t                       pixel_clk_quad_eqn_b;
++	uint32_t                       pixel_clk_quad_eqn_c;
++	uint32_t                       phy_clk_quad_eqn_a;
++	uint32_t                       phy_clk_quad_eqn_b;
++	uint32_t                       phy_clk_quad_eqn_c;
++
++	/* ---- Thermal Temperature Setting ---- */
++	struct vega20_dpmlevel_enable_mask     dpm_level_enable_mask;
++
++	/* ---- Power Gating States ---- */
++	bool                           uvd_power_gated;
++	bool                           vce_power_gated;
++	bool                           samu_power_gated;
++	bool                           need_long_memory_training;
++
++	/* Internal settings to apply the application power optimization parameters */
++	bool                           apply_optimized_settings;
++	uint32_t                       disable_dpm_mask;
++
++	/* ---- Overdrive next setting ---- */
++	struct vega20_odn_data         odn_data;
++
++	/* ---- Workload Mask ---- */
++	uint32_t                       workload_mask;
++
++	/* ---- SMU9 ---- */
++	uint32_t                       smu_version;
++	struct smu_features            smu_features[GNLD_FEATURES_MAX];
++	struct vega20_smc_state_table  smc_state_table;
++
++	/* ---- Gfxoff ---- */
++	bool                           gfxoff_allowed;
++	uint32_t                       counter_gfxoff;
++};
++
++#define VEGA20_DPM2_NEAR_TDP_DEC                      10
++#define VEGA20_DPM2_ABOVE_SAFE_INC                    5
++#define VEGA20_DPM2_BELOW_SAFE_INC                    20
++
++#define VEGA20_DPM2_LTA_WINDOW_SIZE                   7
++
++#define VEGA20_DPM2_LTS_TRUNCATE                      0
++
++#define VEGA20_DPM2_TDP_SAFE_LIMIT_PERCENT            80
++
++#define VEGA20_DPM2_MAXPS_PERCENT_M                   90
++#define VEGA20_DPM2_MAXPS_PERCENT_H                   90
++
++#define VEGA20_DPM2_PWREFFICIENCYRATIO_MARGIN         50
++
++#define VEGA20_DPM2_SQ_RAMP_MAX_POWER                 0x3FFF
++#define VEGA20_DPM2_SQ_RAMP_MIN_POWER                 0x12
++#define VEGA20_DPM2_SQ_RAMP_MAX_POWER_DELTA           0x15
++#define VEGA20_DPM2_SQ_RAMP_SHORT_TERM_INTERVAL_SIZE  0x1E
++#define VEGA20_DPM2_SQ_RAMP_LONG_TERM_INTERVAL_RATIO  0xF
++
++#define VEGA20_VOLTAGE_CONTROL_NONE                   0x0
++#define VEGA20_VOLTAGE_CONTROL_BY_GPIO                0x1
++#define VEGA20_VOLTAGE_CONTROL_BY_SVID2               0x2
++#define VEGA20_VOLTAGE_CONTROL_MERGED                 0x3
++/* To convert to Q8.8 format for firmware */
++#define VEGA20_Q88_FORMAT_CONVERSION_UNIT             256
++
++#define VEGA20_UNUSED_GPIO_PIN       0x7F
++
++#define VEGA20_THERM_OUT_MODE_DISABLE       0x0
++#define VEGA20_THERM_OUT_MODE_THERM_ONLY    0x1
++#define VEGA20_THERM_OUT_MODE_THERM_VRHOT   0x2
++
++#define PPVEGA20_VEGA20DISPLAYVOLTAGEMODE_DFLT   0xffffffff
++#define PPREGKEY_VEGA20QUADRATICEQUATION_DFLT    0xffffffff
++
++#define PPVEGA20_VEGA20GFXCLKAVERAGEALPHA_DFLT       25 /* 10% * 255 = 25 */
++#define PPVEGA20_VEGA20SOCCLKAVERAGEALPHA_DFLT       25 /* 10% * 255 = 25 */
++#define PPVEGA20_VEGA20UCLKCLKAVERAGEALPHA_DFLT      25 /* 10% * 255 = 25 */
++#define PPVEGA20_VEGA20GFXACTIVITYAVERAGEALPHA_DFLT  25 /* 10% * 255 = 25 */
++#define PPVEGA20_VEGA20LOWESTUCLKRESERVEDFORULV_DFLT   0xffffffff
++#define PPVEGA20_VEGA20DISPLAYVOLTAGEMODE_DFLT         0xffffffff
++#define PPREGKEY_VEGA20QUADRATICEQUATION_DFLT          0xffffffff
++
++#define VEGA20_UMD_PSTATE_GFXCLK_LEVEL         0x3
++#define VEGA20_UMD_PSTATE_SOCCLK_LEVEL         0x3
++#define VEGA20_UMD_PSTATE_MCLK_LEVEL           0x2
++#define VEGA20_UMD_PSTATE_UVDCLK_LEVEL         0x3
++#define VEGA20_UMD_PSTATE_VCEMCLK_LEVEL        0x3
++
++#endif /* _VEGA20_HWMGR_H_ */
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.c
+new file mode 100644
+index 0000000..a0bfb65
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.c
+@@ -0,0 +1,70 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#include "hwmgr.h"
++#include "vega20_hwmgr.h"
++#include "vega20_powertune.h"
++#include "vega20_smumgr.h"
++#include "vega20_ppsmc.h"
++#include "vega20_inc.h"
++#include "pp_debug.h"
++
++int vega20_set_power_limit(struct pp_hwmgr *hwmgr, uint32_t n)
++{
++	struct vega20_hwmgr *data =
++			(struct vega20_hwmgr *)(hwmgr->backend);
++
++	if (data->smu_features[GNLD_PPT].enabled)
++		return smum_send_msg_to_smc_with_parameter(hwmgr,
++				PPSMC_MSG_SetPptLimit, n);
++
++	return 0;
++}
++
++int vega20_validate_power_level_request(struct pp_hwmgr *hwmgr,
++		uint32_t tdp_percentage_adjustment, uint32_t tdp_absolute_value_adjustment)
++{
++	return (tdp_percentage_adjustment > hwmgr->platform_descriptor.TDPLimit) ? -1 : 0;
++}
++
++static int vega20_set_overdrive_target_percentage(struct pp_hwmgr *hwmgr,
++		uint32_t adjust_percent)
++{
++	return smum_send_msg_to_smc_with_parameter(hwmgr,
++			PPSMC_MSG_OverDriveSetPercentage, adjust_percent);
++}
++
++int vega20_power_control_set_level(struct pp_hwmgr *hwmgr)
++{
++	int adjust_percent, result = 0;
++
++	if (PP_CAP(PHM_PlatformCaps_PowerContainment)) {
++		adjust_percent =
++				hwmgr->platform_descriptor.TDPAdjustmentPolarity ?
++				hwmgr->platform_descriptor.TDPAdjustment :
++				(-1 * hwmgr->platform_descriptor.TDPAdjustment);
++		result = vega20_set_overdrive_target_percentage(hwmgr,
++				(uint32_t)adjust_percent);
++	}
++	return result;
++}
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.h
+new file mode 100644
+index 0000000..d68c734
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_powertune.h
+@@ -0,0 +1,32 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++#ifndef _VEGA20_POWERTUNE_H_
++#define _VEGA20_POWERTUNE_H_
++
++int vega20_set_power_limit(struct pp_hwmgr *hwmgr, uint32_t n);
++int vega20_power_control_set_level(struct pp_hwmgr *hwmgr);
++int vega20_validate_power_level_request(struct pp_hwmgr *hwmgr,
++		uint32_t tdp_percentage_adjustment,
++		uint32_t tdp_absolute_value_adjustment);
++#endif  /* _VEGA20_POWERTUNE_H_ */
++
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+new file mode 100644
+index 0000000..379ac3d
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.c
+@@ -0,0 +1,919 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/fb.h>
++
++#include "smu11_driver_if.h"
++#include "vega20_processpptables.h"
++#include "ppatomfwctrl.h"
++#include "atomfirmware.h"
++#include "pp_debug.h"
++#include "cgs_common.h"
++#include "vega20_pptable.h"
++
++static void set_hw_cap(struct pp_hwmgr *hwmgr, bool enable,
++		enum phm_platform_caps cap)
++{
++	if (enable)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps, cap);
++	else
++		phm_cap_unset(hwmgr->platform_descriptor.platformCaps, cap);
++}
++
++static const void *get_powerplay_table(struct pp_hwmgr *hwmgr)
++{
++	int index = GetIndexIntoMasterDataTable(powerplayinfo);
++
++	u16 size;
++	u8 frev, crev;
++	const void *table_address = hwmgr->soft_pp_table;
++
++	if (!table_address) {
++		table_address = (ATOM_Vega20_POWERPLAYTABLE *)
++				smu_atom_get_data_table(hwmgr->adev, index,
++						&size, &frev, &crev);
++
++		hwmgr->soft_pp_table = table_address;
++		hwmgr->soft_pp_table_size = size;
++	}
++
++	return table_address;
++}
++
++#if 0
++static void dump_pptable(PPTable_t *pptable)
++{
++	int i;
++
++	pr_info("Version = 0x%08x\n", pptable->Version);
++
++	pr_info("FeaturesToRun[0] = 0x%08x\n", pptable->FeaturesToRun[0]);
++	pr_info("FeaturesToRun[1] = 0x%08x\n", pptable->FeaturesToRun[1]);
++
++	pr_info("SocketPowerLimitAc0 = %d\n", pptable->SocketPowerLimitAc0);
++	pr_info("SocketPowerLimitAc0Tau = %d\n", pptable->SocketPowerLimitAc0Tau);
++	pr_info("SocketPowerLimitAc1 = %d\n", pptable->SocketPowerLimitAc1);
++	pr_info("SocketPowerLimitAc1Tau = %d\n", pptable->SocketPowerLimitAc1Tau);
++	pr_info("SocketPowerLimitAc2 = %d\n", pptable->SocketPowerLimitAc2);
++	pr_info("SocketPowerLimitAc2Tau = %d\n", pptable->SocketPowerLimitAc2Tau);
++	pr_info("SocketPowerLimitAc3 = %d\n", pptable->SocketPowerLimitAc3);
++	pr_info("SocketPowerLimitAc3Tau = %d\n", pptable->SocketPowerLimitAc3Tau);
++	pr_info("SocketPowerLimitDc = %d\n", pptable->SocketPowerLimitDc);
++	pr_info("SocketPowerLimitDcTau = %d\n", pptable->SocketPowerLimitDcTau);
++	pr_info("TdcLimitSoc = %d\n", pptable->TdcLimitSoc);
++	pr_info("TdcLimitSocTau = %d\n", pptable->TdcLimitSocTau);
++	pr_info("TdcLimitGfx = %d\n", pptable->TdcLimitGfx);
++	pr_info("TdcLimitGfxTau = %d\n", pptable->TdcLimitGfxTau);
++
++	pr_info("TedgeLimit = %d\n", pptable->TedgeLimit);
++	pr_info("ThotspotLimit = %d\n", pptable->ThotspotLimit);
++	pr_info("ThbmLimit = %d\n", pptable->ThbmLimit);
++	pr_info("Tvr_gfxLimit = %d\n", pptable->Tvr_gfxLimit);
++	pr_info("Tvr_memLimit = %d\n", pptable->Tvr_memLimit);
++	pr_info("Tliquid1Limit = %d\n", pptable->Tliquid1Limit);
++	pr_info("Tliquid2Limit = %d\n", pptable->Tliquid2Limit);
++	pr_info("TplxLimit = %d\n", pptable->TplxLimit);
++	pr_info("FitLimit = %d\n", pptable->FitLimit);
++
++	pr_info("PpmPowerLimit = %d\n", pptable->PpmPowerLimit);
++	pr_info("PpmTemperatureThreshold = %d\n", pptable->PpmTemperatureThreshold);
++
++	pr_info("MemoryOnPackage = 0x%02x\n", pptable->MemoryOnPackage);
++	pr_info("padding8_limits[0] = 0x%02x\n", pptable->padding8_limits[0]);
++	pr_info("padding8_limits[1] = 0x%02x\n", pptable->padding8_limits[1]);
++	pr_info("padding8_limits[2] = 0x%02x\n", pptable->padding8_limits[2]);
++
++	pr_info("UlvVoltageOffsetSoc = %d\n", pptable->UlvVoltageOffsetSoc);
++	pr_info("UlvVoltageOffsetGfx = %d\n", pptable->UlvVoltageOffsetGfx);
++
++	pr_info("UlvSmnclkDid = %d\n", pptable->UlvSmnclkDid);
++	pr_info("UlvMp1clkDid = %d\n", pptable->UlvMp1clkDid);
++	pr_info("UlvGfxclkBypass = %d\n", pptable->UlvGfxclkBypass);
++	pr_info("Padding234 = 0x%02x\n", pptable->Padding234);
++
++	pr_info("MinVoltageGfx = %d\n", pptable->MinVoltageGfx);
++	pr_info("MinVoltageSoc = %d\n", pptable->MinVoltageSoc);
++	pr_info("MaxVoltageGfx = %d\n", pptable->MaxVoltageGfx);
++	pr_info("MaxVoltageSoc = %d\n", pptable->MaxVoltageSoc);
++
++	pr_info("LoadLineResistanceGfx = %d\n", pptable->LoadLineResistanceGfx);
++	pr_info("LoadLineResistanceSoc = %d\n", pptable->LoadLineResistanceSoc);
++
++	pr_info("[PPCLK_GFXCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_GFXCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].padding,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_GFXCLK].SsCurve.c);
++
++	pr_info("[PPCLK_VCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_VCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_VCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_VCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_VCLK].padding,
++			pptable->DpmDescriptor[PPCLK_VCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_VCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_VCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_VCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_VCLK].SsCurve.c);
++
++	pr_info("[PPCLK_DCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_DCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_DCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_DCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_DCLK].padding,
++			pptable->DpmDescriptor[PPCLK_DCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_DCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_DCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_DCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_DCLK].SsCurve.c);
++
++	pr_info("[PPCLK_ECLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_ECLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_ECLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_ECLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_ECLK].padding,
++			pptable->DpmDescriptor[PPCLK_ECLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_ECLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_ECLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_ECLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_ECLK].SsCurve.c);
++
++	pr_info("[PPCLK_SOCCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_SOCCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].padding,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_SOCCLK].SsCurve.c);
++
++	pr_info("[PPCLK_UCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_UCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_UCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_UCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_UCLK].padding,
++			pptable->DpmDescriptor[PPCLK_UCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_UCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_UCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_UCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_UCLK].SsCurve.c);
++
++	pr_info("[PPCLK_DCEFCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].padding,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_DCEFCLK].SsCurve.c);
++
++	pr_info("[PPCLK_DISPCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_DISPCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].padding,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_DISPCLK].SsCurve.c);
++
++	pr_info("[PPCLK_PIXCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_PIXCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].padding,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_PIXCLK].SsCurve.c);
++
++	pr_info("[PPCLK_PHYCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_PHYCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].padding,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_PHYCLK].SsCurve.c);
++
++	pr_info("[PPCLK_FCLK]\n"
++			"  .VoltageMode          = 0x%02x\n"
++			"  .SnapToDiscrete       = 0x%02x\n"
++			"  .NumDiscreteLevels    = 0x%02x\n"
++			"  .padding              = 0x%02x\n"
++			"  .ConversionToAvfsClk{m = 0x%08x b = 0x%08x}\n"
++			"  .SsCurve            {a = 0x%08x b = 0x%08x c = 0x%08x}\n",
++			pptable->DpmDescriptor[PPCLK_FCLK].VoltageMode,
++			pptable->DpmDescriptor[PPCLK_FCLK].SnapToDiscrete,
++			pptable->DpmDescriptor[PPCLK_FCLK].NumDiscreteLevels,
++			pptable->DpmDescriptor[PPCLK_FCLK].padding,
++			pptable->DpmDescriptor[PPCLK_FCLK].ConversionToAvfsClk.m,
++			pptable->DpmDescriptor[PPCLK_FCLK].ConversionToAvfsClk.b,
++			pptable->DpmDescriptor[PPCLK_FCLK].SsCurve.a,
++			pptable->DpmDescriptor[PPCLK_FCLK].SsCurve.b,
++			pptable->DpmDescriptor[PPCLK_FCLK].SsCurve.c);
++
++
++	pr_info("FreqTableGfx\n");
++	for (i = 0; i < NUM_GFXCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableGfx[i]);
++
++	pr_info("FreqTableVclk\n");
++	for (i = 0; i < NUM_VCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableVclk[i]);
++
++	pr_info("FreqTableDclk\n");
++	for (i = 0; i < NUM_DCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableDclk[i]);
++
++	pr_info("FreqTableEclk\n");
++	for (i = 0; i < NUM_ECLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableEclk[i]);
++
++	pr_info("FreqTableSocclk\n");
++	for (i = 0; i < NUM_SOCCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableSocclk[i]);
++
++	pr_info("FreqTableUclk\n");
++	for (i = 0; i < NUM_UCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableUclk[i]);
++
++	pr_info("FreqTableFclk\n");
++	for (i = 0; i < NUM_FCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableFclk[i]);
++
++	pr_info("FreqTableDcefclk\n");
++	for (i = 0; i < NUM_DCEFCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableDcefclk[i]);
++
++	pr_info("FreqTableDispclk\n");
++	for (i = 0; i < NUM_DISPCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTableDispclk[i]);
++
++	pr_info("FreqTablePixclk\n");
++	for (i = 0; i < NUM_PIXCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTablePixclk[i]);
++
++	pr_info("FreqTablePhyclk\n");
++	for (i = 0; i < NUM_PHYCLK_DPM_LEVELS; i++)
++		pr_info("  .[%02d] = %d\n", i, pptable->FreqTablePhyclk[i]);
++
++	pr_info("DcModeMaxFreq[PPCLK_GFXCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_GFXCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_VCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_VCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_DCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_DCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_ECLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_ECLK]);
++	pr_info("DcModeMaxFreq[PPCLK_SOCCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_SOCCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_UCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_UCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_DCEFCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_DCEFCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_DISPCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_DISPCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_PIXCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_PIXCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_PHYCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_PHYCLK]);
++	pr_info("DcModeMaxFreq[PPCLK_FCLK] = %d\n", pptable->DcModeMaxFreq[PPCLK_FCLK]);
++	pr_info("Padding8_Clks = %d\n", pptable->Padding8_Clks);
++
++	pr_info("Mp0clkFreq\n");
++	for (i = 0; i < NUM_MP0CLK_DPM_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->Mp0clkFreq[i]);
++
++	pr_info("Mp0DpmVoltage\n");
++	for (i = 0; i < NUM_MP0CLK_DPM_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->Mp0DpmVoltage[i]);
++
++	pr_info("GfxclkFidle = 0x%x\n", pptable->GfxclkFidle);
++	pr_info("GfxclkSlewRate = 0x%x\n", pptable->GfxclkSlewRate);
++	pr_info("CksEnableFreq = 0x%x\n", pptable->CksEnableFreq);
++	pr_info("Padding789 = 0x%x\n", pptable->Padding789);
++	pr_info("CksVoltageOffset[a = 0x%08x b = 0x%08x c = 0x%08x]\n",
++			pptable->CksVoltageOffset.a,
++			pptable->CksVoltageOffset.b,
++			pptable->CksVoltageOffset.c);
++	pr_info("Padding567[0] = 0x%x\n", pptable->Padding567[0]);
++	pr_info("Padding567[1] = 0x%x\n", pptable->Padding567[1]);
++	pr_info("Padding567[2] = 0x%x\n", pptable->Padding567[2]);
++	pr_info("Padding567[3] = 0x%x\n", pptable->Padding567[3]);
++	pr_info("GfxclkDsMaxFreq = %d\n", pptable->GfxclkDsMaxFreq);
++	pr_info("GfxclkSource = 0x%x\n", pptable->GfxclkSource);
++	pr_info("Padding456 = 0x%x\n", pptable->Padding456);
++
++	pr_info("LowestUclkReservedForUlv = %d\n", pptable->LowestUclkReservedForUlv);
++	pr_info("Padding8_Uclk[0] = 0x%x\n", pptable->Padding8_Uclk[0]);
++	pr_info("Padding8_Uclk[1] = 0x%x\n", pptable->Padding8_Uclk[1]);
++	pr_info("Padding8_Uclk[2] = 0x%x\n", pptable->Padding8_Uclk[2]);
++
++	pr_info("PcieGenSpeed\n");
++	for (i = 0; i < NUM_LINK_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->PcieGenSpeed[i]);
++
++	pr_info("PcieLaneCount\n");
++	for (i = 0; i < NUM_LINK_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->PcieLaneCount[i]);
++
++	pr_info("LclkFreq\n");
++	for (i = 0; i < NUM_LINK_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->LclkFreq[i]);
++
++	pr_info("EnableTdpm = %d\n", pptable->EnableTdpm);
++	pr_info("TdpmHighHystTemperature = %d\n", pptable->TdpmHighHystTemperature);
++	pr_info("TdpmLowHystTemperature = %d\n", pptable->TdpmLowHystTemperature);
++	pr_info("GfxclkFreqHighTempLimit = %d\n", pptable->GfxclkFreqHighTempLimit);
++
++	pr_info("FanStopTemp = %d\n", pptable->FanStopTemp);
++	pr_info("FanStartTemp = %d\n", pptable->FanStartTemp);
++
++	pr_info("FanGainEdge = %d\n", pptable->FanGainEdge);
++	pr_info("FanGainHotspot = %d\n", pptable->FanGainHotspot);
++	pr_info("FanGainLiquid = %d\n", pptable->FanGainLiquid);
++	pr_info("FanGainVrVddc = %d\n", pptable->FanGainVrVddc);
++	pr_info("FanGainVrMvdd = %d\n", pptable->FanGainVrMvdd);
++	pr_info("FanGainPlx = %d\n", pptable->FanGainPlx);
++	pr_info("FanGainHbm = %d\n", pptable->FanGainHbm);
++	pr_info("FanPwmMin = %d\n", pptable->FanPwmMin);
++	pr_info("FanAcousticLimitRpm = %d\n", pptable->FanAcousticLimitRpm);
++	pr_info("FanThrottlingRpm = %d\n", pptable->FanThrottlingRpm);
++	pr_info("FanMaximumRpm = %d\n", pptable->FanMaximumRpm);
++	pr_info("FanTargetTemperature = %d\n", pptable->FanTargetTemperature);
++	pr_info("FanTargetGfxclk = %d\n", pptable->FanTargetGfxclk);
++	pr_info("FanZeroRpmEnable = %d\n", pptable->FanZeroRpmEnable);
++	pr_info("FanTachEdgePerRev = %d\n", pptable->FanTachEdgePerRev);
++
++	pr_info("FuzzyFan_ErrorSetDelta = %d\n", pptable->FuzzyFan_ErrorSetDelta);
++	pr_info("FuzzyFan_ErrorRateSetDelta = %d\n", pptable->FuzzyFan_ErrorRateSetDelta);
++	pr_info("FuzzyFan_PwmSetDelta = %d\n", pptable->FuzzyFan_PwmSetDelta);
++	pr_info("FuzzyFan_Reserved = %d\n", pptable->FuzzyFan_Reserved);
++
++	pr_info("OverrideAvfsGb[AVFS_VOLTAGE_GFX] = 0x%x\n", pptable->OverrideAvfsGb[AVFS_VOLTAGE_GFX]);
++	pr_info("OverrideAvfsGb[AVFS_VOLTAGE_SOC] = 0x%x\n", pptable->OverrideAvfsGb[AVFS_VOLTAGE_SOC]);
++	pr_info("Padding8_Avfs[0] = %d\n", pptable->Padding8_Avfs[0]);
++	pr_info("Padding8_Avfs[1] = %d\n", pptable->Padding8_Avfs[1]);
++
++	pr_info("qAvfsGb[AVFS_VOLTAGE_GFX]{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->qAvfsGb[AVFS_VOLTAGE_GFX].a,
++			pptable->qAvfsGb[AVFS_VOLTAGE_GFX].b,
++			pptable->qAvfsGb[AVFS_VOLTAGE_GFX].c);
++	pr_info("qAvfsGb[AVFS_VOLTAGE_SOC]{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->qAvfsGb[AVFS_VOLTAGE_SOC].a,
++			pptable->qAvfsGb[AVFS_VOLTAGE_SOC].b,
++			pptable->qAvfsGb[AVFS_VOLTAGE_SOC].c);
++	pr_info("dBtcGbGfxCksOn{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->dBtcGbGfxCksOn.a,
++			pptable->dBtcGbGfxCksOn.b,
++			pptable->dBtcGbGfxCksOn.c);
++	pr_info("dBtcGbGfxCksOff{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->dBtcGbGfxCksOff.a,
++			pptable->dBtcGbGfxCksOff.b,
++			pptable->dBtcGbGfxCksOff.c);
++	pr_info("dBtcGbGfxAfll{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->dBtcGbGfxAfll.a,
++			pptable->dBtcGbGfxAfll.b,
++			pptable->dBtcGbGfxAfll.c);
++	pr_info("dBtcGbSoc{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->dBtcGbSoc.a,
++			pptable->dBtcGbSoc.b,
++			pptable->dBtcGbSoc.c);
++	pr_info("qAgingGb[AVFS_VOLTAGE_GFX]{m = 0x%x b = 0x%x}\n",
++			pptable->qAgingGb[AVFS_VOLTAGE_GFX].m,
++			pptable->qAgingGb[AVFS_VOLTAGE_GFX].b);
++	pr_info("qAgingGb[AVFS_VOLTAGE_SOC]{m = 0x%x b = 0x%x}\n",
++			pptable->qAgingGb[AVFS_VOLTAGE_SOC].m,
++			pptable->qAgingGb[AVFS_VOLTAGE_SOC].b);
++
++	pr_info("qStaticVoltageOffset[AVFS_VOLTAGE_GFX]{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->qStaticVoltageOffset[AVFS_VOLTAGE_GFX].a,
++			pptable->qStaticVoltageOffset[AVFS_VOLTAGE_GFX].b,
++			pptable->qStaticVoltageOffset[AVFS_VOLTAGE_GFX].c);
++	pr_info("qStaticVoltageOffset[AVFS_VOLTAGE_SOC]{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->qStaticVoltageOffset[AVFS_VOLTAGE_SOC].a,
++			pptable->qStaticVoltageOffset[AVFS_VOLTAGE_SOC].b,
++			pptable->qStaticVoltageOffset[AVFS_VOLTAGE_SOC].c);
++
++	pr_info("DcTol[AVFS_VOLTAGE_GFX] = 0x%x\n", pptable->DcTol[AVFS_VOLTAGE_GFX]);
++	pr_info("DcTol[AVFS_VOLTAGE_SOC] = 0x%x\n", pptable->DcTol[AVFS_VOLTAGE_SOC]);
++
++	pr_info("DcBtcEnabled[AVFS_VOLTAGE_GFX] = 0x%x\n", pptable->DcBtcEnabled[AVFS_VOLTAGE_GFX]);
++	pr_info("DcBtcEnabled[AVFS_VOLTAGE_SOC] = 0x%x\n", pptable->DcBtcEnabled[AVFS_VOLTAGE_SOC]);
++	pr_info("Padding8_GfxBtc[0] = 0x%x\n", pptable->Padding8_GfxBtc[0]);
++	pr_info("Padding8_GfxBtc[1] = 0x%x\n", pptable->Padding8_GfxBtc[1]);
++
++	pr_info("DcBtcMin[AVFS_VOLTAGE_GFX] = 0x%x\n", pptable->DcBtcMin[AVFS_VOLTAGE_GFX]);
++	pr_info("DcBtcMin[AVFS_VOLTAGE_SOC] = 0x%x\n", pptable->DcBtcMin[AVFS_VOLTAGE_SOC]);
++	pr_info("DcBtcMax[AVFS_VOLTAGE_GFX] = 0x%x\n", pptable->DcBtcMax[AVFS_VOLTAGE_GFX]);
++	pr_info("DcBtcMax[AVFS_VOLTAGE_SOC] = 0x%x\n", pptable->DcBtcMax[AVFS_VOLTAGE_SOC]);
++
++	pr_info("XgmiLinkSpeed\n");
++	for (i = 0; i < NUM_XGMI_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->XgmiLinkSpeed[i]);
++	pr_info("XgmiLinkWidth\n");
++	for (i = 0; i < NUM_XGMI_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->XgmiLinkWidth[i]);
++	pr_info("XgmiFclkFreq\n");
++	for (i = 0; i < NUM_XGMI_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->XgmiFclkFreq[i]);
++	pr_info("XgmiUclkFreq\n");
++	for (i = 0; i < NUM_XGMI_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->XgmiUclkFreq[i]);
++	pr_info("XgmiSocclkFreq\n");
++	for (i = 0; i < NUM_XGMI_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->XgmiSocclkFreq[i]);
++	pr_info("XgmiSocVoltage\n");
++	for (i = 0; i < NUM_XGMI_LEVELS; i++)
++		pr_info("  .[%d] = %d\n", i, pptable->XgmiSocVoltage[i]);
++
++	pr_info("DebugOverrides = 0x%x\n", pptable->DebugOverrides);
++	pr_info("ReservedEquation0{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->ReservedEquation0.a,
++			pptable->ReservedEquation0.b,
++			pptable->ReservedEquation0.c);
++	pr_info("ReservedEquation1{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->ReservedEquation1.a,
++			pptable->ReservedEquation1.b,
++			pptable->ReservedEquation1.c);
++	pr_info("ReservedEquation2{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->ReservedEquation2.a,
++			pptable->ReservedEquation2.b,
++			pptable->ReservedEquation2.c);
++	pr_info("ReservedEquation3{a = 0x%x b = 0x%x c = 0x%x}\n",
++			pptable->ReservedEquation3.a,
++			pptable->ReservedEquation3.b,
++			pptable->ReservedEquation3.c);
++
++	pr_info("MinVoltageUlvGfx = %d\n", pptable->MinVoltageUlvGfx);
++	pr_info("MinVoltageUlvSoc = %d\n", pptable->MinVoltageUlvSoc);
++
++	for (i = 0; i < 14; i++)
++		pr_info("Reserved[%d] = 0x%x\n", i, pptable->Reserved[i]);
++
++	pr_info("Liquid1_I2C_address = 0x%x\n", pptable->Liquid1_I2C_address);
++	pr_info("Liquid2_I2C_address = 0x%x\n", pptable->Liquid2_I2C_address);
++	pr_info("Vr_I2C_address = 0x%x\n", pptable->Vr_I2C_address);
++	pr_info("Plx_I2C_address = 0x%x\n", pptable->Plx_I2C_address);
++
++	pr_info("Liquid_I2C_LineSCL = 0x%x\n", pptable->Liquid_I2C_LineSCL);
++	pr_info("Liquid_I2C_LineSDA = 0x%x\n", pptable->Liquid_I2C_LineSDA);
++	pr_info("Vr_I2C_LineSCL = 0x%x\n", pptable->Vr_I2C_LineSCL);
++	pr_info("Vr_I2C_LineSDA = 0x%x\n", pptable->Vr_I2C_LineSDA);
++
++	pr_info("Plx_I2C_LineSCL = 0x%x\n", pptable->Plx_I2C_LineSCL);
++	pr_info("Plx_I2C_LineSDA = 0x%x\n", pptable->Plx_I2C_LineSDA);
++	pr_info("VrSensorPresent = 0x%x\n", pptable->VrSensorPresent);
++	pr_info("LiquidSensorPresent = 0x%x\n", pptable->LiquidSensorPresent);
++
++	pr_info("MaxVoltageStepGfx = 0x%x\n", pptable->MaxVoltageStepGfx);
++	pr_info("MaxVoltageStepSoc = 0x%x\n", pptable->MaxVoltageStepSoc);
++
++	pr_info("VddGfxVrMapping = 0x%x\n", pptable->VddGfxVrMapping);
++	pr_info("VddSocVrMapping = 0x%x\n", pptable->VddSocVrMapping);
++	pr_info("VddMem0VrMapping = 0x%x\n", pptable->VddMem0VrMapping);
++	pr_info("VddMem1VrMapping = 0x%x\n", pptable->VddMem1VrMapping);
++
++	pr_info("GfxUlvPhaseSheddingMask = 0x%x\n", pptable->GfxUlvPhaseSheddingMask);
++	pr_info("SocUlvPhaseSheddingMask = 0x%x\n", pptable->SocUlvPhaseSheddingMask);
++	pr_info("ExternalSensorPresent = 0x%x\n", pptable->ExternalSensorPresent);
++	pr_info("Padding8_V = 0x%x\n", pptable->Padding8_V);
++
++	pr_info("GfxMaxCurrent = 0x%x\n", pptable->GfxMaxCurrent);
++	pr_info("GfxOffset = 0x%x\n", pptable->GfxOffset);
++	pr_info("Padding_TelemetryGfx = 0x%x\n", pptable->Padding_TelemetryGfx);
++
++	pr_info("SocMaxCurrent = 0x%x\n", pptable->SocMaxCurrent);
++	pr_info("SocOffset = 0x%x\n", pptable->SocOffset);
++	pr_info("Padding_TelemetrySoc = 0x%x\n", pptable->Padding_TelemetrySoc);
++
++	pr_info("Mem0MaxCurrent = 0x%x\n", pptable->Mem0MaxCurrent);
++	pr_info("Mem0Offset = 0x%x\n", pptable->Mem0Offset);
++	pr_info("Padding_TelemetryMem0 = 0x%x\n", pptable->Padding_TelemetryMem0);
++
++	pr_info("Mem1MaxCurrent = 0x%x\n", pptable->Mem1MaxCurrent);
++	pr_info("Mem1Offset = 0x%x\n", pptable->Mem1Offset);
++	pr_info("Padding_TelemetryMem1 = 0x%x\n", pptable->Padding_TelemetryMem1);
++
++	pr_info("AcDcGpio = %d\n", pptable->AcDcGpio);
++	pr_info("AcDcPolarity = %d\n", pptable->AcDcPolarity);
++	pr_info("VR0HotGpio = %d\n", pptable->VR0HotGpio);
++	pr_info("VR0HotPolarity = %d\n", pptable->VR0HotPolarity);
++
++	pr_info("VR1HotGpio = %d\n", pptable->VR1HotGpio);
++	pr_info("VR1HotPolarity = %d\n", pptable->VR1HotPolarity);
++	pr_info("Padding1 = 0x%x\n", pptable->Padding1);
++	pr_info("Padding2 = 0x%x\n", pptable->Padding2);
++
++	pr_info("LedPin0 = %d\n", pptable->LedPin0);
++	pr_info("LedPin1 = %d\n", pptable->LedPin1);
++	pr_info("LedPin2 = %d\n", pptable->LedPin2);
++	pr_info("padding8_4 = 0x%x\n", pptable->padding8_4);
++
++	pr_info("PllGfxclkSpreadEnabled = %d\n", pptable->PllGfxclkSpreadEnabled);
++	pr_info("PllGfxclkSpreadPercent = %d\n", pptable->PllGfxclkSpreadPercent);
++	pr_info("PllGfxclkSpreadFreq = %d\n", pptable->PllGfxclkSpreadFreq);
++
++	pr_info("UclkSpreadEnabled = %d\n", pptable->UclkSpreadEnabled);
++	pr_info("UclkSpreadPercent = %d\n", pptable->UclkSpreadPercent);
++	pr_info("UclkSpreadFreq = %d\n", pptable->UclkSpreadFreq);
++
++	pr_info("FclkSpreadEnabled = %d\n", pptable->FclkSpreadEnabled);
++	pr_info("FclkSpreadPercent = %d\n", pptable->FclkSpreadPercent);
++	pr_info("FclkSpreadFreq = %d\n", pptable->FclkSpreadFreq);
++
++	pr_info("FllGfxclkSpreadEnabled = %d\n", pptable->FllGfxclkSpreadEnabled);
++	pr_info("FllGfxclkSpreadPercent = %d\n", pptable->FllGfxclkSpreadPercent);
++	pr_info("FllGfxclkSpreadFreq = %d\n", pptable->FllGfxclkSpreadFreq);
++
++	for (i = 0; i < 10; i++)
++		pr_info("BoardReserved[%d] = 0x%x\n", i, pptable->BoardReserved[i]);
++
++	for (i = 0; i < 8; i++)
++		pr_info("MmHubPadding[%d] = 0x%x\n", i, pptable->MmHubPadding[i]);
++}
++#endif
++
++static int check_powerplay_tables(
++		struct pp_hwmgr *hwmgr,
++		const ATOM_Vega20_POWERPLAYTABLE *powerplay_table)
++{
++	PP_ASSERT_WITH_CODE((powerplay_table->sHeader.format_revision >=
++		ATOM_VEGA20_TABLE_REVISION_VEGA20),
++		"Unsupported PPTable format!", return -1);
++	PP_ASSERT_WITH_CODE(powerplay_table->sHeader.structuresize > 0,
++		"Invalid PowerPlay Table!", return -1);
++	PP_ASSERT_WITH_CODE(powerplay_table->smcPPTable.Version == PPTABLE_V20_SMU_VERSION,
++		"Unmatch PPTable version, vbios update may be needed!", return -1);
++
++	//dump_pptable(&powerplay_table->smcPPTable);
++
++	return 0;
++}
++
++static int set_platform_caps(struct pp_hwmgr *hwmgr, uint32_t powerplay_caps)
++{
++	set_hw_cap(
++		hwmgr,
++		0 != (powerplay_caps & ATOM_VEGA20_PP_PLATFORM_CAP_POWERPLAY),
++		PHM_PlatformCaps_PowerPlaySupport);
++
++	set_hw_cap(
++		hwmgr,
++		0 != (powerplay_caps & ATOM_VEGA20_PP_PLATFORM_CAP_SBIOSPOWERSOURCE),
++		PHM_PlatformCaps_BiosPowerSourceControl);
++
++	set_hw_cap(
++		hwmgr,
++		0 != (powerplay_caps & ATOM_VEGA20_PP_PLATFORM_CAP_BACO),
++		PHM_PlatformCaps_BACO);
++
++	set_hw_cap(
++		hwmgr,
++		0 != (powerplay_caps & ATOM_VEGA20_PP_PLATFORM_CAP_BAMACO),
++		 PHM_PlatformCaps_BAMACO);
++
++	return 0;
++}
++
++static int copy_clock_limits_array(
++	struct pp_hwmgr *hwmgr,
++	uint32_t **pptable_info_array,
++	const uint32_t *pptable_array)
++{
++	uint32_t array_size, i;
++	uint32_t *table;
++
++	array_size = sizeof(uint32_t) * ATOM_VEGA20_PPCLOCK_COUNT;
++
++	table = kzalloc(array_size, GFP_KERNEL);
++	if (NULL == table)
++		return -ENOMEM;
++
++	for (i = 0; i < ATOM_VEGA20_PPCLOCK_COUNT; i++)
++		table[i] = pptable_array[i];
++
++	*pptable_info_array = table;
++
++	return 0;
++}
++
++static int copy_overdrive_settings_limits_array(
++		struct pp_hwmgr *hwmgr,
++		uint32_t **pptable_info_array,
++		const uint32_t *pptable_array)
++{
++	uint32_t array_size, i;
++	uint32_t *table;
++
++	array_size = sizeof(uint32_t) * ATOM_VEGA20_ODSETTING_COUNT;
++
++	table = kzalloc(array_size, GFP_KERNEL);
++	if (NULL == table)
++		return -ENOMEM;
++
++	for (i = 0; i < ATOM_VEGA20_ODSETTING_COUNT; i++)
++		table[i] = pptable_array[i];
++
++	*pptable_info_array = table;
++
++	return 0;
++}
++
++static int append_vbios_pptable(struct pp_hwmgr *hwmgr, PPTable_t *ppsmc_pptable)
++{
++	struct atom_smc_dpm_info_v4_3 *smc_dpm_table;
++	int index = GetIndexIntoMasterDataTable(smc_dpm_info);
++
++	PP_ASSERT_WITH_CODE(
++		smc_dpm_table = smu_atom_get_data_table(hwmgr->adev, index, NULL, NULL, NULL),
++		"[appendVbiosPPTable] Failed to retrieve Smc Dpm Table from VBIOS!",
++		return -1);
++
++	ppsmc_pptable->Liquid1_I2C_address = smc_dpm_table->liquid1_i2c_address;
++	ppsmc_pptable->Liquid2_I2C_address = smc_dpm_table->liquid2_i2c_address;
++	ppsmc_pptable->Vr_I2C_address = smc_dpm_table->vr_i2c_address;
++	ppsmc_pptable->Plx_I2C_address = smc_dpm_table->plx_i2c_address;
++
++	ppsmc_pptable->Liquid_I2C_LineSCL = smc_dpm_table->liquid_i2c_linescl;
++	ppsmc_pptable->Liquid_I2C_LineSDA = smc_dpm_table->liquid_i2c_linesda;
++	ppsmc_pptable->Vr_I2C_LineSCL = smc_dpm_table->vr_i2c_linescl;
++	ppsmc_pptable->Vr_I2C_LineSDA = smc_dpm_table->vr_i2c_linesda;
++
++	ppsmc_pptable->Plx_I2C_LineSCL = smc_dpm_table->plx_i2c_linescl;
++	ppsmc_pptable->Plx_I2C_LineSDA = smc_dpm_table->plx_i2c_linesda;
++	ppsmc_pptable->VrSensorPresent = smc_dpm_table->vrsensorpresent;
++	ppsmc_pptable->LiquidSensorPresent = smc_dpm_table->liquidsensorpresent;
++
++	ppsmc_pptable->MaxVoltageStepGfx = smc_dpm_table->maxvoltagestepgfx;
++	ppsmc_pptable->MaxVoltageStepSoc = smc_dpm_table->maxvoltagestepsoc;
++
++	ppsmc_pptable->VddGfxVrMapping = smc_dpm_table->vddgfxvrmapping;
++	ppsmc_pptable->VddSocVrMapping = smc_dpm_table->vddsocvrmapping;
++	ppsmc_pptable->VddMem0VrMapping = smc_dpm_table->vddmem0vrmapping;
++	ppsmc_pptable->VddMem1VrMapping = smc_dpm_table->vddmem1vrmapping;
++
++	ppsmc_pptable->GfxUlvPhaseSheddingMask = smc_dpm_table->gfxulvphasesheddingmask;
++	ppsmc_pptable->SocUlvPhaseSheddingMask = smc_dpm_table->soculvphasesheddingmask;
++	ppsmc_pptable->ExternalSensorPresent = smc_dpm_table->externalsensorpresent;
++
++	ppsmc_pptable->GfxMaxCurrent = smc_dpm_table->gfxmaxcurrent;
++	ppsmc_pptable->GfxOffset = smc_dpm_table->gfxoffset;
++	ppsmc_pptable->Padding_TelemetryGfx = smc_dpm_table->padding_telemetrygfx;
++
++	ppsmc_pptable->SocMaxCurrent = smc_dpm_table->socmaxcurrent;
++	ppsmc_pptable->SocOffset = smc_dpm_table->socoffset;
++	ppsmc_pptable->Padding_TelemetrySoc = smc_dpm_table->padding_telemetrysoc;
++
++	ppsmc_pptable->Mem0MaxCurrent = smc_dpm_table->mem0maxcurrent;
++	ppsmc_pptable->Mem0Offset = smc_dpm_table->mem0offset;
++	ppsmc_pptable->Padding_TelemetryMem0 = smc_dpm_table->padding_telemetrymem0;
++
++	ppsmc_pptable->Mem1MaxCurrent = smc_dpm_table->mem1maxcurrent;
++	ppsmc_pptable->Mem1Offset = smc_dpm_table->mem1offset;
++	ppsmc_pptable->Padding_TelemetryMem1 = smc_dpm_table->padding_telemetrymem1;
++
++	ppsmc_pptable->AcDcGpio = smc_dpm_table->acdcgpio;
++	ppsmc_pptable->AcDcPolarity = smc_dpm_table->acdcpolarity;
++	ppsmc_pptable->VR0HotGpio = smc_dpm_table->vr0hotgpio;
++	ppsmc_pptable->VR0HotPolarity = smc_dpm_table->vr0hotpolarity;
++
++	ppsmc_pptable->VR1HotGpio = smc_dpm_table->vr1hotgpio;
++	ppsmc_pptable->VR1HotPolarity = smc_dpm_table->vr1hotpolarity;
++	ppsmc_pptable->Padding1 = smc_dpm_table->padding1;
++	ppsmc_pptable->Padding2 = smc_dpm_table->padding2;
++
++	ppsmc_pptable->LedPin0 = smc_dpm_table->ledpin0;
++	ppsmc_pptable->LedPin1 = smc_dpm_table->ledpin1;
++	ppsmc_pptable->LedPin2 = smc_dpm_table->ledpin2;
++
++	ppsmc_pptable->PllGfxclkSpreadEnabled = smc_dpm_table->pllgfxclkspreadenabled;
++	ppsmc_pptable->PllGfxclkSpreadPercent = smc_dpm_table->pllgfxclkspreadpercent;
++	ppsmc_pptable->PllGfxclkSpreadFreq = smc_dpm_table->pllgfxclkspreadfreq;
++
++	ppsmc_pptable->UclkSpreadEnabled = 0;
++	ppsmc_pptable->UclkSpreadPercent = smc_dpm_table->uclkspreadpercent;
++	ppsmc_pptable->UclkSpreadFreq = smc_dpm_table->uclkspreadfreq;
++
++	ppsmc_pptable->FclkSpreadEnabled = 0;
++	ppsmc_pptable->FclkSpreadPercent = smc_dpm_table->fclkspreadpercent;
++	ppsmc_pptable->FclkSpreadFreq = smc_dpm_table->fclkspreadfreq;
++
++	ppsmc_pptable->FllGfxclkSpreadEnabled = smc_dpm_table->fllgfxclkspreadenabled;
++	ppsmc_pptable->FllGfxclkSpreadPercent = smc_dpm_table->fllgfxclkspreadpercent;
++	ppsmc_pptable->FllGfxclkSpreadFreq = smc_dpm_table->fllgfxclkspreadfreq;
++
++	return 0;
++}
++
++#define VEGA20_ENGINECLOCK_HARDMAX 198000
++static int init_powerplay_table_information(
++		struct pp_hwmgr *hwmgr,
++		const ATOM_Vega20_POWERPLAYTABLE *powerplay_table)
++{
++	struct phm_ppt_v3_information *pptable_information =
++		(struct phm_ppt_v3_information *)hwmgr->pptable;
++	uint32_t disable_power_control = 0;
++	int result;
++
++	hwmgr->thermal_controller.ucType = powerplay_table->ucThermalControllerType;
++	pptable_information->uc_thermal_controller_type = powerplay_table->ucThermalControllerType;
++
++	set_hw_cap(hwmgr,
++		ATOM_VEGA20_PP_THERMALCONTROLLER_NONE != hwmgr->thermal_controller.ucType,
++		PHM_PlatformCaps_ThermalController);
++
++	phm_cap_set(hwmgr->platform_descriptor.platformCaps, PHM_PlatformCaps_MicrocodeFanControl);
++
++	if (powerplay_table->OverDrive8Table.ODSettingsMax[ATOM_VEGA20_ODSETTING_GFXCLKFMAX] > VEGA20_ENGINECLOCK_HARDMAX)
++		hwmgr->platform_descriptor.overdriveLimit.engineClock = VEGA20_ENGINECLOCK_HARDMAX;
++	else
++		hwmgr->platform_descriptor.overdriveLimit.engineClock = powerplay_table->OverDrive8Table.ODSettingsMax[ATOM_VEGA20_ODSETTING_GFXCLKFMAX];
++	hwmgr->platform_descriptor.overdriveLimit.memoryClock = powerplay_table->OverDrive8Table.ODSettingsMax[ATOM_VEGA20_ODSETTING_UCLKFMAX];
++
++	copy_overdrive_settings_limits_array(hwmgr, &pptable_information->od_settings_max, powerplay_table->OverDrive8Table.ODSettingsMax);
++	copy_overdrive_settings_limits_array(hwmgr, &pptable_information->od_settings_min, powerplay_table->OverDrive8Table.ODSettingsMin);
++
++	/* hwmgr->platformDescriptor.minOverdriveVDDC = 0;
++	hwmgr->platformDescriptor.maxOverdriveVDDC = 0;
++	hwmgr->platformDescriptor.overdriveVDDCStep = 0; */
++
++	if (hwmgr->platform_descriptor.overdriveLimit.engineClock > 0
++		&& hwmgr->platform_descriptor.overdriveLimit.memoryClock > 0)
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps, PHM_PlatformCaps_ACOverdriveSupport);
++
++	pptable_information->us_small_power_limit1 = powerplay_table->usSmallPowerLimit1;
++	pptable_information->us_small_power_limit2 = powerplay_table->usSmallPowerLimit2;
++	pptable_information->us_boost_power_limit = powerplay_table->usBoostPowerLimit;
++	pptable_information->us_od_turbo_power_limit = powerplay_table->usODTurboPowerLimit;
++	pptable_information->us_od_powersave_power_limit = powerplay_table->usODPowerSavePowerLimit;
++
++	pptable_information->us_software_shutdown_temp = powerplay_table->usSoftwareShutdownTemp;
++
++	hwmgr->platform_descriptor.TDPODLimit = (uint16_t)powerplay_table->OverDrive8Table.ODSettingsMax[ATOM_VEGA20_ODSETTING_POWERPERCENTAGE];
++
++	disable_power_control = 0;
++	if (!disable_power_control && hwmgr->platform_descriptor.TDPODLimit) {
++		/* enable TDP overdrive (PowerControl) feature as well if supported */
++		phm_cap_set(hwmgr->platform_descriptor.platformCaps,
++				PHM_PlatformCaps_PowerControl);
++	}
++
++	copy_clock_limits_array(hwmgr, &pptable_information->power_saving_clock_max, powerplay_table->PowerSavingClockTable.PowerSavingClockMax);
++	copy_clock_limits_array(hwmgr, &pptable_information->power_saving_clock_min, powerplay_table->PowerSavingClockTable.PowerSavingClockMin);
++
++	pptable_information->smc_pptable = (PPTable_t *)kmalloc(sizeof(PPTable_t), GFP_KERNEL);
++	if (pptable_information->smc_pptable == NULL)
++		return -ENOMEM;
++
++	memcpy(pptable_information->smc_pptable, &(powerplay_table->smcPPTable), sizeof(PPTable_t));
++
++	result = append_vbios_pptable(hwmgr, (pptable_information->smc_pptable));
++
++	return result;
++}
++
++static int vega20_pp_tables_initialize(struct pp_hwmgr *hwmgr)
++{
++	int result = 0;
++	const ATOM_Vega20_POWERPLAYTABLE *powerplay_table;
++
++	hwmgr->pptable = kzalloc(sizeof(struct phm_ppt_v3_information), GFP_KERNEL);
++	PP_ASSERT_WITH_CODE((hwmgr->pptable != NULL),
++		"Failed to allocate hwmgr->pptable!", return -ENOMEM);
++
++	powerplay_table = get_powerplay_table(hwmgr);
++	PP_ASSERT_WITH_CODE((powerplay_table != NULL),
++		"Missing PowerPlay Table!", return -1);
++
++	result = check_powerplay_tables(hwmgr, powerplay_table);
++	PP_ASSERT_WITH_CODE((result == 0),
++		"check_powerplay_tables failed", return result);
++
++	result = set_platform_caps(hwmgr,
++			le32_to_cpu(powerplay_table->ulPlatformCaps));
++	PP_ASSERT_WITH_CODE((result == 0),
++		"set_platform_caps failed", return result);
++
++	result = init_powerplay_table_information(hwmgr, powerplay_table);
++	PP_ASSERT_WITH_CODE((result == 0),
++		"init_powerplay_table_information failed", return result);
++
++	return result;
++}
++
++static int vega20_pp_tables_uninitialize(struct pp_hwmgr *hwmgr)
++{
++	struct phm_ppt_v3_information *pp_table_info =
++			(struct phm_ppt_v3_information *)(hwmgr->pptable);
++
++	kfree(pp_table_info->power_saving_clock_max);
++	pp_table_info->power_saving_clock_max = NULL;
++
++	kfree(pp_table_info->power_saving_clock_min);
++	pp_table_info->power_saving_clock_min = NULL;
++
++	kfree(pp_table_info->od_settings_max);
++	pp_table_info->od_settings_max = NULL;
++
++	kfree(pp_table_info->od_settings_min);
++	pp_table_info->od_settings_min = NULL;
++
++	kfree(pp_table_info->smc_pptable);
++	pp_table_info->smc_pptable = NULL;
++
++	kfree(hwmgr->pptable);
++	hwmgr->pptable = NULL;
++
++	return 0;
++}
++
++const struct pp_table_func vega20_pptable_funcs = {
++	.pptable_init = vega20_pp_tables_initialize,
++	.pptable_fini = vega20_pp_tables_uninitialize,
++};
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.h
+new file mode 100644
+index 0000000..846c2cb
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_processpptables.h
+@@ -0,0 +1,31 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#ifndef VEGA20_PROCESSPPTABLES_H
++#define VEGA20_PROCESSPPTABLES_H
++
++#include "hwmgr.h"
++
++extern const struct pp_table_func vega20_pptable_funcs;
++
++#endif
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
+new file mode 100644
+index 0000000..2984ddd5
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.c
+@@ -0,0 +1,212 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#include "vega20_thermal.h"
++#include "vega20_hwmgr.h"
++#include "vega20_smumgr.h"
++#include "vega20_ppsmc.h"
++#include "vega20_inc.h"
++#include "soc15_common.h"
++#include "pp_debug.h"
++
++static int vega20_get_current_rpm(struct pp_hwmgr *hwmgr, uint32_t *current_rpm)
++{
++	int ret = 0;
++
++	PP_ASSERT_WITH_CODE((ret = smum_send_msg_to_smc(hwmgr,
++				PPSMC_MSG_GetCurrentRpm)) == 0,
++			"Attempt to get current RPM from SMC Failed!",
++			return ret);
++	PP_ASSERT_WITH_CODE((ret = vega20_read_arg_from_smc(hwmgr,
++			current_rpm)) == 0,
++			"Attempt to read current RPM from SMC Failed!",
++			return ret);
++
++	return 0;
++}
++
++int vega20_fan_ctrl_get_fan_speed_info(struct pp_hwmgr *hwmgr,
++		struct phm_fan_speed_info *fan_speed_info)
++{
++	memset(fan_speed_info, 0, sizeof(*fan_speed_info));
++	fan_speed_info->supports_percent_read = false;
++	fan_speed_info->supports_percent_write = false;
++	fan_speed_info->supports_rpm_read = true;
++	fan_speed_info->supports_rpm_write = true;
++
++	return 0;
++}
++
++int vega20_fan_ctrl_get_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t *speed)
++{
++	*speed = 0;
++
++	return vega20_get_current_rpm(hwmgr, speed);
++}
++
++/**
++* Reads the remote temperature from the SIslands thermal controller.
++*
++* @param    hwmgr The address of the hardware manager.
++*/
++int vega20_thermal_get_temperature(struct pp_hwmgr *hwmgr)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++	int temp = 0;
++
++	temp = RREG32_SOC15(THM, 0, mmCG_MULT_THERMAL_STATUS);
++
++	temp = (temp & CG_MULT_THERMAL_STATUS__CTF_TEMP_MASK) >>
++			CG_MULT_THERMAL_STATUS__CTF_TEMP__SHIFT;
++
++	temp = temp & 0x1ff;
++
++	temp *= PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
++	return temp;
++}
++
++/**
++* Set the requested temperature range for high and low alert signals
++*
++* @param    hwmgr The address of the hardware manager.
++* @param    range Temperature range to be programmed for
++*           high and low alert signals
++* @exception PP_Result_BadInput if the input data is not valid.
++*/
++static int vega20_thermal_set_temperature_range(struct pp_hwmgr *hwmgr,
++		struct PP_TemperatureRange *range)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++	int low = VEGA20_THERMAL_MINIMUM_ALERT_TEMP *
++			PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
++	int high = VEGA20_THERMAL_MAXIMUM_ALERT_TEMP *
++			PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
++	uint32_t val;
++
++	if (low < range->min)
++		low = range->min;
++	if (high > range->max)
++		high = range->max;
++
++	if (low > high)
++		return -EINVAL;
++
++	val = RREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_CTRL);
++
++	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, MAX_IH_CREDIT, 5);
++	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, THERM_IH_HW_ENA, 1);
++	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTH, (high / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
++	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTL, (low / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
++	val = val & (~THM_THERMAL_INT_CTRL__THERM_TRIGGER_MASK_MASK);
++
++	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_CTRL, val);
++
++	return 0;
++}
++
++/**
++* Enable thermal alerts on the RV770 thermal controller.
++*
++* @param    hwmgr The address of the hardware manager.
++*/
++static int vega20_thermal_enable_alert(struct pp_hwmgr *hwmgr)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++	uint32_t val = 0;
++
++	val |= (1 << THM_THERMAL_INT_ENA__THERM_INTH_CLR__SHIFT);
++	val |= (1 << THM_THERMAL_INT_ENA__THERM_INTL_CLR__SHIFT);
++	val |= (1 << THM_THERMAL_INT_ENA__THERM_TRIGGER_CLR__SHIFT);
++
++	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_ENA, val);
++
++	return 0;
++}
++
++/**
++* Disable thermal alerts on the RV770 thermal controller.
++* @param    hwmgr The address of the hardware manager.
++*/
++int vega20_thermal_disable_alert(struct pp_hwmgr *hwmgr)
++{
++	struct amdgpu_device *adev = hwmgr->adev;
++
++	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_ENA, 0);
++
++	return 0;
++}
++
++/**
++* Uninitialize the thermal controller.
++* Currently just disables alerts.
++* @param    hwmgr The address of the hardware manager.
++*/
++int vega20_thermal_stop_thermal_controller(struct pp_hwmgr *hwmgr)
++{
++	int result = vega20_thermal_disable_alert(hwmgr);
++
++	return result;
++}
++
++/**
++* Set up the fan table to control the fan using the SMC.
++* @param    hwmgr  the address of the powerplay hardware manager.
++* @param    pInput the pointer to input data
++* @param    pOutput the pointer to output data
++* @param    pStorage the pointer to temporary storage
++* @param    Result the last failure code
++* @return   result from set temperature range routine
++*/
++static int vega20_thermal_setup_fan_table(struct pp_hwmgr *hwmgr)
++{
++	int ret;
++	struct vega20_hwmgr *data = (struct vega20_hwmgr *)(hwmgr->backend);
++	PPTable_t *table = &(data->smc_state_table.pp_table);
++
++	ret = smum_send_msg_to_smc_with_parameter(hwmgr,
++				PPSMC_MSG_SetFanTemperatureTarget,
++				(uint32_t)table->FanTargetTemperature);
++
++	return ret;
++}
++
++int vega20_start_thermal_controller(struct pp_hwmgr *hwmgr,
++				struct PP_TemperatureRange *range)
++{
++	int ret = 0;
++
++	if (range == NULL)
++		return -EINVAL;
++
++	ret = vega20_thermal_set_temperature_range(hwmgr, range);
++	if (ret)
++		return ret;
++
++	ret = vega20_thermal_enable_alert(hwmgr);
++	if (ret)
++		return ret;
++
++	ret = vega20_thermal_setup_fan_table(hwmgr);
++
++	return ret;
++};
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h
+new file mode 100644
+index 0000000..2a6d49f
+--- /dev/null
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_thermal.h
+@@ -0,0 +1,64 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ */
++
++#ifndef VEGA20_THERMAL_H
++#define VEGA20_THERMAL_H
++
++#include "hwmgr.h"
++
++struct vega20_temperature {
++	uint16_t edge_temp;
++	uint16_t hot_spot_temp;
++	uint16_t hbm_temp;
++	uint16_t vr_soc_temp;
++	uint16_t vr_mem_temp;
++	uint16_t liquid1_temp;
++	uint16_t liquid2_temp;
++	uint16_t plx_temp;
++};
++
++#define VEGA20_THERMAL_HIGH_ALERT_MASK         0x1
++#define VEGA20_THERMAL_LOW_ALERT_MASK          0x2
++
++#define VEGA20_THERMAL_MINIMUM_TEMP_READING    -256
++#define VEGA20_THERMAL_MAXIMUM_TEMP_READING    255
++
++#define VEGA20_THERMAL_MINIMUM_ALERT_TEMP      0
++#define VEGA20_THERMAL_MAXIMUM_ALERT_TEMP      255
++
++#define FDO_PWM_MODE_STATIC  1
++#define FDO_PWM_MODE_STATIC_RPM 5
++
++extern int vega20_thermal_get_temperature(struct pp_hwmgr *hwmgr);
++extern int vega20_thermal_stop_thermal_controller(struct pp_hwmgr *hwmgr);
++extern int vega20_fan_ctrl_get_fan_speed_info(struct pp_hwmgr *hwmgr,
++		struct phm_fan_speed_info *fan_speed_info);
++extern int vega20_fan_ctrl_reset_fan_speed_to_default(struct pp_hwmgr *hwmgr);
++extern int vega20_fan_ctrl_get_fan_speed_rpm(struct pp_hwmgr *hwmgr,
++		uint32_t *speed);
++extern int vega20_thermal_disable_alert(struct pp_hwmgr *hwmgr);
++extern int vega20_start_thermal_controller(struct pp_hwmgr *hwmgr,
++				struct PP_TemperatureRange *range);
++
++#endif
++
+-- 
+2.7.4
+

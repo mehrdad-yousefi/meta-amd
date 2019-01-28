@@ -1,0 +1,40 @@
+From e787d94827498d9a06832ee124f8298f6ae3ea2e Mon Sep 17 00:00:00 2001
+From: Yue Hin Lau <Yuehin.Lau@amd.com>
+Date: Wed, 18 Apr 2018 16:07:04 -0400
+Subject: [PATCH 4465/5725] drm/amd/display: disable mpo if brightness adjusted
+
+Signed-off-by: Yue Hin Lau <Yuehin.Lau@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dc.h                   | 1 +
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 2023080..a3e2851 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -75,6 +75,7 @@ struct dc_caps {
+ 	bool dynamic_audio;
+ 	bool is_apu;
+ 	bool dual_link_dvi;
++	bool post_blend_color_processing;
+ };
+ 
+ struct dc_dcc_surface_param {
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index f69f3a5..ace2e03 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -1023,6 +1023,7 @@ static bool construct(
+ 	dc->caps.max_cursor_size = 256;
+ 	dc->caps.max_slave_planes = 1;
+ 	dc->caps.is_apu = true;
++	dc->caps.post_blend_color_processing = false;
+ 
+ 	if (dc->ctx->dce_environment == DCE_ENV_PRODUCTION_DRV)
+ 		dc->debug = debug_defaults_drv;
+-- 
+2.7.4
+

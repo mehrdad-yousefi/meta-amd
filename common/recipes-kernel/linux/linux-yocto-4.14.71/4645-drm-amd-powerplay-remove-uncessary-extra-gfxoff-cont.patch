@@ -1,0 +1,47 @@
+From 1b08b175bea11a7edb017f5ae5bda648d7520146 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Tue, 12 Jun 2018 17:01:23 +0800
+Subject: [PATCH 4645/5725] drm/amd/powerplay: remove uncessary extra gfxoff
+ control call
+
+Gfxoff is already enabled in amdgpu_device_ip_set_powergating_state.
+So, no need to enable it again in pp_late_init.
+
+Change-Id: Id33d2dac192645fc9dcdfaf5825420093a87f814
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/amd_powerplay.c | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+index f60de8e..76fc45f 100644
+--- a/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
++++ b/drivers/gpu/drm/amd/powerplay/amd_powerplay.c
+@@ -180,7 +180,6 @@ static int pp_late_init(void *handle)
+ {
+ 	struct amdgpu_device *adev = handle;
+ 	struct pp_hwmgr *hwmgr = adev->powerplay.pp_handle;
+-	int ret;
+ 
+ 	if (hwmgr && hwmgr->pm_en) {
+ 		mutex_lock(&hwmgr->smu_lock);
+@@ -192,14 +191,6 @@ static int pp_late_init(void *handle)
+ 	if (adev->pm.smu_prv_buffer_size != 0)
+ 		pp_reserve_vram_for_smu(adev);
+ 
+-        if (hwmgr && hwmgr->hwmgr_func &&
+-            hwmgr->hwmgr_func->gfx_off_control &&
+-            (hwmgr->feature_mask & PP_GFXOFF_MASK)) {
+-                ret = hwmgr->hwmgr_func->gfx_off_control(hwmgr, true);
+-                if (ret)
+-                        pr_err("gfx off enabling failed!\n");
+-        }
+-
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

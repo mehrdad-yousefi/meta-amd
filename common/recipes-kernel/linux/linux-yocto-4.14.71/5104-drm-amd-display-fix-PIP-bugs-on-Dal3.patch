@@ -1,0 +1,266 @@
+From 1223567dced802100958531da705c3e95a8436a7 Mon Sep 17 00:00:00 2001
+From: Gloria Li <geling.li@amd.com>
+Date: Thu, 26 Jul 2018 11:32:14 -0400
+Subject: [PATCH 5104/5725] drm/amd/display: fix PIP bugs on Dal3
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+[Why]
+There are outstanding bugs for PIP in Dal3:
+-Crash when toggling PIP visibility
+-Global Alpha is not working, Adjusting global alpha
+ doesn’t have an effect
+-Cursor is not working with pip plane and pipe splits
+-One flash occurs when cursor enters PIP plane from
+ top/bottom
+-Crash when moving PIP plane off the screen
+
+[How]
+Resolve divide by 0 error
+Implement global alpha
+Program cursor on all pipes
+Add dst rects' x and y offests into cursor position
+Disable cursor when it is beyond bottom/top edge
+
+Signed-off-by: Gloria Li <geling.li@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c               |  3 +++
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c      |  9 ++++++---
+ drivers/gpu/drm/amd/display/dc/core/dc_stream.c        |  2 --
+ drivers/gpu/drm/amd/display/dc/dc.h                    |  5 +++++
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c       | 10 +++++++++-
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.h       |  3 ++-
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c      |  7 +++++++
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c  | 18 ++++++++++++------
+ drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h            |  3 ++-
+ 9 files changed, 46 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index e29417c..3727085 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1119,6 +1119,9 @@ static enum surface_update_type get_plane_info_update_type(const struct dc_surfa
+ 	if (u->plane_info->per_pixel_alpha != u->surface->per_pixel_alpha)
+ 		update_flags->bits.per_pixel_alpha_change = 1;
+ 
++	if (u->plane_info->global_alpha_value != u->surface->global_alpha_value)
++		update_flags->bits.global_alpha_change = 1;
++
+ 	if (u->plane_info->dcc.enable != u->surface->dcc.enable
+ 			|| u->plane_info->dcc.grph.independent_64b_blks != u->surface->dcc.grph.independent_64b_blks
+ 			|| u->plane_info->dcc.grph.meta_pitch != u->surface->dcc.grph.meta_pitch)
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index bd525e8..d02dac1 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -570,8 +570,10 @@ static void calculate_viewport(struct pipe_ctx *pipe_ctx)
+ 		data->viewport.width = (data->viewport.width + 1) / 2;
+ 		data->viewport_c.width = (data->viewport_c.width + 1) / 2;
+ 	} else if (pri_split) {
+-		data->viewport.width /= 2;
+-		data->viewport_c.width /= 2;
++		if (data->viewport.width > 1)
++			data->viewport.width /= 2;
++		if (data->viewport_c.width > 1)
++			data->viewport_c.width /= 2;
+ 	}
+ 
+ 	if (plane_state->rotation == ROTATION_ANGLE_90 ||
+@@ -651,7 +653,8 @@ static void calculate_recout(struct pipe_ctx *pipe_ctx, struct rect *recout_full
+ 			pipe_ctx->plane_res.scl_data.recout.width =
+ 					(pipe_ctx->plane_res.scl_data.recout.width + 1) / 2;
+ 		} else {
+-			pipe_ctx->plane_res.scl_data.recout.width /= 2;
++			if (pipe_ctx->plane_res.scl_data.recout.width > 1)
++				pipe_ctx->plane_res.scl_data.recout.width /= 2;
+ 		}
+ 	}
+ 	/* Unclipped recout offset = stream dst offset + ((surf dst offset - stream surf_src offset)
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
+index fdcc8ab..2ac848a1 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_stream.c
+@@ -205,8 +205,6 @@ bool dc_stream_set_cursor_attributes(
+ 
+ 		if (pipe_ctx->stream != stream)
+ 			continue;
+-		if (pipe_ctx->top_pipe && pipe_ctx->plane_state != pipe_ctx->top_pipe->plane_state)
+-			continue;
+ 
+ 		if (!pipe_to_program) {
+ 			pipe_to_program = pipe_ctx;
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 67203c1..61d3755 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -442,6 +442,7 @@ union surface_update_flags {
+ 		uint32_t color_space_change:1;
+ 		uint32_t horizontal_mirror_change:1;
+ 		uint32_t per_pixel_alpha_change:1;
++		uint32_t global_alpha_change:1;
+ 		uint32_t rotation_change:1;
+ 		uint32_t swizzle_change:1;
+ 		uint32_t scaling_change:1;
+@@ -496,6 +497,8 @@ struct dc_plane_state {
+ 
+ 	bool is_tiling_rotated;
+ 	bool per_pixel_alpha;
++	bool global_alpha;
++	int  global_alpha_value;
+ 	bool visible;
+ 	bool flip_immediate;
+ 	bool horizontal_mirror;
+@@ -522,6 +525,8 @@ struct dc_plane_info {
+ 	bool horizontal_mirror;
+ 	bool visible;
+ 	bool per_pixel_alpha;
++	bool global_alpha;
++	int  global_alpha_value;
+ 	bool input_csc_enabled;
+ };
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+index 1d64255..5f2054a 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.c
+@@ -444,10 +444,12 @@ void dpp1_set_cursor_position(
+ 		struct dpp *dpp_base,
+ 		const struct dc_cursor_position *pos,
+ 		const struct dc_cursor_mi_param *param,
+-		uint32_t width)
++		uint32_t width,
++		uint32_t height)
+ {
+ 	struct dcn10_dpp *dpp = TO_DCN10_DPP(dpp_base);
+ 	int src_x_offset = pos->x - pos->x_hotspot - param->viewport.x;
++	int src_y_offset = pos->y - pos->y_hotspot - param->viewport.y;
+ 	uint32_t cur_en = pos->enable ? 1 : 0;
+ 
+ 	if (src_x_offset >= (int)param->viewport.width)
+@@ -456,6 +458,12 @@ void dpp1_set_cursor_position(
+ 	if (src_x_offset + (int)width <= 0)
+ 		cur_en = 0;  /* not visible beyond left edge*/
+ 
++	if (src_y_offset >= (int)param->viewport.height)
++		cur_en = 0;  /* not visible beyond bottom edge*/
++
++	if (src_y_offset < 0)
++		cur_en = 0;  /* not visible beyond top edge*/
++
+ 	REG_UPDATE(CURSOR0_CONTROL,
+ 			CUR0_ENABLE, cur_en);
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.h b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.h
+index e2889e6..282e22f 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.h
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dpp.h
+@@ -1374,7 +1374,8 @@ void dpp1_set_cursor_position(
+ 		struct dpp *dpp_base,
+ 		const struct dc_cursor_position *pos,
+ 		const struct dc_cursor_mi_param *param,
+-		uint32_t width);
++		uint32_t width,
++		uint32_t height);
+ 
+ void dpp1_cnv_set_optional_cursor_attributes(
+ 			struct dpp *dpp_base,
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+index fa1bacd..ec4a5f6 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+@@ -1070,6 +1070,7 @@ void hubp1_cursor_set_position(
+ {
+ 	struct dcn10_hubp *hubp1 = TO_DCN10_HUBP(hubp);
+ 	int src_x_offset = pos->x - pos->x_hotspot - param->viewport.x;
++	int src_y_offset = pos->y - pos->y_hotspot - param->viewport.y;
+ 	int x_hotspot = pos->x_hotspot;
+ 	int y_hotspot = pos->y_hotspot;
+ 	uint32_t dst_x_offset;
+@@ -1113,6 +1114,12 @@ void hubp1_cursor_set_position(
+ 	if (src_x_offset + (int)hubp->curs_attr.width <= 0)
+ 		cur_en = 0;  /* not visible beyond left edge*/
+ 
++	if (src_y_offset >= (int)param->viewport.height)
++		cur_en = 0;  /* not visible beyond bottom edge*/
++
++	if (src_y_offset < 0) //+ (int)hubp->curs_attr.height
++		cur_en = 0;  /* not visible beyond top edge*/
++
+ 	if (cur_en && REG_READ(CURSOR_SURFACE_ADDRESS) == 0)
+ 		hubp->funcs->set_cursor_attributes(hubp, &hubp->curs_attr);
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 82fb1f9..4b8bedb 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -1947,9 +1947,13 @@ static void dcn10_update_mpcc(struct dc *dc, struct pipe_ctx *pipe_ctx)
+ 		blnd_cfg.alpha_mode = MPCC_ALPHA_BLEND_MODE_GLOBAL_ALPHA;
+ 
+ 	blnd_cfg.overlap_only = false;
+-	blnd_cfg.global_alpha = 0xff;
+ 	blnd_cfg.global_gain = 0xff;
+ 
++	if (pipe_ctx->plane_state->global_alpha)
++		blnd_cfg.global_alpha = pipe_ctx->plane_state->global_alpha_value;
++	else
++		blnd_cfg.global_alpha = 0xff;
++
+ 	/* DCN1.0 has output CM before MPC which seems to screw with
+ 	 * pre-multiplied alpha.
+ 	 */
+@@ -2064,11 +2068,13 @@ static void update_dchubp_dpp(
+ 		update_dpp(dpp, plane_state);
+ 
+ 	if (plane_state->update_flags.bits.full_update ||
+-		plane_state->update_flags.bits.per_pixel_alpha_change)
++		plane_state->update_flags.bits.per_pixel_alpha_change ||
++		plane_state->update_flags.bits.global_alpha_change)
+ 		dc->hwss.update_mpcc(dc, pipe_ctx);
+ 
+ 	if (plane_state->update_flags.bits.full_update ||
+ 		plane_state->update_flags.bits.per_pixel_alpha_change ||
++		plane_state->update_flags.bits.global_alpha_change ||
+ 		plane_state->update_flags.bits.scaling_change ||
+ 		plane_state->update_flags.bits.position_change) {
+ 		update_scaler(pipe_ctx);
+@@ -2620,15 +2626,15 @@ static void dcn10_set_cursor_position(struct pipe_ctx *pipe_ctx)
+ 		.mirror = pipe_ctx->plane_state->horizontal_mirror
+ 	};
+ 
++	pos_cpy.x -= pipe_ctx->plane_state->dst_rect.x;
++	pos_cpy.y -= pipe_ctx->plane_state->dst_rect.y;
++
+ 	if (pipe_ctx->plane_state->address.type
+ 			== PLN_ADDR_TYPE_VIDEO_PROGRESSIVE)
+ 		pos_cpy.enable = false;
+ 
+-	if (pipe_ctx->top_pipe && pipe_ctx->plane_state != pipe_ctx->top_pipe->plane_state)
+-		pos_cpy.enable = false;
+-
+ 	hubp->funcs->set_cursor_position(hubp, &pos_cpy, &param);
+-	dpp->funcs->set_cursor_position(dpp, &pos_cpy, &param, hubp->curs_attr.width);
++	dpp->funcs->set_cursor_position(dpp, &pos_cpy, &param, hubp->curs_attr.width, hubp->curs_attr.height);
+ }
+ 
+ static void dcn10_set_cursor_attribute(struct pipe_ctx *pipe_ctx)
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h b/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h
+index 80a480b..e894e64 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/dpp.h
+@@ -147,7 +147,8 @@ struct dpp_funcs {
+ 			struct dpp *dpp_base,
+ 			const struct dc_cursor_position *pos,
+ 			const struct dc_cursor_mi_param *param,
+-			uint32_t width
++			uint32_t width,
++			uint32_t height
+ 			);
+ 	void (*dpp_set_hdr_multiplier)(
+ 			struct dpp *dpp_base,
+-- 
+2.7.4
+

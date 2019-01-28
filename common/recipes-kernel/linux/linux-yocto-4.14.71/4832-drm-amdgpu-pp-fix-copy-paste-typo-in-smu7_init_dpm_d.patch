@@ -1,0 +1,30 @@
+From 3adefb3d5a0114adcf42f4414441e5396b90c0c4 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 28 Jun 2018 12:52:43 -0500
+Subject: [PATCH 4832/5725] drm/amdgpu/pp: fix copy paste typo in
+ smu7_init_dpm_defaults
+
+Should be mclk rather than sclk.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index bb3f80c..5bd6d51 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -1578,7 +1578,7 @@ static void smu7_init_dpm_defaults(struct pp_hwmgr *hwmgr)
+ 	data->current_profile_setting.sclk_up_hyst = 0;
+ 	data->current_profile_setting.sclk_down_hyst = 100;
+ 	data->current_profile_setting.sclk_activity = SMU7_SCLK_TARGETACTIVITY_DFLT;
+-	data->current_profile_setting.bupdate_sclk = 1;
++	data->current_profile_setting.bupdate_mclk = 1;
+ 	data->current_profile_setting.mclk_up_hyst = 0;
+ 	data->current_profile_setting.mclk_down_hyst = 100;
+ 	data->current_profile_setting.mclk_activity = SMU7_MCLK_TARGETACTIVITY_DFLT;
+-- 
+2.7.4
+

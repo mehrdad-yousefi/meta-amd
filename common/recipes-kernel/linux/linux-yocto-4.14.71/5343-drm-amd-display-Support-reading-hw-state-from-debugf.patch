@@ -1,0 +1,386 @@
+From 6bd918c6223b680eb46563dd586132ab96fa20f9 Mon Sep 17 00:00:00 2001
+From: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Date: Wed, 15 Aug 2018 12:00:23 -0400
+Subject: [PATCH 5343/5725] drm/amd/display: Support reading hw state from
+ debugfs file
+
+[Why]
+
+Logging hardware state can be done by triggering a write to the
+debugfs file. It would also be useful to be able to read the hardware
+state from the debugfs file to be able to generate a clean log without
+timestamps.
+
+[How]
+
+Usage: cat /sys/kernel/debug/dri/0/amdgpu_dm_dtn_log
+
+Threading is an obvious concern when dealing with multiple debugfs
+operations and blocking on global state in dm or dc seems unfavorable.
+
+Adding an extra parameter for the debugfs log context state is the
+implementation done here. Existing code that made use of DTN_INFO
+and its associated macros needed to be refactored to support this.
+
+We don't know the size of the log in advance so it reallocates the
+log string dynamically. Once the log has been generated it's copied
+into the user supplied buffer for the debugfs. This allows for seeking
+support but it's worth nothing that unlike triggering output via
+dmesg the hardware state might change in-between reads if your buffer
+size is too small.
+
+Signed-off-by: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Reviewed-by: Jordan Lazare <Jordan.Lazare@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ .../drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c  | 39 +++++++++-
+ .../drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c  | 83 +++++++++++++++++++---
+ .../drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c  | 24 ++++---
+ drivers/gpu/drm/amd/display/dc/dm_services.h       | 10 ++-
+ drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h  |  3 +-
+ .../gpu/drm/amd/display/include/logger_interface.h |  6 +-
+ drivers/gpu/drm/amd/display/include/logger_types.h |  6 ++
+ 7 files changed, 142 insertions(+), 29 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c
+index e79ac1e..35ca732 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_debugfs.c
+@@ -720,16 +720,49 @@ int connector_debugfs_init(struct amdgpu_dm_connector *connector)
+ 	return 0;
+ }
+ 
++/*
++ * Writes DTN log state to the user supplied buffer.
++ * Example usage: cat /sys/kernel/debug/dri/0/amdgpu_dm_dtn_log
++ */
+ static ssize_t dtn_log_read(
+ 	struct file *f,
+ 	char __user *buf,
+ 	size_t size,
+ 	loff_t *pos)
+ {
+-	/* TODO: Write log output to the user supplied buffer. */
+-	return 0;
++	struct amdgpu_device *adev = file_inode(f)->i_private;
++	struct dc *dc = adev->dm.dc;
++	struct dc_log_buffer_ctx log_ctx = { 0 };
++	ssize_t result = 0;
++
++	if (!buf || !size)
++		return -EINVAL;
++
++	if (!dc->hwss.log_hw_state)
++		return 0;
++
++	dc->hwss.log_hw_state(dc, &log_ctx);
++
++	if (*pos < log_ctx.pos) {
++		size_t to_copy = log_ctx.pos - *pos;
++
++		to_copy = min(to_copy, size);
++
++		if (!copy_to_user(buf, log_ctx.buf + *pos, to_copy)) {
++			*pos += to_copy;
++			result = to_copy;
++		}
++	}
++
++	kfree(log_ctx.buf);
++
++	return result;
+ }
+ 
++/*
++ * Writes DTN log state to dmesg when triggered via a write.
++ * Example usage: echo 1 > /sys/kernel/debug/dri/0/amdgpu_dm_dtn_log
++ */
+ static ssize_t dtn_log_write(
+ 	struct file *f,
+ 	const char __user *buf,
+@@ -744,7 +777,7 @@ static ssize_t dtn_log_write(
+ 		return 0;
+ 
+ 	if (dc->hwss.log_hw_state)
+-		dc->hwss.log_hw_state(dc);
++		dc->hwss.log_hw_state(dc, NULL);
+ 
+ 	return size;
+ }
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
+index cd5e991..37e1424 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
+@@ -41,6 +41,8 @@
+ 
+ #include "dm_helpers.h"
+ 
++#define kvcalloc(n, size, gfp) kvzalloc(((n)*(size)), gfp)
++
+ /* dm_helpers_parse_edid_caps
+  *
+  * Parse edid caps
+@@ -335,28 +337,91 @@ bool dm_helpers_dp_mst_send_payload_allocation(
+ 	return true;
+ }
+ 
+-void dm_dtn_log_begin(struct dc_context *ctx)
++void dm_dtn_log_begin(struct dc_context *ctx,
++	struct dc_log_buffer_ctx *log_ctx)
+ {
+-	pr_info("[dtn begin]\n");
++	static const char msg[] = "[dtn begin]\n";
++
++	if (!log_ctx) {
++		pr_info("%s", msg);
++		return;
++	}
++
++	dm_dtn_log_append_v(ctx, log_ctx, "%s", msg);
+ }
+ 
+ void dm_dtn_log_append_v(struct dc_context *ctx,
+-		const char *msg, ...)
++	struct dc_log_buffer_ctx *log_ctx,
++	const char *msg, ...)
+ {
+-	struct va_format vaf;
+ 	va_list args;
++	size_t total;
++	int n;
++
++	if (!log_ctx) {
++		/* No context, redirect to dmesg. */
++		struct va_format vaf;
++
++		vaf.fmt = msg;
++		vaf.va = &args;
+ 
++		va_start(args, msg);
++		pr_info("%pV", &vaf);
++		va_end(args);
++
++		return;
++	}
++
++	/* Measure the output. */
+ 	va_start(args, msg);
+-	vaf.fmt = msg;
+-	vaf.va = &args;
++	n = vsnprintf(NULL, 0, msg, args);
++	va_end(args);
++
++	if (n <= 0)
++		return;
++
++	/* Reallocate the string buffer as needed. */
++	total = log_ctx->pos + n + 1;
+ 
+-	pr_info("%pV", &vaf);
++	if (total > log_ctx->size) {
++		char *buf = (char *)kvcalloc(total, sizeof(char), GFP_KERNEL);
++
++		if (buf) {
++			memcpy(buf, log_ctx->buf, log_ctx->pos);
++			kfree(log_ctx->buf);
++
++			log_ctx->buf = buf;
++			log_ctx->size = total;
++		}
++	}
++
++	if (!log_ctx->buf)
++		return;
++
++	/* Write the formatted string to the log buffer. */
++	va_start(args, msg);
++	n = vscnprintf(
++		log_ctx->buf + log_ctx->pos,
++		log_ctx->size - log_ctx->pos,
++		msg,
++		args);
+ 	va_end(args);
++
++	if (n > 0)
++		log_ctx->pos += n;
+ }
+ 
+-void dm_dtn_log_end(struct dc_context *ctx)
++void dm_dtn_log_end(struct dc_context *ctx,
++	struct dc_log_buffer_ctx *log_ctx)
+ {
+-	pr_info("[dtn end]\n");
++	static const char msg[] = "[dtn end]\n";
++
++	if (!log_ctx) {
++		pr_info("%s", msg);
++		return;
++	}
++
++	dm_dtn_log_append_v(ctx, log_ctx, "%s", msg);
+ }
+ 
+ bool dm_helpers_dp_mst_start_top_mgr(
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 1c5bb14..6bd4ec3 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -58,9 +58,11 @@
+ 
+ /*print is 17 wide, first two characters are spaces*/
+ #define DTN_INFO_MICRO_SEC(ref_cycle) \
+-	print_microsec(dc_ctx, ref_cycle)
++	print_microsec(dc_ctx, log_ctx, ref_cycle)
+ 
+-void print_microsec(struct dc_context *dc_ctx, uint32_t ref_cycle)
++void print_microsec(struct dc_context *dc_ctx,
++	struct dc_log_buffer_ctx *log_ctx,
++	uint32_t ref_cycle)
+ {
+ 	const uint32_t ref_clk_mhz = dc_ctx->dc->res_pool->ref_clock_inKhz / 1000;
+ 	static const unsigned int frac = 1000;
+@@ -71,7 +73,8 @@ void print_microsec(struct dc_context *dc_ctx, uint32_t ref_cycle)
+ 			us_x10 % frac);
+ }
+ 
+-static void log_mpc_crc(struct dc *dc)
++static void log_mpc_crc(struct dc *dc,
++	struct dc_log_buffer_ctx *log_ctx)
+ {
+ 	struct dc_context *dc_ctx = dc->ctx;
+ 	struct dce_hwseq *hws = dc->hwseq;
+@@ -84,7 +87,7 @@ static void log_mpc_crc(struct dc *dc)
+ 		REG_READ(DPP_TOP0_DPP_CRC_VAL_B_A), REG_READ(DPP_TOP0_DPP_CRC_VAL_R_G));
+ }
+ 
+-void dcn10_log_hubbub_state(struct dc *dc)
++void dcn10_log_hubbub_state(struct dc *dc, struct dc_log_buffer_ctx *log_ctx)
+ {
+ 	struct dc_context *dc_ctx = dc->ctx;
+ 	struct dcn_hubbub_wm wm = {0};
+@@ -111,7 +114,7 @@ void dcn10_log_hubbub_state(struct dc *dc)
+ 	DTN_INFO("\n");
+ }
+ 
+-static void dcn10_log_hubp_states(struct dc *dc)
++static void dcn10_log_hubp_states(struct dc *dc, void *log_ctx)
+ {
+ 	struct dc_context *dc_ctx = dc->ctx;
+ 	struct resource_pool *pool = dc->res_pool;
+@@ -226,7 +229,8 @@ static void dcn10_log_hubp_states(struct dc *dc)
+ 	DTN_INFO("\n");
+ }
+ 
+-void dcn10_log_hw_state(struct dc *dc)
++void dcn10_log_hw_state(struct dc *dc,
++	struct dc_log_buffer_ctx *log_ctx)
+ {
+ 	struct dc_context *dc_ctx = dc->ctx;
+ 	struct resource_pool *pool = dc->res_pool;
+@@ -234,9 +238,9 @@ void dcn10_log_hw_state(struct dc *dc)
+ 
+ 	DTN_INFO_BEGIN();
+ 
+-	dcn10_log_hubbub_state(dc);
++	dcn10_log_hubbub_state(dc, log_ctx);
+ 
+-	dcn10_log_hubp_states(dc);
++	dcn10_log_hubp_states(dc, log_ctx);
+ 
+ 	DTN_INFO("DPP:    IGAM format  IGAM mode    DGAM mode    RGAM mode"
+ 			"  GAMUT mode  C11 C12   C13 C14   C21 C22   C23 C24   "
+@@ -347,7 +351,7 @@ void dcn10_log_hw_state(struct dc *dc)
+ 			dc->current_state->bw.dcn.clk.fclk_khz,
+ 			dc->current_state->bw.dcn.clk.socclk_khz);
+ 
+-	log_mpc_crc(dc);
++	log_mpc_crc(dc, log_ctx);
+ 
+ 	DTN_INFO_END();
+ }
+@@ -857,7 +861,7 @@ void dcn10_verify_allow_pstate_change_high(struct dc *dc)
+ 
+ 	if (!hubbub1_verify_allow_pstate_change_high(dc->res_pool->hubbub)) {
+ 		if (should_log_hw_state) {
+-			dcn10_log_hw_state(dc);
++			dcn10_log_hw_state(dc, NULL);
+ 		}
+ 		BREAK_TO_DEBUGGER();
+ 		if (dcn10_hw_wa_force_recovery(dc)) {
+diff --git a/drivers/gpu/drm/amd/display/dc/dm_services.h b/drivers/gpu/drm/amd/display/dc/dm_services.h
+index eb5ab39..28128c0 100644
+--- a/drivers/gpu/drm/amd/display/dc/dm_services.h
++++ b/drivers/gpu/drm/amd/display/dc/dm_services.h
+@@ -359,8 +359,12 @@ void dm_perf_trace_timestamp(const char *func_name, unsigned int line);
+  * Debug and verification hooks
+  */
+ 
+-void dm_dtn_log_begin(struct dc_context *ctx);
+-void dm_dtn_log_append_v(struct dc_context *ctx, const char *msg, ...);
+-void dm_dtn_log_end(struct dc_context *ctx);
++void dm_dtn_log_begin(struct dc_context *ctx,
++	struct dc_log_buffer_ctx *log_ctx);
++void dm_dtn_log_append_v(struct dc_context *ctx,
++	struct dc_log_buffer_ctx *log_ctx,
++	const char *msg, ...);
++void dm_dtn_log_end(struct dc_context *ctx,
++	struct dc_log_buffer_ctx *log_ctx);
+ 
+ #endif /* __DM_SERVICES_H__ */
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+index 9a97356..26f29d5 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw_sequencer.h
+@@ -202,7 +202,8 @@ struct hw_sequencer_funcs {
+ 
+ 	void (*set_avmute)(struct pipe_ctx *pipe_ctx, bool enable);
+ 
+-	void (*log_hw_state)(struct dc *dc);
++	void (*log_hw_state)(struct dc *dc,
++		struct dc_log_buffer_ctx *log_ctx);
+ 	void (*get_hw_state)(struct dc *dc, char *pBuf, unsigned int bufSize, unsigned int mask);
+ 
+ 	void (*wait_for_mpcc_disconnect)(struct dc *dc,
+diff --git a/drivers/gpu/drm/amd/display/include/logger_interface.h b/drivers/gpu/drm/amd/display/include/logger_interface.h
+index e3c7961..a0b68c2 100644
+--- a/drivers/gpu/drm/amd/display/include/logger_interface.h
++++ b/drivers/gpu/drm/amd/display/include/logger_interface.h
+@@ -129,13 +129,13 @@ void context_clock_trace(
+  * Display Test Next logging
+  */
+ #define DTN_INFO_BEGIN() \
+-	dm_dtn_log_begin(dc_ctx)
++	dm_dtn_log_begin(dc_ctx, log_ctx)
+ 
+ #define DTN_INFO(msg, ...) \
+-	dm_dtn_log_append_v(dc_ctx, msg, ##__VA_ARGS__)
++	dm_dtn_log_append_v(dc_ctx, log_ctx, msg, ##__VA_ARGS__)
+ 
+ #define DTN_INFO_END() \
+-	dm_dtn_log_end(dc_ctx)
++	dm_dtn_log_end(dc_ctx, log_ctx)
+ 
+ #define PERFORMANCE_TRACE_START() \
+ 	unsigned long long perf_trc_start_stmp = dm_get_timestamp(dc->ctx)
+diff --git a/drivers/gpu/drm/amd/display/include/logger_types.h b/drivers/gpu/drm/amd/display/include/logger_types.h
+index bc57326..d96550d 100644
+--- a/drivers/gpu/drm/amd/display/include/logger_types.h
++++ b/drivers/gpu/drm/amd/display/include/logger_types.h
+@@ -66,6 +66,12 @@
+ 
+ struct dal_logger;
+ 
++struct dc_log_buffer_ctx {
++	char *buf;
++	size_t pos;
++	size_t size;
++};
++
+ enum dc_log_type {
+ 	LOG_ERROR = 0,
+ 	LOG_WARNING,
+-- 
+2.7.4
+

@@ -1,0 +1,41 @@
+From fb269e870ea29370c6677c59c370ba29352955d4 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Thu, 9 Aug 2018 10:05:10 -0400
+Subject: [PATCH 5360/5725] drm/amd/display: Reorder resource_pool to put i2c
+ with aux
+
+[Why]
+The i2c and aux engines are similar, and should be placed
+next to eachother for readability
+
+[How]
+Reorder the elements of the resource_pool struct
+
+Change-Id: I74bb54c9bd8d08cf51013fc597c54d33e379f8a5
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/inc/core_types.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/core_types.h b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+index ed388d3..d7dadfd 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/core_types.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+@@ -138,11 +138,11 @@ struct resource_pool {
+ 	struct output_pixel_processor *opps[MAX_PIPES];
+ 	struct timing_generator *timing_generators[MAX_PIPES];
+ 	struct stream_encoder *stream_enc[MAX_PIPES * 2];
+-	struct aux_engine *engines[MAX_PIPES];
+ 	struct hubbub *hubbub;
+ 	struct mpc *mpc;
+ 	struct pp_smu_funcs_rv *pp_smu;
+ 	struct pp_smu_display_requirement_rv pp_smu_req;
++	struct aux_engine *engines[MAX_PIPES];
+ 	struct dce_i2c_hw *hw_i2cs[MAX_PIPES];
+ 	struct dce_i2c_sw *sw_i2cs[MAX_PIPES];
+ 	bool i2c_hw_buffer_in_use;
+-- 
+2.7.4
+

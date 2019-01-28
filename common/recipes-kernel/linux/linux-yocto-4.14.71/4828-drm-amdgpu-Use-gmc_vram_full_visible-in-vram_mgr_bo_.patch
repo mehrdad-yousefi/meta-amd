@@ -1,0 +1,32 @@
+From 7ea32e90cb78fe5878bc7536908834d39d265e9b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Fri, 15 Jun 2018 16:37:03 +0200
+Subject: [PATCH 4828/5725] drm/amdgpu: Use gmc_vram_full_visible in
+ vram_mgr_bo_invisible_size
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vram_mgr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vram_mgr.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vram_mgr.c
+index dc1cb22..e8790ea 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vram_mgr.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vram_mgr.c
+@@ -113,7 +113,7 @@ u64 amdgpu_vram_mgr_bo_invisible_size(struct amdgpu_bo *bo)
+ 	unsigned pages = mem->num_pages;
+ 	u64 usage = 0;
+ 
+-	if (adev->gmc.visible_vram_size == adev->gmc.real_vram_size)
++	if (amdgpu_gmc_vram_full_visible(&adev->gmc))
+ 		return 0;
+ 
+ 	if (mem->start >= adev->gmc.visible_vram_size >> PAGE_SHIFT)
+-- 
+2.7.4
+

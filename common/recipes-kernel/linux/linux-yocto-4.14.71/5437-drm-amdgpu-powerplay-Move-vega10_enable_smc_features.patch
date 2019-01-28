@@ -1,0 +1,121 @@
+From 51ed098c787864f247f5b9769a33822a0aa3a196 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 20 Sep 2018 20:50:54 -0500
+Subject: [PATCH 5437/5725] drm/amdgpu/powerplay: Move
+ vega10_enable_smc_features
+
+to vega10_smumgr.c.  For consistency with other vega parts.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c     | 11 +----------
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.h     |  2 --
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c |  1 +
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c   |  1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c   | 10 ++++++++++
+ drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h   |  2 ++
+ 6 files changed, 15 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 25397a3..6246d2c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -39,6 +39,7 @@
+ #include "soc15_common.h"
+ #include "pppcielanes.h"
+ #include "vega10_hwmgr.h"
++#include "vega10_smumgr.h"
+ #include "vega10_processpptables.h"
+ #include "vega10_pptable.h"
+ #include "vega10_thermal.h"
+@@ -4937,16 +4938,6 @@ static const struct pp_hwmgr_func vega10_hwmgr_funcs = {
+ 	.get_performance_level = vega10_get_performance_level,
+ };
+ 
+-int vega10_enable_smc_features(struct pp_hwmgr *hwmgr,
+-		bool enable, uint32_t feature_mask)
+-{
+-	int msg = enable ? PPSMC_MSG_EnableSmuFeatures :
+-			PPSMC_MSG_DisableSmuFeatures;
+-
+-	return smum_send_msg_to_smc_with_parameter(hwmgr,
+-			msg, feature_mask);
+-}
+-
+ int vega10_hwmgr_init(struct pp_hwmgr *hwmgr)
+ {
+ 	hwmgr->hwmgr_func = &vega10_hwmgr_funcs;
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.h
+index 339820d..8987055 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.h
+@@ -441,7 +441,5 @@ int vega10_update_uvd_dpm(struct pp_hwmgr *hwmgr, bool bgate);
+ int vega10_update_samu_dpm(struct pp_hwmgr *hwmgr, bool bgate);
+ int vega10_update_acp_dpm(struct pp_hwmgr *hwmgr, bool bgate);
+ int vega10_enable_disable_vce_dpm(struct pp_hwmgr *hwmgr, bool enable);
+-int vega10_enable_smc_features(struct pp_hwmgr *hwmgr,
+-		bool enable, uint32_t feature_mask);
+ 
+ #endif /* _VEGA10_HWMGR_H_ */
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c
+index 2236487..2d88abf 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_powertune.c
+@@ -23,6 +23,7 @@
+ 
+ #include "hwmgr.h"
+ #include "vega10_hwmgr.h"
++#include "vega10_smumgr.h"
+ #include "vega10_powertune.h"
+ #include "vega10_ppsmc.h"
+ #include "vega10_inc.h"
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c
+index aa044c1..407762b 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_thermal.c
+@@ -23,6 +23,7 @@
+ 
+ #include "vega10_thermal.h"
+ #include "vega10_hwmgr.h"
++#include "vega10_smumgr.h"
+ #include "vega10_ppsmc.h"
+ #include "vega10_inc.h"
+ #include "soc15_common.h"
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c
+index 5d19115..8176d33 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.c
+@@ -88,6 +88,16 @@ static int vega10_copy_table_to_smc(struct pp_hwmgr *hwmgr,
+ 	return 0;
+ }
+ 
++int vega10_enable_smc_features(struct pp_hwmgr *hwmgr,
++			       bool enable, uint32_t feature_mask)
++{
++	int msg = enable ? PPSMC_MSG_EnableSmuFeatures :
++			PPSMC_MSG_DisableSmuFeatures;
++
++	return smum_send_msg_to_smc_with_parameter(hwmgr,
++			msg, feature_mask);
++}
++
+ static int vega10_get_smc_features(struct pp_hwmgr *hwmgr,
+ 		uint32_t *features_enabled)
+ {
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h
+index 424e868..630c0ae 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vega10_smumgr.h
+@@ -42,6 +42,8 @@ struct vega10_smumgr {
+ 	struct smu_table_array            smu_tables;
+ };
+ 
++int vega10_enable_smc_features(struct pp_hwmgr *hwmgr,
++			       bool enable, uint32_t feature_mask);
+ 
+ #endif
+ 
+-- 
+2.7.4
+

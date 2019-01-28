@@ -1,0 +1,44 @@
+From 934ded05716413b33c979bf96b9821624f9e9ca1 Mon Sep 17 00:00:00 2001
+From: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Date: Thu, 17 May 2018 14:50:12 -0400
+Subject: [PATCH 4735/5725] drm/amd/display: Add use_dynamic_meta flag to
+ stream_state
+
+Signed-off-by: Krunoslav Kovac <Krunoslav.Kovac@amd.com>
+Reviewed-by: Anthony Koo <Anthony.Koo@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dc_stream.h        | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 07e2c28..55711c6 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -2404,7 +2404,8 @@ static void set_hdr_static_info_packet(
+ {
+ 	/* HDR Static Metadata info packet for HDR10 */
+ 
+-	if (!stream->hdr_static_metadata.valid)
++	if (!stream->hdr_static_metadata.valid ||
++			stream->use_dynamic_meta)
+ 		return;
+ 
+ 	*info_packet = stream->hdr_static_metadata;
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_stream.h b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+index d06fd41..984a7a3 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_stream.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+@@ -66,6 +66,7 @@ struct dc_stream_state {
+ 
+ 	struct dc_info_packet hdr_static_metadata;
+ 	PHYSICAL_ADDRESS_LOC dmdata_address;
++	bool   use_dynamic_meta;
+ 
+ 	struct dc_transfer_func *out_transfer_func;
+ 	struct colorspace_transform gamut_remap_matrix;
+-- 
+2.7.4
+

@@ -1,0 +1,38 @@
+From f6c0998dacbf05b84c9635434d0a28e92782fb1e Mon Sep 17 00:00:00 2001
+From: Raveendra Talabattula <raveendra.talabattula@amd.com>
+Date: Fri, 2 Nov 2018 15:36:17 +0530
+Subject: [PATCH 4984/5725] 300 compilaiton
+
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c | 2 +-
+ include/uapi/drm/amdgpu_drm.h          | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 8f2991b..4d68c37 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1195,7 +1195,7 @@ static int amdgpu_cs_dependencies(struct amdgpu_device *adev,
+ 		}
+ 	}
+ 
+-	return amdgpu_sem_add_cs(p->ctx, p->job->ring, &p->job->sync);
++	return amdgpu_sem_add_cs(p->ctx, p->ring, &p->job->sync);
+ }
+ 
+ static void amdgpu_cs_post_dependencies(struct amdgpu_cs_parser *p)
+diff --git a/include/uapi/drm/amdgpu_drm.h b/include/uapi/drm/amdgpu_drm.h
+index f12f57a..a0c3286 100644
+--- a/include/uapi/drm/amdgpu_drm.h
++++ b/include/uapi/drm/amdgpu_drm.h
+@@ -560,6 +560,7 @@ struct drm_amdgpu_gem_va {
+ #define AMDGPU_CHUNK_ID_DEPENDENCIES	0x03
+ #define AMDGPU_CHUNK_ID_SYNCOBJ_IN      0x04
+ #define AMDGPU_CHUNK_ID_SYNCOBJ_OUT     0x05
++#define AMDGPU_CHUNK_ID_BO_HANDLES      0x06
+ 
+ struct drm_amdgpu_cs_chunk {
+ 	__u32		chunk_id;
+-- 
+2.7.4
+

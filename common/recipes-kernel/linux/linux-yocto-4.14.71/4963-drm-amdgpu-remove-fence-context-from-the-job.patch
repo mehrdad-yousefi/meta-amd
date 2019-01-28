@@ -1,0 +1,73 @@
+From 555152671ff6b29497925245056bfce9105ee972 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 13 Jul 2018 09:58:49 +0200
+Subject: [PATCH 4963/5725] drm/amdgpu: remove fence context from the job
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Can be obtained directly from the fence as well.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Acked-by: Chunming Zhou <david1.zhou@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c  | 1 -
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c  | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_job.c | 1 -
+ drivers/gpu/drm/amd/amdgpu/amdgpu_job.h | 1 -
+ 4 files changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+index 56da0ef..4385446 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_cs.c
+@@ -1241,7 +1241,6 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
+ 	}
+ 
+ 	job->owner = p->filp;
+-	job->fence_ctx = entity->fence_context;
+ 	p->fence = dma_fence_get(&job->base.s_fence->finished);
+ 
+ 	r = amdgpu_ctx_add_fence(p->ctx, ring, p->fence, &seq);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+index 5f05d15d..360ec43 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ib.c
+@@ -140,7 +140,7 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
+ 	/* ring tests don't use a job */
+ 	if (job) {
+ 		vm = job->vm;
+-		fence_ctx = job->fence_ctx;
++		fence_ctx = job->base.s_fence->scheduled.context;
+ 	} else {
+ 		vm = NULL;
+ 		fence_ctx = 0;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
+index dfef4db..bf45b1a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.c
+@@ -132,7 +132,6 @@ int amdgpu_job_submit(struct amdgpu_job *job, struct amdgpu_ring *ring,
+ 		return r;
+ 
+ 	job->owner = owner;
+-	job->fence_ctx = entity->fence_context;
+ 	*f = dma_fence_get(&job->base.s_fence->finished);
+ 	amdgpu_job_free_resources(job);
+ 	amdgpu_ring_priority_get(job->ring, job->base.s_priority);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.h
+index 35bb932..3151692 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_job.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_job.h
+@@ -45,7 +45,6 @@ struct amdgpu_job {
+ 	uint32_t		preamble_status;
+ 	uint32_t		num_ibs;
+ 	void			*owner;
+-	uint64_t		fence_ctx; /* the fence_context this job uses */
+ 	bool                    vm_needs_flush;
+ 	uint64_t		vm_pd_addr;
+ 	unsigned		vmid;
+-- 
+2.7.4
+

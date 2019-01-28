@@ -1,0 +1,126 @@
+From 9f9c10ebe22771d2ff803f39589146aafdda4b23 Mon Sep 17 00:00:00 2001
+From: Jun Lei <Jun.Lei@amd.com>
+Date: Tue, 18 Sep 2018 09:38:20 -0400
+Subject: [PATCH 5495/5725] drm/amd/display: fix memory leak in resource pools
+
+[why]
+ddc engines were recently changed to be independently tracked
+from pipe count.  the change was reflected in resource constructor
+but not in destructor.  this manifests as a memory leak when
+pipe harvesting is enabled, since not all constructed ddc engines
+are freed
+
+[how]
+make destructor symmetric with constructor for all dcX_resource
+
+Signed-off-by: Jun Lei <Jun.Lei@amd.com>
+Reviewed-by: Aric Cyr <Aric.Cyr@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c | 2 ++
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c | 2 ++
+ drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c | 8 +++++---
+ drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c | 2 ++
+ drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c   | 2 ++
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c   | 2 ++
+ 6 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+index 5b75460..14754a8 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce100/dce100_resource.c
+@@ -689,7 +689,9 @@ static void destruct(struct dce110_resource_pool *pool)
+ 			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+ 			pool->base.timing_generators[i] = NULL;
+ 		}
++	}
+ 
++	for (i = 0; i < pool->base.res_cap->num_ddc; i++) {
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
+ 		if (pool->base.hw_i2cs[i] != NULL) {
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+index 4607a6a..de19093 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_resource.c
+@@ -719,7 +719,9 @@ static void destruct(struct dce110_resource_pool *pool)
+ 			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+ 			pool->base.timing_generators[i] = NULL;
+ 		}
++	}
+ 
++	for (i = 0; i < pool->base.res_cap->num_ddc; i++) {
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
+ 		if (pool->base.hw_i2cs[i] != NULL) {
+diff --git a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+index 8b5a269..3ce79c2 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce112/dce112_resource.c
+@@ -693,9 +693,6 @@ static void destruct(struct dce110_resource_pool *pool)
+ 		if (pool->base.opps[i] != NULL)
+ 			dce110_opp_destroy(&pool->base.opps[i]);
+ 
+-		if (pool->base.engines[i] != NULL)
+-			dce110_engine_destroy(&pool->base.engines[i]);
+-
+ 		if (pool->base.transforms[i] != NULL)
+ 			dce112_transform_destroy(&pool->base.transforms[i]);
+ 
+@@ -711,6 +708,11 @@ static void destruct(struct dce110_resource_pool *pool)
+ 			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+ 			pool->base.timing_generators[i] = NULL;
+ 		}
++	}
++
++	for (i = 0; i < pool->base.res_cap->num_ddc; i++) {
++		if (pool->base.engines[i] != NULL)
++			dce110_engine_destroy(&pool->base.engines[i]);
+ 		if (pool->base.hw_i2cs[i] != NULL) {
+ 			kfree(pool->base.hw_i2cs[i]);
+ 			pool->base.hw_i2cs[i] = NULL;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+index 53a7a2f..79ab5f9 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce120/dce120_resource.c
+@@ -533,7 +533,9 @@ static void destruct(struct dce110_resource_pool *pool)
+ 			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+ 			pool->base.timing_generators[i] = NULL;
+ 		}
++	}
+ 
++	for (i = 0; i < pool->base.res_cap->num_ddc; i++) {
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
+ 		if (pool->base.hw_i2cs[i] != NULL) {
+diff --git a/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c b/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
+index 79e5c5c..d68f951 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dce80/dce80_resource.c
+@@ -738,7 +738,9 @@ static void destruct(struct dce110_resource_pool *pool)
+ 			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+ 			pool->base.timing_generators[i] = NULL;
+ 		}
++	}
+ 
++	for (i = 0; i < pool->base.res_cap->num_ddc; i++) {
+ 		if (pool->base.engines[i] != NULL)
+ 			dce110_engine_destroy(&pool->base.engines[i]);
+ 		if (pool->base.hw_i2cs[i] != NULL) {
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index d58fbb2..a71453a 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -908,7 +908,9 @@ static void destruct(struct dcn10_resource_pool *pool)
+ 			kfree(DCN10TG_FROM_TG(pool->base.timing_generators[i]));
+ 			pool->base.timing_generators[i] = NULL;
+ 		}
++	}
+ 
++	for (i = 0; i < pool->base.res_cap->num_ddc; i++) {
+ 		if (pool->base.engines[i] != NULL)
+ 			pool->base.engines[i]->funcs->destroy_engine(&pool->base.engines[i]);
+ 		if (pool->base.hw_i2cs[i] != NULL) {
+-- 
+2.7.4
+

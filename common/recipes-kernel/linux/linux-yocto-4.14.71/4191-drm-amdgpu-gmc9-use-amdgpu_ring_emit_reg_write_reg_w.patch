@@ -1,0 +1,43 @@
+From b3e03fc1e3e59f737bd820241fcd7fb069d06183 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 27 Mar 2018 17:10:56 -0500
+Subject: [PATCH 4191/5725] drm/amdgpu/gmc9: use
+ amdgpu_ring_emit_reg_write_reg_wait in gpu tlb flush
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Use amdgpu_ring_emit_reg_write_reg_wait.  On engines that support it,
+it provides a write and wait in a single packet which avoids a missed
+ack if a world switch happens between the request and waiting for the
+ack.
+
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 4017c9c..2d40733 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -384,11 +384,9 @@ static uint64_t gmc_v9_0_emit_flush_gpu_tlb(struct amdgpu_ring *ring,
+ 	amdgpu_ring_emit_wreg(ring, hub->ctx0_ptb_addr_hi32 + (2 * vmid),
+ 			      upper_32_bits(pd_addr));
+ 
+-	amdgpu_ring_emit_wreg(ring, hub->vm_inv_eng0_req + eng, req);
+-
+-	/* wait for the invalidate to complete */
+-	amdgpu_ring_emit_reg_wait(ring, hub->vm_inv_eng0_ack + eng,
+-				  1 << vmid, 1 << vmid);
++	amdgpu_ring_emit_reg_write_reg_wait(ring, hub->vm_inv_eng0_req + eng,
++					    hub->vm_inv_eng0_ack + eng,
++					    req, 1 << vmid);
+ 
+ 	return pd_addr;
+ }
+-- 
+2.7.4
+

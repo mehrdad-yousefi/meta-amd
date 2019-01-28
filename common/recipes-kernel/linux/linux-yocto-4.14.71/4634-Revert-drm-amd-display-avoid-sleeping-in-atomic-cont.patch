@@ -1,0 +1,30 @@
+From a47aecd59e7bc3ac1f887beb3a06ec81de59d6f3 Mon Sep 17 00:00:00 2001
+From: Shirish S <shirish.s@amd.com>
+Date: Mon, 11 Jun 2018 11:32:09 +0530
+Subject: [PATCH 4634/5725] Revert "drm/amd/display: avoid sleeping in atomic
+ context while creating new state (V2)"
+
+This reverts commit 1c01756cfd3e98ddefd2b5f4a601e9f70581b240.
+
+Reason: not the right fix.
+Signed-off-by: Shirish S <shirish.s@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 36be7a3..a6a09b0 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -970,7 +970,7 @@ bool dc_post_update_surfaces_to_stream(struct dc *dc)
+ struct dc_state *dc_create_state(void)
+ {
+ 	struct dc_state *context = kzalloc(sizeof(struct dc_state),
+-					   GFP_ATOMIC);
++					   GFP_KERNEL);
+ 
+ 	if (!context)
+ 		return NULL;
+-- 
+2.7.4
+

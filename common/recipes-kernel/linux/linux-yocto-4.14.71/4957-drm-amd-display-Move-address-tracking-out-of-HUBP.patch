@@ -1,0 +1,107 @@
+From 1b71396adb76640a85d37daf8346adbf1dcd9408 Mon Sep 17 00:00:00 2001
+From: Tony Cheng <tony.cheng@amd.com>
+Date: Sat, 7 Jul 2018 15:43:07 -0400
+Subject: [PATCH 4957/5725] drm/amd/display: Move address tracking out of HUBP
+
+[Why]
+We sometime require remapping of FB address space to UMA
+
+[How]
+Move address tracking up a layer before we apply address translation
+
+Signed-off-by: Tony Cheng <tony.cheng@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c     |  4 ----
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c | 19 +++++++++++++++----
+ drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h          |  1 -
+ 3 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+index d6dc61e..332354c 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hubp.c
+@@ -457,9 +457,6 @@ bool hubp1_program_surface_flip_and_addr(
+ 
+ 	hubp->request_address = *address;
+ 
+-	if (flip_immediate)
+-		hubp->current_address = *address;
+-
+ 	return true;
+ }
+ 
+@@ -695,7 +692,6 @@ bool hubp1_is_flip_pending(struct hubp *hubp)
+ 	if (earliest_inuse_address.grph.addr.quad_part != hubp->request_address.grph.addr.quad_part)
+ 		return true;
+ 
+-	hubp->current_address = hubp->request_address;
+ 	return false;
+ }
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 689aebf..8535d87 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -1172,12 +1172,19 @@ static void dcn10_update_plane_addr(const struct dc *dc, struct pipe_ctx *pipe_c
+ 
+ 	if (plane_state == NULL)
+ 		return;
++
+ 	addr_patched = patch_address_for_sbs_tb_stereo(pipe_ctx, &addr);
++
+ 	pipe_ctx->plane_res.hubp->funcs->hubp_program_surface_flip_and_addr(
+ 			pipe_ctx->plane_res.hubp,
+ 			&plane_state->address,
+ 			plane_state->flip_immediate);
++
+ 	plane_state->status.requested_address = plane_state->address;
++
++	if (plane_state->flip_immediate)
++		plane_state->status.current_address = plane_state->address;
++
+ 	if (addr_patched)
+ 		pipe_ctx->plane_state->address.grph_stereo.left_addr = addr;
+ }
+@@ -2556,16 +2563,20 @@ static void dcn10_update_pending_status(struct pipe_ctx *pipe_ctx)
+ {
+ 	struct dc_plane_state *plane_state = pipe_ctx->plane_state;
+ 	struct timing_generator *tg = pipe_ctx->stream_res.tg;
++	bool flip_pending;
+ 
+ 	if (plane_state == NULL)
+ 		return;
+ 
+-	plane_state->status.is_flip_pending =
+-			pipe_ctx->plane_res.hubp->funcs->hubp_is_flip_pending(
++	flip_pending = pipe_ctx->plane_res.hubp->funcs->hubp_is_flip_pending(
+ 					pipe_ctx->plane_res.hubp);
+ 
+-	plane_state->status.current_address = pipe_ctx->plane_res.hubp->current_address;
+-	if (pipe_ctx->plane_res.hubp->current_address.type == PLN_ADDR_TYPE_GRPH_STEREO &&
++	plane_state->status.is_flip_pending = flip_pending;
++
++	if (!flip_pending)
++		plane_state->status.current_address = plane_state->status.requested_address;
++
++	if (plane_state->status.current_address.type == PLN_ADDR_TYPE_GRPH_STEREO &&
+ 			tg->funcs->is_stereo_left_eye) {
+ 		plane_state->status.is_right_eye =
+ 				!tg->funcs->is_stereo_left_eye(pipe_ctx->stream_res.tg);
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h b/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h
+index 5b7976f..4f3f9e6 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/hubp.h
+@@ -46,7 +46,6 @@ struct hubp {
+ 	const struct hubp_funcs *funcs;
+ 	struct dc_context *ctx;
+ 	struct dc_plane_address request_address;
+-	struct dc_plane_address current_address;
+ 	int inst;
+ 
+ 	/* run time states */
+-- 
+2.7.4
+

@@ -1,0 +1,90 @@
+From fd7e79a872be3c1cdba1cab01898ee5ae0e76e42 Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Thu, 31 May 2018 13:48:31 -0400
+Subject: [PATCH 4691/5725] drm/amd/display: Make atomic-check validate
+ underscan changes
+
+When the underscan state was changed, atomic-check was triggering a
+validation but passing the old underscan values.  This change adds a
+somewhat hacky check in dm_update_crtcs_state that will update the
+stream if old and newunderscan values are different.
+This was causing 4k on Fiji to allow underscan when it wasn't permitted.
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Cc: stable@vger.kernel.org
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 25 +++++++++++++++--------
+ 1 file changed, 17 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 8fbe483..e308f0c 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -4943,8 +4943,8 @@ static int dm_update_crtcs_state(struct amdgpu_display_manager *dm,
+ 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
+ 		struct amdgpu_crtc *acrtc = NULL;
+ 		struct amdgpu_dm_connector *aconnector = NULL;
+-		struct drm_connector_state *new_con_state = NULL;
+-		struct dm_connector_state *dm_conn_state = NULL;
++		struct drm_connector_state *drm_new_conn_state = NULL, *drm_old_conn_state = NULL;
++		struct dm_connector_state *dm_new_conn_state = NULL, *dm_old_conn_state = NULL;
+ 		struct drm_plane_state *new_plane_state = NULL;
+ 
+ 		new_stream = NULL;
+@@ -4965,19 +4965,23 @@ static int dm_update_crtcs_state(struct amdgpu_display_manager *dm,
+ 		/* TODO This hack should go away */
+ 		if (aconnector && enable) {
+ 			// Make sure fake sink is created in plug-in scenario
+-			new_con_state = drm_atomic_get_connector_state(state,
++			drm_new_conn_state = drm_atomic_get_new_connector_state(state,
+ 								    &aconnector->base);
+ 
+-			if (IS_ERR(new_con_state)) {
+-				ret = PTR_ERR_OR_ZERO(new_con_state);
++			drm_old_conn_state = drm_atomic_get_old_connector_state(state,
++								    &aconnector->base);	
++
++			if (IS_ERR(drm_new_conn_state)) {
++				ret = PTR_ERR_OR_ZERO(drm_new_conn_state);
+ 				break;
+ 			}
+ 
+-			dm_conn_state = to_dm_connector_state(new_con_state);
++			dm_new_conn_state = to_dm_connector_state(drm_new_conn_state);
++			dm_old_conn_state = to_dm_connector_state(drm_old_conn_state);
+ 
+ 			new_stream = create_stream_for_sink(aconnector,
+ 							    &new_crtc_state->mode,
+-							    dm_conn_state);
++							    dm_new_conn_state);
+ 
+ 			/*
+ 			 * we can have no stream on ACTION_SET if a display
+@@ -4993,7 +4997,7 @@ static int dm_update_crtcs_state(struct amdgpu_display_manager *dm,
+ 			}
+ 
+ 			set_freesync_on_stream(dm, dm_new_crtc_state,
+-					dm_conn_state, new_stream);
++					dm_new_conn_state, new_stream);
+ 
+ 			if (dc_is_stream_unchanged(new_stream, dm_old_crtc_state->stream) &&
+ 			    dc_is_stream_scaling_unchanged(new_stream, dm_old_crtc_state->stream)) {
+@@ -5104,6 +5108,11 @@ static int dm_update_crtcs_state(struct amdgpu_display_manager *dm,
+ 		 */
+ 		BUG_ON(dm_new_crtc_state->stream == NULL);
+ 
++		/* Scaling or underscan settings */
++		if (is_scaling_state_different(dm_old_conn_state, dm_new_conn_state))
++			update_stream_scaling_settings(
++				&new_crtc_state->mode, dm_new_conn_state, dm_new_crtc_state->stream);
++
+ 		/* Color managment settings */
+ 		if (dm_new_crtc_state->base.color_mgmt_changed) {
+ 			ret = amdgpu_dm_set_regamma_lut(dm_new_crtc_state);
+-- 
+2.7.4
+

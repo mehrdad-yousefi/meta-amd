@@ -1,0 +1,45 @@
+From c526d0e83ad5bbf2477d3b51c4decd90850aaafc Mon Sep 17 00:00:00 2001
+From: Alvin lee <alvin.lee3@amd.com>
+Date: Fri, 8 Jun 2018 13:58:36 -0400
+Subject: [PATCH 5161/5725] drm/amd/display: Program vsc_infopacket in
+ commit_planes_for_stream
+
+Signed-off-by: Alvin lee <alvin.lee3@amd.com>
+Reviewed-by: Jun Lei <Jun.Lei@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c   | 3 ++-
+ drivers/gpu/drm/amd/display/dc/dc_stream.h | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index b9420c3..e484676 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1400,7 +1400,8 @@ static void commit_planes_do_stream_update(struct dc *dc,
+ 			}
+ 
+ 			if (stream_update->hdr_static_metadata ||
+-				stream_update->vrr_infopacket) {
++				stream_update->vrr_infopacket ||
++				stream_update->vsc_infopacket) {
+ 				resource_build_info_frame(pipe_ctx);
+ 				dc->hwss.update_info_frame(pipe_ctx);
+ 			}
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_stream.h b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+index 9890ad7..489fb04 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_stream.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+@@ -130,6 +130,7 @@ struct dc_stream_update {
+ 
+ 	struct dc_crtc_timing_adjust *adjust;
+ 	struct dc_info_packet *vrr_infopacket;
++	struct dc_info_packet *vsc_infopacket;
+ 
+ 	bool *dpms_off;
+ };
+-- 
+2.7.4
+

@@ -1,0 +1,32 @@
+From ef8e712bbda26e9239167f16d210ccbbaa3e82bf Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Fri, 11 May 2018 16:10:51 +0800
+Subject: [PATCH 5134/5725] drm/amd/powerplay: conv the vega20 pstate sclk/mclk
+ into necessary 10KHz unit
+
+Powerplay uses 10KHz units.
+
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+index 5b0c654..182f25c 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega20_hwmgr.c
+@@ -862,6 +862,9 @@ static int vega20_populate_umdpstate_clocks(
+ 		hwmgr->pstate_mclk = mem_table->dpm_levels[VEGA20_UMD_PSTATE_MCLK_LEVEL].value;
+ 	}
+ 
++	hwmgr->pstate_sclk = hwmgr->pstate_sclk * 100;
++	hwmgr->pstate_mclk = hwmgr->pstate_mclk * 100;
++
+ 	return 0;
+ }
+ 
+-- 
+2.7.4
+

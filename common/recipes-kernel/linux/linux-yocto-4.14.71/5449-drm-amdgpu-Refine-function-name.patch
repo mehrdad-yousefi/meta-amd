@@ -1,0 +1,120 @@
+From c83e85880aa1af87e0968a32040d73399d604cfc Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 28 Aug 2018 18:20:19 +0800
+Subject: [PATCH 5449/5725] drm/amdgpu: Refine function name
+
+change function name gfx_v6/7/8/9_0_gpu_init to
+gfx_v6/7/8/9_0_constants_init.
+this function is just for init gfx constants such
+as max pipes, render backends...
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c |  4 ++--
+ drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c | 10 +++++-----
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c |  4 ++--
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c |  4 ++--
+ 4 files changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
+index 4518021..b8176c2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
+@@ -1552,7 +1552,7 @@ static void gfx_v6_0_config_init(struct amdgpu_device *adev)
+ 	adev->gfx.config.double_offchip_lds_buf = 0;
+ }
+ 
+-static void gfx_v6_0_gpu_init(struct amdgpu_device *adev)
++static void gfx_v6_0_constants_init(struct amdgpu_device *adev)
+ {
+ 	u32 gb_addr_config = 0;
+ 	u32 mc_shared_chmap, mc_arb_ramcfg;
+@@ -3204,7 +3204,7 @@ static int gfx_v6_0_hw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	gfx_v6_0_gpu_init(adev);
++	gfx_v6_0_constants_init(adev);
+ 
+ 	r = gfx_v6_0_rlc_resume(adev);
+ 	if (r)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+index 01ca681..169dbf9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+@@ -1886,14 +1886,14 @@ static void gfx_v7_0_config_init(struct amdgpu_device *adev)
+ }
+ 
+ /**
+- * gfx_v7_0_gpu_init - setup the 3D engine
++ * gfx_v7_0_constants_init - setup the 3D engine
+  *
+  * @adev: amdgpu_device pointer
+  *
+- * Configures the 3D engine and tiling configuration
+- * registers so that the 3D engine is usable.
++ * init the gfx constants such as the 3D engine, tiling configuration
++ * registers, maximum number of quad pipes, render backends...
+  */
+-static void gfx_v7_0_gpu_init(struct amdgpu_device *adev)
++static void gfx_v7_0_constants_init(struct amdgpu_device *adev)
+ {
+ 	u32 sh_mem_cfg, sh_static_mem_cfg, sh_mem_base;
+ 	u32 tmp;
+@@ -4644,7 +4644,7 @@ static int gfx_v7_0_hw_init(void *handle)
+ 	int r;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+-	gfx_v7_0_gpu_init(adev);
++	gfx_v7_0_constants_init(adev);
+ 
+ 	/* init rlc */
+ 	r = gfx_v7_0_rlc_resume(adev);
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 096347a..d1c8311 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -3834,7 +3834,7 @@ static void gfx_v8_0_config_init(struct amdgpu_device *adev)
+ 	}
+ }
+ 
+-static void gfx_v8_0_gpu_init(struct amdgpu_device *adev)
++static void gfx_v8_0_constants_init(struct amdgpu_device *adev)
+ {
+ 	u32 tmp, sh_static_mem_cfg;
+ 	int i;
+@@ -5038,7 +5038,7 @@ static int gfx_v8_0_hw_init(void *handle)
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
+ 	gfx_v8_0_init_golden_registers(adev);
+-	gfx_v8_0_gpu_init(adev);
++	gfx_v8_0_constants_init(adev);
+ 
+ 	r = gfx_v8_0_rlc_resume(adev);
+ 	if (r)
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 27a5ada..6c44ce1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1848,7 +1848,7 @@ static void gfx_v9_0_init_compute_vmid(struct amdgpu_device *adev)
+ 	mutex_unlock(&adev->srbm_mutex);
+ }
+ 
+-static void gfx_v9_0_gpu_init(struct amdgpu_device *adev)
++static void gfx_v9_0_constants_init(struct amdgpu_device *adev)
+ {
+ 	u32 tmp;
+ 	int i;
+@@ -3240,7 +3240,7 @@ static int gfx_v9_0_hw_init(void *handle)
+ 
+ 	gfx_v9_0_init_golden_registers(adev);
+ 
+-	gfx_v9_0_gpu_init(adev);
++	gfx_v9_0_constants_init(adev);
+ 
+ 	r = gfx_v9_0_csb_vram_pin(adev);
+ 	if (r)
+-- 
+2.7.4
+

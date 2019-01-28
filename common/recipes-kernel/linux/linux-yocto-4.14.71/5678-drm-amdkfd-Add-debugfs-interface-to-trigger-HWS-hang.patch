@@ -1,0 +1,201 @@
+From 39af7ed025c18487e8759afd404582f2b029b59c Mon Sep 17 00:00:00 2001
+From: Shaoyun Liu <Shaoyun.Liu@amd.com>
+Date: Tue, 8 May 2018 18:30:56 -0400
+Subject: [PATCH 5678/5725] drm/amdkfd: Add debugfs interface to trigger HWS
+ hang
+
+Change-Id: I7c08975b93a734d3075654edecd716db3a8ee7ea
+Signed-off-by: Shaoyun Liu <Shaoyun.Liu@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_debugfs.c           | 48 ++++++++++++++++++++++
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c            | 23 +++++++++++
+ .../gpu/drm/amd/amdkfd/kfd_device_queue_manager.c  | 12 ++++++
+ drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c    | 26 ++++++++++++
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h              |  4 ++
+ 5 files changed, 113 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_debugfs.c b/drivers/gpu/drm/amd/amdkfd/kfd_debugfs.c
+index 4bd6ebf..ab37d36 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_debugfs.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_debugfs.c
+@@ -21,6 +21,8 @@
+  */
+ 
+ #include <linux/debugfs.h>
++#include <linux/uaccess.h>
++
+ #include "kfd_priv.h"
+ 
+ static struct dentry *debugfs_root;
+@@ -32,6 +34,38 @@ static int kfd_debugfs_open(struct inode *inode, struct file *file)
+ 	return single_open(file, show, NULL);
+ }
+ 
++static ssize_t kfd_debugfs_hang_hws_write(struct file *file,
++	const char __user *user_buf, size_t size, loff_t *ppos)
++{
++	struct kfd_dev *dev;
++	char tmp[16];
++	uint32_t gpu_id;
++	int ret = -EINVAL;
++
++	memset(tmp, 0, 16);
++	if (size >= 16) {
++		pr_err("Invalid input for gpu id.\n");
++		goto out;
++	}
++	if (copy_from_user(tmp, user_buf, size)) {
++		ret = -EFAULT;
++		goto out;
++	}
++	if (kstrtoint(tmp, 10, &gpu_id)) {
++		pr_err("Invalid input for gpu id.\n");
++		goto out;
++	}
++	dev = kfd_device_by_id(gpu_id);
++	if (dev) {
++		kfd_debugfs_hang_hws(dev);
++		ret = size;
++	} else
++		pr_err("Cannot find device %d.\n", gpu_id);
++
++out:
++	return ret;
++}
++
+ static const struct file_operations kfd_debugfs_fops = {
+ 	.owner = THIS_MODULE,
+ 	.open = kfd_debugfs_open,
+@@ -40,6 +74,15 @@ static const struct file_operations kfd_debugfs_fops = {
+ 	.release = single_release,
+ };
+ 
++static const struct file_operations kfd_debugfs_hang_hws_fops = {
++	.owner = THIS_MODULE,
++	.open = kfd_debugfs_open,
++	.read = seq_read,
++	.write = kfd_debugfs_hang_hws_write,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
+ void kfd_debugfs_init(void)
+ {
+ 	struct dentry *ent;
+@@ -65,6 +108,11 @@ void kfd_debugfs_init(void)
+ 	ent = debugfs_create_file("rls", S_IFREG | 0444, debugfs_root,
+ 				  kfd_debugfs_rls_by_device,
+ 				  &kfd_debugfs_fops);
++
++	ent = debugfs_create_file("hang_hws", S_IFREG | 0644, debugfs_root,
++				  NULL,
++				  &kfd_debugfs_hang_hws_fops);
++
+ 	if (!ent)
+ 		pr_warn("Failed to create rls in kfd debugfs\n");
+ }
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index 9ce20da..f78ab7c 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -963,3 +963,26 @@ int kfd_gtt_sa_free(struct kfd_dev *kfd, struct kfd_mem_obj *mem_obj)
+ 	kfree(mem_obj);
+ 	return 0;
+ }
++
++#if defined(CONFIG_DEBUG_FS)
++
++/* This function will send a package to HIQ to hang the HWS
++ * which will trigger a GPU reset and bring the HWS back to normal state
++ */
++int kfd_debugfs_hang_hws(struct kfd_dev *dev)
++{
++	int r = 0;
++
++	if (dev->dqm->sched_policy != KFD_SCHED_POLICY_HWS) {
++		pr_err("HWS is not enabled");
++		return -EINVAL;
++	}
++
++	r = pm_debugfs_hang_hws(&dev->dqm->packets);
++	if (!r)
++		r = dqm_debugfs_execute_queues(dev->dqm);
++
++	return r;
++}
++
++#endif
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index d7822e2..2c5d330 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -1855,4 +1855,16 @@ int dqm_debugfs_hqds(struct seq_file *m, void *data)
+ 	return r;
+ }
+ 
++int dqm_debugfs_execute_queues(struct device_queue_manager *dqm)
++{
++	int r = 0;
++
++	mutex_lock(&dqm->lock);
++	dqm->active_runlist = true;
++	r = execute_queues_cpsch(dqm, KFD_UNMAP_QUEUES_FILTER_ALL_QUEUES, 0);
++	mutex_unlock(&dqm->lock);
++
++	return r;
++}
++
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+index c317feb4..1092631 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_packet_manager.c
+@@ -418,4 +418,30 @@ int pm_debugfs_runlist(struct seq_file *m, void *data)
+ 	return 0;
+ }
+ 
++int pm_debugfs_hang_hws(struct packet_manager *pm)
++{
++	uint32_t *buffer, size;
++	int r = 0;
++
++	size = pm->pmf->query_status_size;
++	mutex_lock(&pm->lock);
++	pm->priv_queue->ops.acquire_packet_buffer(pm->priv_queue,
++			size / sizeof(uint32_t), (unsigned int **)&buffer);
++	if (!buffer) {
++		pr_err("Failed to allocate buffer on kernel queue\n");
++		r = -ENOMEM;
++		goto out;
++	}
++	memset(buffer, 0x55, size);
++	pm->priv_queue->ops.submit_packet(pm->priv_queue);
++
++	pr_info("Submitting %x %x %x %x %x %x %x to HIQ to hang the HWS.",
++		buffer[0], buffer[1], buffer[2], buffer[3],
++		buffer[4], buffer[5], buffer[6]);
++out:
++	mutex_unlock(&pm->lock);
++	return r;
++}
++
++
+ #endif
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index 969dac2..ae12ab7 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -1107,6 +1107,10 @@ int dqm_debugfs_hqds(struct seq_file *m, void *data);
+ int kfd_debugfs_rls_by_device(struct seq_file *m, void *data);
+ int pm_debugfs_runlist(struct seq_file *m, void *data);
+ 
++int kfd_debugfs_hang_hws(struct kfd_dev *dev);
++int pm_debugfs_hang_hws(struct packet_manager *pm);
++int dqm_debugfs_execute_queues(struct device_queue_manager *dqm);
++
+ #else
+ 
+ static inline void kfd_debugfs_init(void) {}
+-- 
+2.7.4
+

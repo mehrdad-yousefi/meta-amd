@@ -1,0 +1,28 @@
+From 6adefe7e01ef9731bf49bec5b830dd17536800ff Mon Sep 17 00:00:00 2001
+From: Harry Wentland <harry.wentland@amd.com>
+Date: Tue, 10 Apr 2018 16:08:44 -0400
+Subject: [PATCH 4178/5725] drm/amd/display: Fix 64-bit division in
+ hwss_edp_power_control
+
+Signed-off-by: Harry Wentland <harry.wentland@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index b17afcf..1e3ed0e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -857,7 +857,7 @@ void hwss_edp_power_control(
+ 					dm_get_elapse_time_in_ns(
+ 							ctx,
+ 							current_ts,
+-							link->link_trace.time_stamp.edp_poweroff) / 1000000;
++							div64_u64(link->link_trace.time_stamp.edp_poweroff, 1000000));
+ 			unsigned long long wait_time_ms = 0;
+ 
+ 			/* max 500ms from LCDVDD off to on */
+-- 
+2.7.4
+

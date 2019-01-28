@@ -1,0 +1,177 @@
+From 00973bfeebbf4791375d6b2765eb7599d8cc6a8d Mon Sep 17 00:00:00 2001
+From: Chiawen Huang <chiawen.huang@amd.com>
+Date: Fri, 24 Aug 2018 17:45:28 +0800
+Subject: [PATCH 5357/5725] drm/amd/display: add aux transition event log.
+
+[Why]
+Enhance aux transition debugging information.
+
+[How]
+Added Aux request and reply event log.
+
+Change-Id: I19f3fd904089f57f0eaebbcc0cb613430c11b5b0
+Signed-off-by: Chiawen Huang <chiawen.huang@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dm_event_log.h      | 39 ++++++++++++++++++++++
+ drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c | 13 ++++++++
+ .../display/dc/i2caux/dce110/aux_engine_dce110.c   |  7 +++-
+ .../gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c  | 18 ++++++++++
+ 4 files changed, 76 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/gpu/drm/amd/display/dc/dm_event_log.h
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dm_event_log.h b/drivers/gpu/drm/amd/display/dc/dm_event_log.h
+new file mode 100644
+index 0000000..c1ce2dd
+--- /dev/null
++++ b/drivers/gpu/drm/amd/display/dc/dm_event_log.h
+@@ -0,0 +1,39 @@
++/*
++ * Copyright 2018 Advanced Micro Devices, Inc.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * Authors: AMD
++ *
++ */
++
++/**
++ * This file defines external dependencies of Display Core.
++ */
++
++#ifndef __DM_EVENT_LOG_H__
++
++#define __DM_EVENT_LOG_H__
++
++#define EVENT_LOG_I2CAUX_READ(transType, dcc, address, status, len, data)
++#define EVENT_LOG_I2CAUX_WRITE(transType, dcc, address, status, len, data)
++#define EVENT_LOG_AUX_REQ(dcc, type, action, address, len, data)
++#define EVENT_LOG_AUX_Reply(dcc, type, swStatus, replyStatus, len, data)
++
++#endif
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c b/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c
+index 0afd2fa..03292c5 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/aux_engine.c
+@@ -24,6 +24,7 @@
+  */
+ 
+ #include "dm_services.h"
++#include "dm_event_log.h"
+ 
+ /*
+  * Pre-requisites: headers required by header of this unit
+@@ -296,6 +297,12 @@ static bool read_command(
+ 
+ 	if (request->payload.address_space ==
+ 		I2CAUX_TRANSACTION_ADDRESS_SPACE_DPCD) {
++		EVENT_LOG_I2CAUX_READ(request->payload.address_space,
++				engine->base.ddc->pin_data->en,
++				request->payload.address,
++				request->status,
++				request->payload.length,
++				request->payload.data);
+ 		DC_LOG_I2C_AUX("READ: addr:0x%x  value:0x%x Result:%d",
+ 				request->payload.address,
+ 				request->payload.data[0],
+@@ -512,6 +519,12 @@ static bool write_command(
+ 
+ 	if (request->payload.address_space ==
+ 		I2CAUX_TRANSACTION_ADDRESS_SPACE_DPCD) {
++		EVENT_LOG_I2CAUX_WRITE(request->payload.address_space,
++				engine->base.ddc->pin_data->en,
++				request->payload.address,
++				request->status,
++				request->payload.length,
++				request->payload.data);
+ 		DC_LOG_I2C_AUX("WRITE: addr:0x%x  value:0x%x Result:%d",
+ 				request->payload.address,
+ 				request->payload.data[0],
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c b/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
+index ae5caa9..4a88fc7 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/dce110/aux_engine_dce110.c
+@@ -24,6 +24,7 @@
+  */
+ 
+ #include "dm_services.h"
++#include "dm_event_log.h"
+ 
+ /*
+  * Pre-requisites: headers required by header of this unit
+@@ -273,6 +274,8 @@ static void submit_channel_request(
+ 	REG_WAIT(AUX_SW_STATUS, AUX_SW_DONE, 0,
+ 				10, aux110->timeout_period/10);
+ 	REG_UPDATE(AUX_SW_CONTROL, AUX_SW_GO, 1);
++	EVENT_LOG_AUX_REQ(engine->base.ddc->pin_data->en, Native, request->action,
++					request->address, request->length, request->data);
+ }
+ 
+ static int read_channel_reply(struct aux_engine *engine, uint32_t size,
+@@ -336,7 +339,9 @@ static void process_channel_reply(
+ 	uint32_t sw_status;
+ 
+ 	bytes_replied = read_channel_reply(engine, reply->length, reply->data,
+-					   &reply_result, &sw_status);
++						&reply_result, &sw_status);
++	EVENT_LOG_AUX_Reply(engine->base.ddc->pin_data->en, Native,
++					sw_status, reply_result, bytes_replied, reply->data);
+ 
+ 	/* in case HPD is LOW, exit AUX transaction */
+ 	if ((sw_status & AUX_SW_STATUS__AUX_SW_HPD_DISCON_MASK)) {
+diff --git a/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c b/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
+index 4b54fcf..1747b9f 100644
+--- a/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
++++ b/drivers/gpu/drm/amd/display/dc/i2caux/i2c_hw_engine.c
+@@ -24,6 +24,7 @@
+  */
+ 
+ #include "dm_services.h"
++#include "dm_event_log.h"
+ 
+ /*
+  * Pre-requisites: headers required by header of this unit
+@@ -170,6 +171,23 @@ bool dal_i2c_hw_engine_submit_request(
+ 			process_channel_reply(&hw_engine->base, &reply);
+ 	}
+ 
++	if (i2caux_request->operation == I2CAUX_TRANSACTION_READ) {
++		EVENT_LOG_I2CAUX_READ(i2caux_request->payload.address_space,
++							engine->ddc->pin_data->en,
++							i2caux_request->payload.address,
++							i2caux_request->status,
++							i2caux_request->payload.length,
++							i2caux_request->payload.data);
++	} else if (i2caux_request->operation == I2CAUX_TRANSACTION_WRITE) {
++		EVENT_LOG_I2CAUX_WRITE(i2caux_request->payload.address_space,
++							engine->ddc->pin_data->en,
++							i2caux_request->payload.address,
++							i2caux_request->status,
++							i2caux_request->payload.length,
++							i2caux_request->payload.data);
++	}
++
++
+ 	return result;
+ }
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,43 @@
+From 5c719823b691014064ccec9bf4276ac6aa3401c9 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 10 May 2018 15:06:55 -0500
+Subject: [PATCH 4660/5725] drm/amdgpu: add a df 1.7 implementation of
+ enable_ecc_force_par_wr_rmw
+
+Needed for proper memory setup depending on whether ECC is
+enabled on a particular board.
+
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/df_v1_7.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/df_v1_7.c b/drivers/gpu/drm/amd/amdgpu/df_v1_7.c
+index 4ffda99..9935371 100644
+--- a/drivers/gpu/drm/amd/amdgpu/df_v1_7.c
++++ b/drivers/gpu/drm/amd/amdgpu/df_v1_7.c
+@@ -102,6 +102,13 @@ static void df_v1_7_get_clockgating_state(struct amdgpu_device *adev,
+ 		*flags |= AMD_CG_SUPPORT_DF_MGCG;
+ }
+ 
++static void df_v1_7_enable_ecc_force_par_wr_rmw(struct amdgpu_device *adev,
++						bool enable)
++{
++	WREG32_FIELD15(DF, 0, DF_CS_AON0_CoherentSlaveModeCtrlA0,
++		       ForceParWrRMW, enable);
++}
++
+ const struct amdgpu_df_funcs df_v1_7_funcs = {
+ 	.init = df_v1_7_init,
+ 	.enable_broadcast_mode = df_v1_7_enable_broadcast_mode,
+@@ -109,4 +116,5 @@ const struct amdgpu_df_funcs df_v1_7_funcs = {
+ 	.get_hbm_channel_number = df_v1_7_get_hbm_channel_number,
+ 	.update_medium_grain_clock_gating = df_v1_7_update_medium_grain_clock_gating,
+ 	.get_clockgating_state = df_v1_7_get_clockgating_state,
++	.enable_ecc_force_par_wr_rmw = df_v1_7_enable_ecc_force_par_wr_rmw,
+ };
+-- 
+2.7.4
+

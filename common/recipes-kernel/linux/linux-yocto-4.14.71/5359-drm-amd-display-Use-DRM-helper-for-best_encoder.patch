@@ -1,0 +1,71 @@
+From ff2838442aa7a1e461bdb32218eb40cf04827a80 Mon Sep 17 00:00:00 2001
+From: Leo Li <sunpeng.li@amd.com>
+Date: Thu, 23 Aug 2018 15:28:08 -0400
+Subject: [PATCH 5359/5725] drm/amd/display: Use DRM helper for best_encoder
+
+[Why]
+Our implementation is functionally identical to DRM's
+
+Note that instead of checking if the provided id is 0, the helper
+follows through with the mode object search. However, It will still
+return NULL, since 0 is not a valid object id, and missed searches
+will return NULL.
+
+[How]
+Remove our implementation, and replace it with
+drm_atomic_helper_best_encoder.
+
+Change-Id: I96a0adce860385dc3efe9b2b3b8b89c06eeff273
+Signed-off-by: Leo Li <sunpeng.li@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c | 24 +----------------------
+ 1 file changed, 1 insertion(+), 23 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index 8132f40..569a75e 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -3221,28 +3221,6 @@ static const struct drm_connector_funcs amdgpu_dm_connector_funcs = {
+ 	.atomic_get_property = amdgpu_dm_connector_atomic_get_property
+ };
+ 
+-static struct drm_encoder *best_encoder(struct drm_connector *connector)
+-{
+-	int enc_id = connector->encoder_ids[0];
+-	struct drm_mode_object *obj;
+-	struct drm_encoder *encoder;
+-
+-	DRM_DEBUG_DRIVER("Finding the best encoder\n");
+-
+-	/* pick the encoder ids */
+-	if (enc_id) {
+-		obj = drm_mode_object_find(connector->dev, enc_id, DRM_MODE_OBJECT_ENCODER);
+-		if (!obj) {
+-			DRM_ERROR("Couldn't find a matching encoder for our connector\n");
+-			return NULL;
+-		}
+-		encoder = obj_to_encoder(obj);
+-		return encoder;
+-	}
+-	DRM_ERROR("No encoder id\n");
+-	return NULL;
+-}
+-
+ static int get_modes(struct drm_connector *connector)
+ {
+ 	return amdgpu_dm_connector_get_modes(connector);
+@@ -3363,7 +3341,7 @@ amdgpu_dm_connector_helper_funcs = {
+ 	 */
+ 	.get_modes = get_modes,
+ 	.mode_valid = amdgpu_dm_connector_mode_valid,
+-	.best_encoder = best_encoder
++	.best_encoder = drm_atomic_helper_best_encoder
+ };
+ 
+ static void dm_crtc_helper_disable(struct drm_crtc *crtc)
+-- 
+2.7.4
+

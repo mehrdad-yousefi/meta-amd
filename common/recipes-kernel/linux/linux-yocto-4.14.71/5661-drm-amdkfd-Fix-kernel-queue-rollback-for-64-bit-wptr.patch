@@ -1,0 +1,34 @@
+From 1b679043b6299098208d8d4f08120ab5ed5d2cbf Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Tue, 24 Apr 2018 00:05:49 -0400
+Subject: [PATCH 5661/5725] drm/amdkfd: Fix kernel queue rollback for 64-bit
+ wptr
+
+Change-Id: I41afaa534cf23ba77e522729bc113d258b402b46
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue.c b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue.c
+index 8cf9d44..51b976d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_kernel_queue.c
+@@ -315,7 +315,13 @@ static void submit_packet(struct kernel_queue *kq)
+ 
+ static void rollback_packet(struct kernel_queue *kq)
+ {
+-	kq->pending_wptr = *kq->queue->properties.write_ptr;
++	if (kq->dev->device_info->doorbell_size == 8) {
++		kq->pending_wptr64 = *kq->wptr64_kernel;
++		kq->pending_wptr = *kq->wptr_kernel %
++			(kq->queue->properties.queue_size / 4);
++	} else {
++		kq->pending_wptr = *kq->wptr_kernel;
++	}
+ }
+ 
+ struct kernel_queue *kernel_queue_init(struct kfd_dev *dev,
+-- 
+2.7.4
+

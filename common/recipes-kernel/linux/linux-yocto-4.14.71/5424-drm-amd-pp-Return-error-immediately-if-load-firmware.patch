@@ -1,0 +1,39 @@
+From 006026f528cfd3cbce68dcf06105a9e8fa02a652 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 18 Sep 2018 20:30:36 +0800
+Subject: [PATCH 5424/5725] drm/amd/pp: Return error immediately if load
+ firmware failed
+
+this can avoid hard hang and be useful for debug.
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+index f7e3bc2..a74c5be 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/smu8_smumgr.c
+@@ -724,11 +724,13 @@ static int smu8_start_smu(struct pp_hwmgr *hwmgr)
+ 	if (hwmgr->chip_id == CHIP_STONEY)
+ 		fw_to_check &= ~(UCODE_ID_SDMA1_MASK | UCODE_ID_CP_MEC_JT2_MASK);
+ 
+-	ret = smu8_request_smu_load_fw(hwmgr);
+-	if (ret)
+-		pr_err("SMU firmware load failed\n");
++	smu8_request_smu_load_fw(hwmgr);
+ 
+-	smu8_check_fw_load_finish(hwmgr, fw_to_check);
++	ret = smu8_check_fw_load_finish(hwmgr, fw_to_check);
++	if (ret) {
++		pr_err("SMU firmware load failed\n");
++		return ret;
++	}
+ 
+ 	ret = smu8_load_mec_firmware(hwmgr);
+ 	if (ret)
+-- 
+2.7.4
+

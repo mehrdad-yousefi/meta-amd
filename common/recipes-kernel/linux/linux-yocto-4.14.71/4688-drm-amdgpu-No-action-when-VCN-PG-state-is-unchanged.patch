@@ -1,0 +1,61 @@
+From e1e9c636bd5b19b538d05c8885a19e9355923e74 Mon Sep 17 00:00:00 2001
+From: James Zhu <jzhums@gmail.com>
+Date: Thu, 13 Sep 2018 16:55:44 -0400
+Subject: [PATCH 4688/5725] drm/amdgpu:No action when VCN PG state is unchanged
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When VCN PG state is unchanged, it is unnecessary to reset power
+gate state
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h |  1 +
+ drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c   | 12 ++++++++++--
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+index 0b0b863..d2219ab 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.h
+@@ -69,6 +69,7 @@ struct amdgpu_vcn {
+ 	struct amdgpu_ring	ring_jpeg;
+ 	struct amdgpu_irq_src	irq;
+ 	unsigned		num_enc_rings;
++	enum amd_powergating_state cur_state;
+ };
+ 
+ int amdgpu_vcn_sw_init(struct amdgpu_device *adev);
+diff --git a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+index d0c428f..5b219e6 100644
+--- a/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vcn_v1_0.c
+@@ -1637,12 +1637,20 @@ static int vcn_v1_0_set_powergating_state(void *handle,
+ 	 * revisit this when there is a cleaner line between
+ 	 * the smc and the hw blocks
+ 	 */
++	int ret;
+ 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
+ 
++	if(state == adev->vcn.cur_state)
++		return 0;
++
+ 	if (state == AMD_PG_STATE_GATE)
+-		return vcn_v1_0_stop(adev);
++		ret = vcn_v1_0_stop(adev);
+ 	else
+-		return vcn_v1_0_start(adev);
++		ret = vcn_v1_0_start(adev);
++
++	if(!ret)
++		adev->vcn.cur_state = state;
++	return ret;
+ }
+ 
+ static const struct amd_ip_funcs vcn_v1_0_ip_funcs = {
+-- 
+2.7.4
+

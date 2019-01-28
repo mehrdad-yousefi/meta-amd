@@ -1,0 +1,35 @@
+From c5d1ed3079e37b5f11fb7e6d70cfb0084699374f Mon Sep 17 00:00:00 2001
+From: David Francis <David.Francis@amd.com>
+Date: Tue, 22 May 2018 16:01:08 -0400
+Subject: [PATCH 4516/5725] drm/amd/display: Remove use of division operator
+ for long longs
+
+In fixed31_32.h, in dc_fixpt_shl,'/' was used for division of one long
+long int by another long long int.  As there is no inbuilt long long
+int division function in c, gcc inserted its own.  However, gcc does not
+link the library that contains this function.  To avoid this, use
+bitwise operators instead of /
+
+Signed-off-by: David Francis <David.Francis@amd.com>
+Reviewed-by: Dmytro Laktyushkin <Dmytro.Laktyushkin@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/include/fixed31_32.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/include/fixed31_32.h b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+index 76f64e9..bb0d4eb 100644
+--- a/drivers/gpu/drm/amd/display/include/fixed31_32.h
++++ b/drivers/gpu/drm/amd/display/include/fixed31_32.h
+@@ -209,7 +209,7 @@ static inline struct fixed31_32 dc_fixpt_clamp(
+ static inline struct fixed31_32 dc_fixpt_shl(struct fixed31_32 arg, unsigned char shift)
+ {
+ 	ASSERT(((arg.value >= 0) && (arg.value <= LLONG_MAX >> shift)) ||
+-		((arg.value < 0) && (arg.value >= (LLONG_MIN / (1LL << shift)))));
++		((arg.value < 0) && (arg.value >= ~(LLONG_MAX >> shift))));
+ 
+ 	arg.value = arg.value << shift;
+ 
+-- 
+2.7.4
+

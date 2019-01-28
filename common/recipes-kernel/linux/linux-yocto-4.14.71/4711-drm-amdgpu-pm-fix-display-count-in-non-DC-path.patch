@@ -1,0 +1,30 @@
+From ce0aee34f1622f8c8a46f9516c1e047494f7d935 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 28 Jun 2018 12:44:25 -0500
+Subject: [PATCH 4711/5725] drm/amdgpu/pm: fix display count in non-DC path
+
+new_active_crtcs is a bitmask, new_active_crtc_count is the
+actual count.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+index 2c904a6..31fbbcd 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_pm.c
+@@ -1910,7 +1910,7 @@ void amdgpu_pm_compute_clocks(struct amdgpu_device *adev)
+ 		if (!amdgpu_device_has_dc_support(adev)) {
+ 			mutex_lock(&adev->pm.mutex);
+ 			amdgpu_dpm_get_active_displays(adev);
+-			adev->pm.pm_display_cfg.num_display = adev->pm.dpm.new_active_crtcs;
++			adev->pm.pm_display_cfg.num_display = adev->pm.dpm.new_active_crtc_count;
+ 			adev->pm.pm_display_cfg.vrefresh = amdgpu_dpm_get_vrefresh(adev);
+ 			adev->pm.pm_display_cfg.min_vblank_time = amdgpu_dpm_get_vblank_time(adev);
+ 			/* we have issues with mclk switching with refresh rates over 120 hz on the non-DC code. */
+-- 
+2.7.4
+

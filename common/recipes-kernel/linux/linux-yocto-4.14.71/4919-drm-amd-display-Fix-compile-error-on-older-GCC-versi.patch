@@ -1,0 +1,39 @@
+From 2ad3a5dc171e8c5fabcc7130026451255a94ea41 Mon Sep 17 00:00:00 2001
+From: "Leo (Sunpeng) Li" <sunpeng.li@amd.com>
+Date: Mon, 18 Jun 2018 12:23:03 -0400
+Subject: [PATCH 4919/5725] drm/amd/display: Fix compile error on older GCC
+ versions
+
+GCC 4.9 reports a 'missing braces around initializer' error. This is a
+bug, documented here:
+
+https://gcc.gnu.org/bugzilla/show_bug.cgi?id=53119
+
+Fix it by adding another brace.
+
+Signed-off-by: Leo (Sunpeng) Li <sunpeng.li@amd.com>
+Reviewed-by: Mikita Lipski <Mikita.Lipski@amd.com>
+Acked-by: Harry Wentland <harry.wentland@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
+index 0193bc5..4188dbd 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_helpers.c
+@@ -514,8 +514,8 @@ enum dc_edid_status dm_helpers_read_local_edid(
+ 				edid_status,
+ 				aconnector->base.name);
+ 	if (link->aux_mode) {
+-		union test_request test_request = {0};
+-		union test_response test_response = {0};
++		union test_request test_request = { {0} };
++		union test_response test_response = { {0} };
+ 
+ 		dm_helpers_dp_read_dpcd(ctx,
+ 					link,
+-- 
+2.7.4
+

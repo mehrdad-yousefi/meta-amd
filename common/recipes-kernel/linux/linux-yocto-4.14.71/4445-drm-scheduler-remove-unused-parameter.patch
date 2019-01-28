@@ -1,0 +1,183 @@
+From 603db0d48cc228d234a2ba69eca4d01b9e518972 Mon Sep 17 00:00:00 2001
+From: Nayan Deshmukh <nayan26deshmukh@gmail.com>
+Date: Thu, 29 Mar 2018 22:36:32 +0530
+Subject: [PATCH 4445/5725] drm/scheduler: remove unused parameter
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+this patch also effect the amdgpu and etnaviv drivers which
+use the function drm_sched_entity_init
+
+Signed-off-by: Nayan Deshmukh <nayan26deshmukh@gmail.com>
+Suggested-by: Christian König <christian.koenig@amd.com>
+Acked-by: Lucas Stach <l.stach@pengutronix.de>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+
+Conflicts:
+      drivers/gpu/drm/etnaviv/etnaviv_drv.c
+      drivers/gpu/drm/scheduler/gpu_scheduler.c
+
+Change-Id: I15f949005824c8553a768bdd26a4ce686dcafefb
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c   | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c   | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c   | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c   | 2 +-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c   | 4 ++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c    | 2 +-
+ drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c     | 2 +-
+ drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c     | 2 +-
+ drivers/gpu/drm/scheduler/gpu_scheduler.c | 3 +--
+ include/drm/gpu_scheduler.h               | 2 +-
+ 10 files changed, 11 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+index 51fb09f..58795d4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ctx.c
+@@ -93,7 +93,7 @@ static int amdgpu_ctx_init(struct amdgpu_device *adev,
+ 			continue;
+ 
+ 		r = drm_sched_entity_init(&ring->sched, &ctx->rings[i].entity,
+-					  rq, amdgpu_sched_jobs, &ctx->guilty);
++					  rq, &ctx->guilty);
+ 		if (r)
+ 			goto failed;
+ 	}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 1bd7997..cead212 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -111,7 +111,7 @@ static int amdgpu_ttm_global_init(struct amdgpu_device *adev)
+ 	ring = adev->mman.buffer_funcs_ring;
+ 	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_KERNEL];
+ 	r = drm_sched_entity_init(&ring->sched, &adev->mman.entity,
+-				  rq, amdgpu_sched_jobs, NULL);
++				  rq, NULL);
+ 	if (r) {
+ 		DRM_ERROR("Failed setting up TTM BO move run queue.\n");
+ 		goto error_entity;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+index c973b10..4ab11bb 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c
+@@ -250,7 +250,7 @@ int amdgpu_uvd_sw_init(struct amdgpu_device *adev)
+ 		ring = &adev->uvd.inst[j].ring;
+ 		rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+ 		r = drm_sched_entity_init(&ring->sched, &adev->uvd.inst[j].entity,
+-					  rq, amdgpu_sched_jobs, NULL);
++					  rq, NULL);
+ 		if (r != 0) {
+ 			DRM_ERROR("Failed setting up UVD(%d) run queue.\n", j);
+ 			return r;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
+index 1b1d8e1..23d960e 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c
+@@ -191,7 +191,7 @@ int amdgpu_vce_sw_init(struct amdgpu_device *adev, unsigned long size)
+ 	ring = &adev->vce.ring[0];
+ 	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+ 	r = drm_sched_entity_init(&ring->sched, &adev->vce.entity,
+-				  rq, amdgpu_sched_jobs, NULL);
++				  rq, NULL);
+ 	if (r != 0) {
+ 		DRM_ERROR("Failed setting up VCE run queue.\n");
+ 		return r;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+index 01cc8de..be15303 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c
+@@ -106,7 +106,7 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
+ 	ring = &adev->vcn.ring_dec;
+ 	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+ 	r = drm_sched_entity_init(&ring->sched, &adev->vcn.entity_dec,
+-				  rq, amdgpu_sched_jobs, NULL);
++				  rq, NULL);
+ 	if (r != 0) {
+ 		DRM_ERROR("Failed setting up VCN dec run queue.\n");
+ 		return r;
+@@ -115,7 +115,7 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
+ 	ring = &adev->vcn.ring_enc[0];
+ 	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+ 	r = drm_sched_entity_init(&ring->sched, &adev->vcn.entity_enc,
+-				  rq, amdgpu_sched_jobs, NULL);
++				  rq, NULL);
+ 	if (r != 0) {
+ 		DRM_ERROR("Failed setting up VCN enc run queue.\n");
+ 		return r;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 336abd4..caf5f61 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2453,7 +2453,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	ring = adev->vm_manager.vm_pte_rings[ring_instance];
+ 	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_KERNEL];
+ 	r = drm_sched_entity_init(&ring->sched, &vm->entity,
+-				  rq, amdgpu_sched_jobs, NULL);
++				  rq, NULL);
+ 	if (r)
+ 		return r;
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c b/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c
+index 2778e48..8ce51946 100644
+--- a/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/uvd_v6_0.c
+@@ -430,7 +430,7 @@ static int uvd_v6_0_sw_init(void *handle)
+ 		ring = &adev->uvd.inst->ring_enc[0];
+ 		rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+ 		r = drm_sched_entity_init(&ring->sched, &adev->uvd.inst->entity_enc,
+-					  rq, amdgpu_sched_jobs, NULL);
++					  rq, NULL);
+ 		if (r) {
+ 			DRM_ERROR("Failed setting up UVD ENC run queue.\n");
+ 			return r;
+diff --git a/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c b/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c
+index 47a6af5..a0080d7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/uvd_v7_0.c
+@@ -432,7 +432,7 @@ static int uvd_v7_0_sw_init(void *handle)
+ 		ring = &adev->uvd.inst[j].ring_enc[0];
+ 		rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+ 		r = drm_sched_entity_init(&ring->sched, &adev->uvd.inst[j].entity_enc,
+-					  rq, amdgpu_sched_jobs, NULL);
++					  rq, NULL);
+ 		if (r) {
+ 			DRM_ERROR("(%d)Failed setting up UVD ENC run queue.\n", j);
+ 			return r;
+diff --git a/drivers/gpu/drm/scheduler/gpu_scheduler.c b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+index 3d41246..026e0d8 100644
+--- a/drivers/gpu/drm/scheduler/gpu_scheduler.c
++++ b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+@@ -118,14 +118,13 @@ drm_sched_rq_select_entity(struct drm_sched_rq *rq)
+  * @entity	The pointer to a valid drm_sched_entity
+  * @rq		The run queue this entity belongs
+  * @kernel	If this is an entity for the kernel
+- * @jobs	The max number of jobs in the job queue
+  *
+  * return 0 if succeed. negative error code on failure
+ */
+ int drm_sched_entity_init(struct drm_gpu_scheduler *sched,
+ 			  struct drm_sched_entity *entity,
+ 			  struct drm_sched_rq *rq,
+-			  uint32_t jobs, atomic_t *guilty)
++			  atomic_t *guilty)
+ {
+ 	if (!(sched && entity && rq))
+ 		return -EINVAL;
+diff --git a/include/drm/gpu_scheduler.h b/include/drm/gpu_scheduler.h
+index 1df6229..86c7344 100644
+--- a/include/drm/gpu_scheduler.h
++++ b/include/drm/gpu_scheduler.h
+@@ -150,7 +150,7 @@ void drm_sched_fini(struct drm_gpu_scheduler *sched);
+ int drm_sched_entity_init(struct drm_gpu_scheduler *sched,
+ 			  struct drm_sched_entity *entity,
+ 			  struct drm_sched_rq *rq,
+-			  uint32_t jobs, atomic_t *guilty);
++			  atomic_t *guilty);
+ void drm_sched_entity_do_release(struct drm_gpu_scheduler *sched,
+ 			   struct drm_sched_entity *entity);
+ void drm_sched_entity_cleanup(struct drm_gpu_scheduler *sched,
+-- 
+2.7.4
+

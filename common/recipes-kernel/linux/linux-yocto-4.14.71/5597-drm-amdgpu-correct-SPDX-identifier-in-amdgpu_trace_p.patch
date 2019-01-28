@@ -1,0 +1,30 @@
+From 17ce1faf68e7c8bec33be3a3bfeeec37f8db81a9 Mon Sep 17 00:00:00 2001
+From: Jonathan Gray <jsg@jsg.id.au>
+Date: Mon, 15 Oct 2018 15:45:49 +1100
+Subject: [PATCH 5597/5725] drm/amdgpu: correct SPDX identifier in
+ amdgpu_trace_points.c
+
+Commit b24413180f5600bcb3bb70fbed5cf186b60864bd
+'License cleanup: add SPDX GPL-2.0 license identifier to files with no license'
+incorrectly added "SPDX-License-Identifier: GPL-2.0" to a file with MIT
+license text.  Change the SPDX identifier to match the license text.
+
+Signed-off-by: Jonathan Gray <jsg@jsg.id.au>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_trace_points.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace_points.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace_points.c
+index df5e0f0..2fbe6ac 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_trace_points.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_trace_points.c
+@@ -1,4 +1,4 @@
+-// SPDX-License-Identifier: GPL-2.0
++// SPDX-License-Identifier: MIT
+ /* Copyright Red Hat Inc 2010.
+  *
+  * Permission is hereby granted, free of charge, to any person obtaining a
+-- 
+2.7.4
+

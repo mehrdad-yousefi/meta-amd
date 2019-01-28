@@ -1,0 +1,33 @@
+From 5bb9b7e9b8821ec2141a4cf9a738621ced0bc874 Mon Sep 17 00:00:00 2001
+From: Eric Huang <JinHuiEric.Huang@amd.com>
+Date: Fri, 17 Nov 2017 11:17:48 -0500
+Subject: [PATCH 4331/5725] drm/amd: add a new struct in atombios.h
+
+Signed-off-by: Eric Huang <JinHuiEric.Huang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/include/atombios.h | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/include/atombios.h b/drivers/gpu/drm/amd/include/atombios.h
+index f696bbb..7931502 100644
+--- a/drivers/gpu/drm/amd/include/atombios.h
++++ b/drivers/gpu/drm/amd/include/atombios.h
+@@ -632,6 +632,13 @@ typedef struct _COMPUTE_MEMORY_CLOCK_PARAM_PARAMETERS_V2_2
+   ULONG ulReserved;
+ }COMPUTE_MEMORY_CLOCK_PARAM_PARAMETERS_V2_2;
+ 
++typedef struct _COMPUTE_MEMORY_CLOCK_PARAM_PARAMETERS_V2_3
++{
++  COMPUTE_MEMORY_ENGINE_PLL_PARAMETERS_V4 ulClock;
++  USHORT  usMclk_fcw_frac;                  //fractional divider of fcw = usSclk_fcw_frac/65536
++  USHORT  usMclk_fcw_int;                   //integer divider of fcwc
++}COMPUTE_MEMORY_CLOCK_PARAM_PARAMETERS_V2_3;
++
+ //Input parameter of DynamicMemorySettingsTable
+ //when ATOM_COMPUTE_CLOCK_FREQ.ulComputeClockFlag = COMPUTE_MEMORY_PLL_PARAM
+ typedef struct _DYNAMICE_MEMORY_SETTINGS_PARAMETER
+-- 
+2.7.4
+

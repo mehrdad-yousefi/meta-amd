@@ -1,0 +1,125 @@
+From 0550aba51eb20ffa07b107bd2bd639c152d47577 Mon Sep 17 00:00:00 2001
+From: Fatemeh Darbehani <fatemeh.darbehani@amd.com>
+Date: Thu, 27 Sep 2018 17:06:15 -0400
+Subject: [PATCH 5590/5725] drm/amd/display: Retiring set_display_requirements
+ in dm_pp_smu.h - part2
+
+[Why]
+In DCN we want direct DAL to SMU calls, with as little as possible
+interference by pplib. The reason for each pp_smu interface mapping to
+1 SMU message is so we can have the sequencing of different SMU message
+in dal and shared across different OS. This will also simplify
+debugging as DAL owns this interaction and there's no confusion about
+division of ownership.
+
+[How]
+Part 2: Separate set_min_deep_sleep_dcfclk message from the SMU
+messages that are sent as part of dm_pp_apply_clock_for_voltage_request.
+Directly notify min dcfclk to smu
+
+Signed-off-by: Fatemeh Darbehani <fatemeh.darbehani@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c | 28 +++++++++++++++++++++--
+ drivers/gpu/drm/amd/display/dc/dm_pp_smu.h        |  6 ++---
+ 2 files changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
+index 5159a7e..5ffc367 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_dccg.c
+@@ -178,6 +178,24 @@ static void notify_deep_sleep_dcfclk_to_smu(
+ 	pp_smu->set_min_deep_sleep_dcfclk(&pp_smu->pp_smu, min_dcef_deep_sleep_clk_mhz);
+ }
+ 
++static void notify_hard_min_dcfclk_to_smu(
++		struct pp_smu_funcs_rv *pp_smu, int min_dcf_clk_khz)
++{
++	int min_dcf_clk_mhz; //minimum required DCF clock in mhz
++
++	/*
++	 * if function pointer not set up, this message is
++	 * sent as part of pplib_apply_display_requirements.
++	 * So just return.
++	 */
++	if (!pp_smu || !pp_smu->set_hard_min_dcfclk_by_freq)
++		return;
++
++	min_dcf_clk_mhz = min_dcf_clk_khz / 1000;
++
++	pp_smu->set_hard_min_dcfclk_by_freq(&pp_smu->pp_smu, min_dcf_clk_mhz);
++}
++
+ static void dcn1_update_clocks(struct dccg *dccg,
+ 			struct dc_state *context,
+ 			bool safe_to_lower)
+@@ -225,6 +243,7 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 		send_request_to_lower = true;
+ 	}
+ 
++	// F Clock
+ 	if (should_set_clock(safe_to_lower, new_clocks->fclk_khz, dccg->clks.fclk_khz)) {
+ 		dccg->clks.fclk_khz = new_clocks->fclk_khz;
+ 		clock_voltage_req.clk_type = DM_PP_CLOCK_TYPE_FCLK;
+@@ -235,6 +254,7 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 		send_request_to_lower = true;
+ 	}
+ 
++	//DCF Clock
+ 	if (should_set_clock(safe_to_lower, new_clocks->dcfclk_khz, dccg->clks.dcfclk_khz)) {
+ 		dccg->clks.dcfclk_khz = new_clocks->dcfclk_khz;
+ 		smu_req.hard_min_dcefclk_khz = new_clocks->dcfclk_khz;
+@@ -257,7 +277,9 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 		/*use dcfclk to request voltage*/
+ 		clock_voltage_req.clk_type = DM_PP_CLOCK_TYPE_DCFCLK;
+ 		clock_voltage_req.clocks_in_khz = dcn_find_dcfclk_suits_all(dc, new_clocks);
+-		dm_pp_apply_clock_for_voltage_request(dccg->ctx, &clock_voltage_req);
++
++		notify_hard_min_dcfclk_to_smu(pp_smu, clock_voltage_req.clocks_in_khz);
++
+ 		if (pp_smu->set_display_requirement)
+ 			pp_smu->set_display_requirement(&pp_smu->pp_smu, &smu_req);
+ 
+@@ -279,7 +301,9 @@ static void dcn1_update_clocks(struct dccg *dccg,
+ 		/*use dcfclk to request voltage*/
+ 		clock_voltage_req.clk_type = DM_PP_CLOCK_TYPE_DCFCLK;
+ 		clock_voltage_req.clocks_in_khz = dcn_find_dcfclk_suits_all(dc, new_clocks);
+-		dm_pp_apply_clock_for_voltage_request(dccg->ctx, &clock_voltage_req);
++
++		notify_hard_min_dcfclk_to_smu(pp_smu, clock_voltage_req.clocks_in_khz);
++
+ 		if (pp_smu->set_display_requirement)
+ 			pp_smu->set_display_requirement(&pp_smu->pp_smu, &smu_req);
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h b/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h
+index f2ea845..e955029 100644
+--- a/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h
++++ b/drivers/gpu/drm/amd/display/dc/dm_pp_smu.h
+@@ -109,7 +109,7 @@ struct pp_smu_funcs_rv {
+ 	/* PPSMC_MSG_SetHardMinDcfclkByFreq
+ 	 * fixed clock at requested freq, either from FCH bypass or DFS
+ 	 */
+-	void (*set_hard_min_dcfclk_by_freq)(struct pp_smu *pp, int khz);
++	void (*set_hard_min_dcfclk_by_freq)(struct pp_smu *pp, int mhz);
+ 
+ 	/* PPSMC_MSG_SetMinDeepSleepDcfclk
+ 	 * when DF is in cstate, dcf clock is further divided down
+@@ -120,12 +120,12 @@ struct pp_smu_funcs_rv {
+ 	/* PPSMC_MSG_SetHardMinFclkByFreq
+ 	 * FCLK will vary with DPM, but never below requested hard min
+ 	 */
+-	void (*set_hard_min_fclk_by_freq)(struct pp_smu *pp, int khz);
++	void (*set_hard_min_fclk_by_freq)(struct pp_smu *pp, int mhz);
+ 
+ 	/* PPSMC_MSG_SetHardMinSocclkByFreq
+ 	 * Needed for DWB support
+ 	 */
+-	void (*set_hard_min_socclk_by_freq)(struct pp_smu *pp, int khz);
++	void (*set_hard_min_socclk_by_freq)(struct pp_smu *pp, int mhz);
+ 
+ 	/* PME w/a */
+ 	void (*set_pme_wa_enable)(struct pp_smu *pp);
+-- 
+2.7.4
+

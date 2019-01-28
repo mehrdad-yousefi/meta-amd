@@ -1,0 +1,31 @@
+From f12d403a68ec1c93d775d9864893130a3ef1c42f Mon Sep 17 00:00:00 2001
+From: Kenneth Feng <kenneth.feng@amd.com>
+Date: Wed, 4 Apr 2018 15:17:22 +0800
+Subject: [PATCH 4169/5725] drm/amd/powerplay: Get more than 8 level gfxclk
+ states
+
+To apply on Vega12 for more than 8 gfx dpm levels
+
+Change-Id: I0a0e1e044b35d27a28a3145b2de365d3be6132cd
+Signed-off-by: Kenneth Feng <kenneth.feng@amd.com>
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.h b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.h
+index bc98b1d..e81ded1 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega12_hwmgr.h
+@@ -33,7 +33,7 @@
+ #define WaterMarksExist  1
+ #define WaterMarksLoaded 2
+ 
+-#define VG12_PSUEDO_NUM_GFXCLK_DPM_LEVELS   8
++#define VG12_PSUEDO_NUM_GFXCLK_DPM_LEVELS   16
+ #define VG12_PSUEDO_NUM_SOCCLK_DPM_LEVELS   8
+ #define VG12_PSUEDO_NUM_DCEFCLK_DPM_LEVELS  8
+ #define VG12_PSUEDO_NUM_UCLK_DPM_LEVELS     4
+-- 
+2.7.4
+

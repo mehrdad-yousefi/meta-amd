@@ -1,0 +1,58 @@
+From f41ca13059858dd5f06c3e0563ca08bf72116276 Mon Sep 17 00:00:00 2001
+From: Laura Abbott <labbott@redhat.com>
+Date: Fri, 13 Apr 2018 14:24:12 -0700
+Subject: [PATCH 5692/5725] drm/amdkfd: Remove vla
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There's an ongoing effort to remove VLAs[1] from the kernel to eventually
+turn on -Wvla. Switch to a constant value that covers all hardware.
+
+[1] https://lkml.org/lkml/2018/3/7/621
+
+Reviewed-by: Felix Kuehling <Felix.Kuehling@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Laura Abbott <labbott@redhat.com>
+Signed-off-by: Oded Gabbay <oded.gabbay@gmail.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_interrupt.c | 8 +++++---
+ drivers/gpu/drm/amd/amdkfd/kfd_priv.h      | 2 ++
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_interrupt.c b/drivers/gpu/drm/amd/amdkfd/kfd_interrupt.c
+index cda36c8..c56ac47 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_interrupt.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_interrupt.c
+@@ -139,10 +139,12 @@ static void interrupt_wq(struct work_struct *work)
+ {
+ 	struct kfd_dev *dev = container_of(work, struct kfd_dev,
+ 						interrupt_work);
++	uint32_t ih_ring_entry[KFD_MAX_RING_ENTRY_SIZE];
+ 
+-	uint32_t ih_ring_entry[DIV_ROUND_UP(
+-				dev->device_info->ih_ring_entry_size,
+-				sizeof(uint32_t))];
++	if (dev->device_info->ih_ring_entry_size > sizeof(ih_ring_entry)) {
++		dev_err_once(kfd_chardev(), "Ring entry too small\n");
++		return;
++	}
+ 
+ 	while (dequeue_ih_ring_entry(dev, ih_ring_entry))
+ 		dev->device_info->event_interrupt_class->interrupt_wq(dev,
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+index be46966..a21bab4 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_priv.h
+@@ -41,6 +41,8 @@
+ 
+ #include "amd_shared.h"
+ 
++#define KFD_MAX_RING_ENTRY_SIZE	8
++
+ #define KFD_SYSFS_FILE_MODE 0444
+ 
+ /* GPU ID hash width in bits */
+-- 
+2.7.4
+

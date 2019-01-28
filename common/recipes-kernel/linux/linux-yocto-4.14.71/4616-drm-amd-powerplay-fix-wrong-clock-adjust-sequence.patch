@@ -1,0 +1,49 @@
+From 76a5e22b4a31b667322d1195d300b95a28a39be6 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Wed, 6 Jun 2018 11:54:45 +0800
+Subject: [PATCH 4616/5725] drm/amd/powerplay: fix wrong clock adjust sequence
+
+The clocks should be adjusted after display configuration changed.
+Otherwise, the socclk and memclk may be forced on an unnecessary higher
+level.
+
+Change-Id: I0170e968ba1f64d15d4238b658eefc307adc2642
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c b/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c
+index 0af13c1..323990b 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/pp_psm.c
+@@ -265,19 +265,18 @@ int psm_adjust_power_state_dynamic(struct pp_hwmgr *hwmgr, bool skip,
+ 	if (skip)
+ 		return 0;
+ 
+-	if (!hwmgr->ps)
+-		/*
+-		 * for vega12/vega20 which does not support power state manager
+-		 * DAL clock limits should also be honoured
+-		 */
+-		phm_apply_clock_adjust_rules(hwmgr);
+-
+ 	phm_pre_display_configuration_changed(hwmgr);
+ 
+ 	phm_display_configuration_changed(hwmgr);
+ 
+ 	if (hwmgr->ps)
+ 		power_state_management(hwmgr, new_ps);
++	else
++		/*
++		 * for vega12/vega20 which does not support power state manager
++		 * DAL clock limits should also be honoured
++		 */
++		phm_apply_clock_adjust_rules(hwmgr);
+ 
+ 	phm_notify_smc_display_config_after_ps_adjustment(hwmgr);
+ 
+-- 
+2.7.4
+

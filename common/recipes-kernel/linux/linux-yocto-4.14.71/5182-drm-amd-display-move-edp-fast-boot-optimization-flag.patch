@@ -1,0 +1,128 @@
+From c8da9913728433fc368049782b1d586e410d2bcf Mon Sep 17 00:00:00 2001
+From: Anthony Koo <Anthony.Koo@amd.com>
+Date: Tue, 21 Aug 2018 14:28:05 -0500
+Subject: [PATCH 5182/5725] drm/amd/display: move edp fast boot optimization
+ flag to stream
+
+[Why]
+During S4/S3 stress test it is possible to resume from S4 without
+calling mode set on eDP, meaning high level optimization flag is not
+reset. If this is followed by an S3 resume call, driver will see
+optimization flag is set and consume it and think backend is powered
+on when in fact it is not.
+
+This results in PHY being off in sequence where
+S4->Resume->S3->Resume->ApplyOpt->black screen.
+
+[How]
+Move optimization flag to stream instead of a DC flag.
+
+Signed-off-by: Anthony Koo <Anthony.Koo@amd.com>
+Reviewed-by: Tony Cheng <Tony.Cheng@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc_link.c      |  4 ++--
+ drivers/gpu/drm/amd/display/dc/dc.h                |  2 --
+ drivers/gpu/drm/amd/display/dc/dc_stream.h         |  1 +
+ .../amd/display/dc/dce110/dce110_hw_sequencer.c    | 28 ++++++++++++++--------
+ 4 files changed, 21 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_link.c b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+index f8b299c..42d0ce7 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_link.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_link.c
+@@ -2497,8 +2497,8 @@ void core_link_enable_stream(
+ 
+ 	/* eDP lit up by bios already, no need to enable again. */
+ 	if (pipe_ctx->stream->signal == SIGNAL_TYPE_EDP &&
+-		core_dc->apply_edp_fast_boot_optimization) {
+-		core_dc->apply_edp_fast_boot_optimization = false;
++			pipe_ctx->stream->apply_edp_fast_boot_optimization) {
++		pipe_ctx->stream->apply_edp_fast_boot_optimization = false;
+ 		pipe_ctx->stream->dpms_off = false;
+ 		return;
+ 	}
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index f6069a0..ae17668 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -311,8 +311,6 @@ struct dc {
+ 
+ 	bool optimized_required;
+ 
+-	bool apply_edp_fast_boot_optimization;
+-
+ 	/* FBC compressor */
+ 	struct compressor *fbc_compressor;
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_stream.h b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+index 069c2fc..6e375ed 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_stream.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_stream.h
+@@ -102,6 +102,7 @@ struct dc_stream_state {
+ 	int phy_pix_clk;
+ 	enum signal_type signal;
+ 	bool dpms_off;
++	bool apply_edp_fast_boot_optimization;
+ 
+ 	struct dc_stream_status status;
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index 2fa8d04..d1add1b 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -1557,32 +1557,40 @@ static struct dc_link *get_link_for_edp_not_in_use(
+  */
+ void dce110_enable_accelerated_mode(struct dc *dc, struct dc_state *context)
+ {
++	int i;
+ 	struct dc_link *edp_link_to_turnoff = NULL;
+ 	struct dc_link *edp_link = get_link_for_edp(dc);
+-	bool can_eDP_fast_boot_optimize = false;
++	bool can_edp_fast_boot_optimize = false;
++	bool apply_edp_fast_boot_optimization = false;
+ 
+ 	if (edp_link) {
+ 		/* this seems to cause blank screens on DCE8 */
+ 		if ((dc->ctx->dce_version == DCE_VERSION_8_0) ||
+ 		    (dc->ctx->dce_version == DCE_VERSION_8_1) ||
+ 		    (dc->ctx->dce_version == DCE_VERSION_8_3))
+-			can_eDP_fast_boot_optimize = false;
++			can_edp_fast_boot_optimize = false;
+ 		else
+-			can_eDP_fast_boot_optimize =
++			can_edp_fast_boot_optimize =
+ 				edp_link->link_enc->funcs->is_dig_enabled(edp_link->link_enc);
+ 	}
+ 
+-	if (can_eDP_fast_boot_optimize) {
++	if (can_edp_fast_boot_optimize)
+ 		edp_link_to_turnoff = get_link_for_edp_not_in_use(dc, context);
+ 
+-		/* if OS doesn't light up eDP and eDP link is available, we want to disable
+-		 * If resume from S4/S5, should optimization.
+-		 */
+-		if (!edp_link_to_turnoff)
+-			dc->apply_edp_fast_boot_optimization = true;
++	/* if OS doesn't light up eDP and eDP link is available, we want to disable
++	 * If resume from S4/S5, should optimization.
++	 */
++	if (can_edp_fast_boot_optimize && !edp_link_to_turnoff) {
++		/* Find eDP stream and set optimization flag */
++		for (i = 0; i < context->stream_count; i++) {
++			if (context->streams[i]->signal == SIGNAL_TYPE_EDP) {
++				context->streams[i]->apply_edp_fast_boot_optimization = true;
++				apply_edp_fast_boot_optimization = true;
++			}
++		}
+ 	}
+ 
+-	if (!dc->apply_edp_fast_boot_optimization) {
++	if (!apply_edp_fast_boot_optimization) {
+ 		if (edp_link_to_turnoff) {
+ 			/*turn off backlight before DP_blank and encoder powered down*/
+ 			dc->hwss.edp_backlight_control(edp_link_to_turnoff, false);
+-- 
+2.7.4
+

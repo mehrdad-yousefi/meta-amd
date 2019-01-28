@@ -1,0 +1,189 @@
+From 288a3fa92d6143cb178c6475c803e0f3e4457e8c Mon Sep 17 00:00:00 2001
+From: Kevin Wang <Kevin1.Wang@amd.com>
+Date: Wed, 5 Sep 2018 13:06:31 +0800
+Subject: [PATCH 5169/5725] Revert "drm/amdgpu: switch firmware path for SI
+ parts"
+
+This reverts commit 95ab8a1338fc32958f1272e18947de65223c1f15.
+
+revert for dkms osdb build
+
+Change-Id: Ifd13dbb8b301227d72175b818e89cee20453a974
+Signed-off-by: Kevin Wang <Kevin1.Wang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c | 56 +++++++++++++++++------------------
+ drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c | 14 ++++-----
+ drivers/gpu/drm/amd/amdgpu/si_dpm.c   | 22 +++++++-------
+ 3 files changed, 46 insertions(+), 46 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
+index 4518021..0005f70 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
+@@ -44,30 +44,30 @@ static void gfx_v6_0_set_ring_funcs(struct amdgpu_device *adev);
+ static void gfx_v6_0_set_irq_funcs(struct amdgpu_device *adev);
+ static void gfx_v6_0_get_cu_info(struct amdgpu_device *adev);
+ 
+-MODULE_FIRMWARE("amdgpu/tahiti_pfp.bin");
+-MODULE_FIRMWARE("amdgpu/tahiti_me.bin");
+-MODULE_FIRMWARE("amdgpu/tahiti_ce.bin");
+-MODULE_FIRMWARE("amdgpu/tahiti_rlc.bin");
+-
+-MODULE_FIRMWARE("amdgpu/pitcairn_pfp.bin");
+-MODULE_FIRMWARE("amdgpu/pitcairn_me.bin");
+-MODULE_FIRMWARE("amdgpu/pitcairn_ce.bin");
+-MODULE_FIRMWARE("amdgpu/pitcairn_rlc.bin");
+-
+-MODULE_FIRMWARE("amdgpu/verde_pfp.bin");
+-MODULE_FIRMWARE("amdgpu/verde_me.bin");
+-MODULE_FIRMWARE("amdgpu/verde_ce.bin");
+-MODULE_FIRMWARE("amdgpu/verde_rlc.bin");
+-
+-MODULE_FIRMWARE("amdgpu/oland_pfp.bin");
+-MODULE_FIRMWARE("amdgpu/oland_me.bin");
+-MODULE_FIRMWARE("amdgpu/oland_ce.bin");
+-MODULE_FIRMWARE("amdgpu/oland_rlc.bin");
+-
+-MODULE_FIRMWARE("amdgpu/hainan_pfp.bin");
+-MODULE_FIRMWARE("amdgpu/hainan_me.bin");
+-MODULE_FIRMWARE("amdgpu/hainan_ce.bin");
+-MODULE_FIRMWARE("amdgpu/hainan_rlc.bin");
++MODULE_FIRMWARE("radeon/tahiti_pfp.bin");
++MODULE_FIRMWARE("radeon/tahiti_me.bin");
++MODULE_FIRMWARE("radeon/tahiti_ce.bin");
++MODULE_FIRMWARE("radeon/tahiti_rlc.bin");
++
++MODULE_FIRMWARE("radeon/pitcairn_pfp.bin");
++MODULE_FIRMWARE("radeon/pitcairn_me.bin");
++MODULE_FIRMWARE("radeon/pitcairn_ce.bin");
++MODULE_FIRMWARE("radeon/pitcairn_rlc.bin");
++
++MODULE_FIRMWARE("radeon/verde_pfp.bin");
++MODULE_FIRMWARE("radeon/verde_me.bin");
++MODULE_FIRMWARE("radeon/verde_ce.bin");
++MODULE_FIRMWARE("radeon/verde_rlc.bin");
++
++MODULE_FIRMWARE("radeon/oland_pfp.bin");
++MODULE_FIRMWARE("radeon/oland_me.bin");
++MODULE_FIRMWARE("radeon/oland_ce.bin");
++MODULE_FIRMWARE("radeon/oland_rlc.bin");
++
++MODULE_FIRMWARE("radeon/hainan_pfp.bin");
++MODULE_FIRMWARE("radeon/hainan_me.bin");
++MODULE_FIRMWARE("radeon/hainan_ce.bin");
++MODULE_FIRMWARE("radeon/hainan_rlc.bin");
+ 
+ static u32 gfx_v6_0_get_csb_size(struct amdgpu_device *adev);
+ static void gfx_v6_0_get_csb_buffer(struct amdgpu_device *adev, volatile u32 *buffer);
+@@ -335,7 +335,7 @@ static int gfx_v6_0_init_microcode(struct amdgpu_device *adev)
+ 	default: BUG();
+ 	}
+ 
+-	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_pfp.bin", chip_name);
++	snprintf(fw_name, sizeof(fw_name), "radeon/%s_pfp.bin", chip_name);
+ 	err = request_firmware(&adev->gfx.pfp_fw, fw_name, adev->dev);
+ 	if (err)
+ 		goto out;
+@@ -346,7 +346,7 @@ static int gfx_v6_0_init_microcode(struct amdgpu_device *adev)
+ 	adev->gfx.pfp_fw_version = le32_to_cpu(cp_hdr->header.ucode_version);
+ 	adev->gfx.pfp_feature_version = le32_to_cpu(cp_hdr->ucode_feature_version);
+ 
+-	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_me.bin", chip_name);
++	snprintf(fw_name, sizeof(fw_name), "radeon/%s_me.bin", chip_name);
+ 	err = request_firmware(&adev->gfx.me_fw, fw_name, adev->dev);
+ 	if (err)
+ 		goto out;
+@@ -357,7 +357,7 @@ static int gfx_v6_0_init_microcode(struct amdgpu_device *adev)
+ 	adev->gfx.me_fw_version = le32_to_cpu(cp_hdr->header.ucode_version);
+ 	adev->gfx.me_feature_version = le32_to_cpu(cp_hdr->ucode_feature_version);
+ 
+-	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_ce.bin", chip_name);
++	snprintf(fw_name, sizeof(fw_name), "radeon/%s_ce.bin", chip_name);
+ 	err = request_firmware(&adev->gfx.ce_fw, fw_name, adev->dev);
+ 	if (err)
+ 		goto out;
+@@ -368,7 +368,7 @@ static int gfx_v6_0_init_microcode(struct amdgpu_device *adev)
+ 	adev->gfx.ce_fw_version = le32_to_cpu(cp_hdr->header.ucode_version);
+ 	adev->gfx.ce_feature_version = le32_to_cpu(cp_hdr->ucode_feature_version);
+ 
+-	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_rlc.bin", chip_name);
++	snprintf(fw_name, sizeof(fw_name), "radeon/%s_rlc.bin", chip_name);
+ 	err = request_firmware(&adev->gfx.rlc_fw, fw_name, adev->dev);
+ 	if (err)
+ 		goto out;
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+index 8fc37d7..a5077a9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v6_0.c
+@@ -41,11 +41,11 @@ static void gmc_v6_0_set_gmc_funcs(struct amdgpu_device *adev);
+ static void gmc_v6_0_set_irq_funcs(struct amdgpu_device *adev);
+ static int gmc_v6_0_wait_for_idle(void *handle);
+ 
+-MODULE_FIRMWARE("amdgpu/tahiti_mc.bin");
+-MODULE_FIRMWARE("amdgpu/pitcairn_mc.bin");
+-MODULE_FIRMWARE("amdgpu/verde_mc.bin");
+-MODULE_FIRMWARE("amdgpu/oland_mc.bin");
+-MODULE_FIRMWARE("amdgpu/si58_mc.bin");
++MODULE_FIRMWARE("radeon/tahiti_mc.bin");
++MODULE_FIRMWARE("radeon/pitcairn_mc.bin");
++MODULE_FIRMWARE("radeon/verde_mc.bin");
++MODULE_FIRMWARE("radeon/oland_mc.bin");
++MODULE_FIRMWARE("radeon/si58_mc.bin");
+ 
+ #define MC_SEQ_MISC0__MT__MASK   0xf0000000
+ #define MC_SEQ_MISC0__MT__GDDR1  0x10000000
+@@ -134,9 +134,9 @@ static int gmc_v6_0_init_microcode(struct amdgpu_device *adev)
+ 		is_58_fw = true;
+ 
+ 	if (is_58_fw)
+-		snprintf(fw_name, sizeof(fw_name), "amdgpu/si58_mc.bin");
++		snprintf(fw_name, sizeof(fw_name), "radeon/si58_mc.bin");
+ 	else
+-		snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_mc.bin", chip_name);
++		snprintf(fw_name, sizeof(fw_name), "radeon/%s_mc.bin", chip_name);
+ 	err = request_firmware(&adev->gmc.fw, fw_name, adev->dev);
+ 	if (err)
+ 		goto out;
+diff --git a/drivers/gpu/drm/amd/amdgpu/si_dpm.c b/drivers/gpu/drm/amd/amdgpu/si_dpm.c
+index a32f6f6..996a4e5 100644
+--- a/drivers/gpu/drm/amd/amdgpu/si_dpm.c
++++ b/drivers/gpu/drm/amd/amdgpu/si_dpm.c
+@@ -56,16 +56,16 @@
+ 
+ #define BIOS_SCRATCH_4                                    0x5cd
+ 
+-MODULE_FIRMWARE("amdgpu/tahiti_smc.bin");
+-MODULE_FIRMWARE("amdgpu/pitcairn_smc.bin");
+-MODULE_FIRMWARE("amdgpu/pitcairn_k_smc.bin");
+-MODULE_FIRMWARE("amdgpu/verde_smc.bin");
+-MODULE_FIRMWARE("amdgpu/verde_k_smc.bin");
+-MODULE_FIRMWARE("amdgpu/oland_smc.bin");
+-MODULE_FIRMWARE("amdgpu/oland_k_smc.bin");
+-MODULE_FIRMWARE("amdgpu/hainan_smc.bin");
+-MODULE_FIRMWARE("amdgpu/hainan_k_smc.bin");
+-MODULE_FIRMWARE("amdgpu/banks_k_2_smc.bin");
++MODULE_FIRMWARE("radeon/tahiti_smc.bin");
++MODULE_FIRMWARE("radeon/pitcairn_smc.bin");
++MODULE_FIRMWARE("radeon/pitcairn_k_smc.bin");
++MODULE_FIRMWARE("radeon/verde_smc.bin");
++MODULE_FIRMWARE("radeon/verde_k_smc.bin");
++MODULE_FIRMWARE("radeon/oland_smc.bin");
++MODULE_FIRMWARE("radeon/oland_k_smc.bin");
++MODULE_FIRMWARE("radeon/hainan_smc.bin");
++MODULE_FIRMWARE("radeon/hainan_k_smc.bin");
++MODULE_FIRMWARE("radeon/banks_k_2_smc.bin");
+ 
+ static const struct amd_pm_funcs si_dpm_funcs;
+ 
+@@ -7663,7 +7663,7 @@ static int si_dpm_init_microcode(struct amdgpu_device *adev)
+ 	default: BUG();
+ 	}
+ 
+-	snprintf(fw_name, sizeof(fw_name), "amdgpu/%s_smc.bin", chip_name);
++	snprintf(fw_name, sizeof(fw_name), "radeon/%s_smc.bin", chip_name);
+ 	err = request_firmware(&adev->pm.fw, fw_name, adev->dev);
+ 	if (err)
+ 		goto out;
+-- 
+2.7.4
+

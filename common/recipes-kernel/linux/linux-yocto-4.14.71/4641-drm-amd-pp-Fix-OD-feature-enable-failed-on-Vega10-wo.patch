@@ -1,0 +1,53 @@
+From 1572dafa69d7c575e814487ce37498d857eace05 Mon Sep 17 00:00:00 2001
+From: Rex Zhu <Rex.Zhu@amd.com>
+Date: Tue, 12 Jun 2018 14:26:00 +0800
+Subject: [PATCH 4641/5725] drm/amd/pp: Fix OD feature enable failed on Vega10
+ workstation cards
+
+As hw required, soc clock must large than mclk, So we set max soc
+clock to OD Max Memory clk.
+But on workstation, vbios do not support OD feature, the OD max memory
+clock is equal to 0. In this case, driver can support underclocking.
+and set od max memory clock to the value in highest memory dpm level.
+So the od max memory clock should be less than highest soc clock.
+and driver should not change the soc clock.
+
+caused by commit ca57b9b0a156
+("drm/amd/pp: Allow underclocking when od table is empty in vbios")
+
+Reviewed-by: Evan Quan <evan.quan@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+index 896c10b..f49e0d3 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/vega10_hwmgr.c
+@@ -321,8 +321,12 @@ static int vega10_odn_initial_default_setting(struct pp_hwmgr *hwmgr)
+ 		odn_table->min_vddc = dep_table[0]->entries[0].vddc;
+ 
+ 	i = od_table[2]->count - 1;
+-	od_table[2]->entries[i].clk = hwmgr->platform_descriptor.overdriveLimit.memoryClock;
+-	od_table[2]->entries[i].vddc = odn_table->max_vddc;
++	od_table[2]->entries[i].clk = hwmgr->platform_descriptor.overdriveLimit.memoryClock > od_table[2]->entries[i].clk ?
++					hwmgr->platform_descriptor.overdriveLimit.memoryClock :
++					od_table[2]->entries[i].clk;
++	od_table[2]->entries[i].vddc = odn_table->max_vddc > od_table[2]->entries[i].vddc ?
++					odn_table->max_vddc :
++					od_table[2]->entries[i].vddc;
+ 
+ 	return 0;
+ }
+@@ -1325,6 +1329,7 @@ static int vega10_setup_default_dpm_tables(struct pp_hwmgr *hwmgr)
+ 	if (hwmgr->platform_descriptor.overdriveLimit.memoryClock == 0)
+ 		hwmgr->platform_descriptor.overdriveLimit.memoryClock =
+ 					dpm_table->dpm_levels[dpm_table->count-1].value;
++
+ 	vega10_init_dpm_state(&(dpm_table->dpm_state));
+ 
+ 	data->dpm_table.eclk_table.count = 0;
+-- 
+2.7.4
+

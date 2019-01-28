@@ -1,0 +1,30 @@
+From 1647630c611b5143b128a2319d0c61c1bb459ba5 Mon Sep 17 00:00:00 2001
+From: kbuild test robot <fengguang.wu@intel.com>
+Date: Wed, 22 Aug 2018 10:31:01 +0800
+Subject: [PATCH 5194/5725] drm/amdgpu: amdgpu_kiq_reg_write_reg_wait() can be
+ static
+
+Fixes: d790449835e6 ("drm/amdgpu: use kiq to do invalidate tlb")
+Reviewed-by: Emily Deng <Emily.Deng@amd.com>
+Signed-off-by: kbuild test robot <fengguang.wu@intel.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+index 02366a5..2a96c0a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v9_0.c
+@@ -310,7 +310,7 @@ static uint32_t gmc_v9_0_get_invalidate_req(unsigned int vmid)
+ 	return req;
+ }
+ 
+-signed long  amdgpu_kiq_reg_write_reg_wait(struct amdgpu_device *adev,
++static signed long  amdgpu_kiq_reg_write_reg_wait(struct amdgpu_device *adev,
+ 						  uint32_t reg0, uint32_t reg1,
+ 						  uint32_t ref, uint32_t mask)
+ {
+-- 
+2.7.4
+

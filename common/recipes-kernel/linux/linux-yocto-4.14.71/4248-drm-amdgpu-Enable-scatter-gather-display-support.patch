@@ -1,0 +1,59 @@
+From 544d0d569ce1ea6549d4400cb92e90f65922c3d5 Mon Sep 17 00:00:00 2001
+From: Samuel Li <Samuel.Li@amd.com>
+Date: Wed, 18 Apr 2018 16:15:52 -0400
+Subject: [PATCH 4248/5725] drm/amdgpu: Enable scatter gather display support
+
+Enables sg display if vram size <= THRESHOLD(256M); otherwise
+still use vram as display buffer.
+This patch fixed some potention issues introduced by change
+"allow framebuffer in GART memory as well" due to CZ/ST hardware
+limitation.
+
+v2: Change default setting to auto.
+v3: Move some logic from amdgpu_display_framebuffer_domains()
+    to pin function, suggested by Christian.
+v4: Split into several patches.
+v5: Drop module parameter for now.
+
+Signed-off-by: Samuel Li <Samuel.Li@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h        | 1 +
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 9 +++++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 01496d7..7ba0b6b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -140,6 +140,7 @@ extern int amdgpu_si_support;
+ extern int amdgpu_cik_support;
+ #endif
+ 
++#define AMDGPU_SG_THRESHOLD			(256*1024*1024)
+ #define AMDGPU_DEFAULT_GTT_SIZE_MB		3072ULL /* 3GB by default */
+ #define AMDGPU_WAIT_IDLE_TIMEOUT_IN_MS	        3000
+ #define AMDGPU_MAX_USEC_TIMEOUT			100000	/* 100 ms */
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index dcf5acd..9d6c659 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -741,6 +741,15 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+ 			return -EINVAL;
+ 	}
+ 
++	/* This assumes only APU display buffers are pinned with (VRAM|GTT).
++	 * See function amdgpu_display_supported_domains()
++	 */
++	if (domain == (AMDGPU_GEM_DOMAIN_VRAM | AMDGPU_GEM_DOMAIN_GTT)) {
++		domain = AMDGPU_GEM_DOMAIN_VRAM;
++		if (adev->gmc.real_vram_size <= AMDGPU_SG_THRESHOLD)
++			domain = AMDGPU_GEM_DOMAIN_GTT;
++	}
++
+ 	if (bo->pin_count) {
+ 		uint32_t mem_type = bo->tbo.mem.mem_type;
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,190 @@
+From c9b18e8580a988a80be3ba87c157b8afdc5d3d63 Mon Sep 17 00:00:00 2001
+From: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Date: Thu, 26 Jul 2018 09:32:48 -0400
+Subject: [PATCH 5070/5725] drm/amd/display: Add support for toggling DFS
+ bypass
+
+[Why]
+
+If the hardware supports DFS bypass it will always be enabled after
+creation of the DCCG. DFS bypass should only be enabled when
+the current stream consists of a single embedded panel and the
+minimum display clock is below the DFS bypass threshold.
+
+[How]
+
+Add a function to the DCCG table that updates the DFS bypass state
+when setting the bandwidth. If the DFS bypass state is changed, the
+clock needs to be reprogrammed to reflect this before the DPREFCLK
+is updated for audio endpoints. The existing display clock value
+is used as the target display clock value when reprogramming since the
+resulting change will be equal or larger to the current value.
+
+These changes only specifically target dce110 but do offer a framework
+for support on other applicable targets.
+
+Signed-off-by: Nicholas Kazlauskas <nicholas.kazlauskas@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c    | 63 ++++++++++++++++++++--
+ drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h    |  2 +
+ .../amd/display/dc/dce110/dce110_hw_sequencer.c    | 12 ++++-
+ .../gpu/drm/amd/display/dc/inc/hw/display_clock.h  |  5 ++
+ 4 files changed, 76 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+index 10bb8095..51ceb99 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.c
+@@ -249,13 +249,12 @@ static int dce_set_clock(
+ 	pxl_clk_params.target_pixel_clock = requested_clk_khz;
+ 	pxl_clk_params.pll_id = CLOCK_SOURCE_ID_DFS;
+ 
+-	if (clk_dce->dfs_bypass_enabled)
++	if (clk_dce->dfs_bypass_active)
+ 		pxl_clk_params.flags.SET_DISPCLK_DFS_BYPASS = true;
+ 
+ 	bp->funcs->program_display_engine_pll(bp, &pxl_clk_params);
+ 
+-	if (clk_dce->dfs_bypass_enabled) {
+-
++	if (clk_dce->dfs_bypass_active) {
+ 		/* Cache the fixed display clock*/
+ 		clk_dce->dfs_bypass_disp_clk =
+ 			pxl_clk_params.dfs_bypass_display_clock;
+@@ -671,6 +670,61 @@ static void dce_update_clocks(struct dccg *dccg,
+ 	}
+ }
+ 
++static bool dce_update_dfs_bypass(
++       struct dccg *dccg,
++       struct dc *dc,
++       struct dc_state *context,
++       int requested_clock_khz)
++{
++       struct dce_dccg *clk_dce = TO_DCE_CLOCKS(dccg);
++       struct resource_context *res_ctx = &context->res_ctx;
++       enum signal_type signal_type = SIGNAL_TYPE_NONE;
++       bool was_active = clk_dce->dfs_bypass_active;
++       int i;
++
++       /* Disable DFS bypass by default. */
++       clk_dce->dfs_bypass_active = false;
++
++       /* Check that DFS bypass is available. */
++       if (!clk_dce->dfs_bypass_enabled)
++               goto update;
++
++       /* Check if the requested display clock is below the threshold. */
++       if (requested_clock_khz >= 400000)
++               goto update;
++
++       /* DFS-bypass should only be enabled on single stream setups */
++       if (context->stream_count != 1)
++               goto update;
++
++       /* Check that the stream's signal type is an embedded panel */
++       for (i = 0; i < dc->res_pool->pipe_count; i++) {
++               if (res_ctx->pipe_ctx[i].stream) {
++                       struct pipe_ctx *pipe_ctx = &res_ctx->pipe_ctx[i];
++
++                       signal_type = pipe_ctx->stream->sink->link->connector_signal;
++                       break;
++               }
++       }
++
++       if (signal_type == SIGNAL_TYPE_EDP ||
++               signal_type == SIGNAL_TYPE_LVDS)
++               clk_dce->dfs_bypass_active = true;
++
++update:
++       /* Update the clock state. We don't need to respect safe_to_lower
++        * because DFS bypass should always be greater than the current
++        * display clock frequency.
++        */
++       if (was_active != clk_dce->dfs_bypass_active) {
++               dccg->clks.dispclk_khz =
++                       dccg->funcs->set_dispclk(dccg, dccg->clks.dispclk_khz);
++               return true;
++       }
++
++       return false;
++}
++
+ #ifdef CONFIG_X86
+ static const struct display_clock_funcs dcn1_funcs = {
+ 	.get_dp_ref_clk_frequency = dce12_get_dp_ref_freq_khz,
+@@ -694,7 +748,8 @@ static const struct display_clock_funcs dce112_funcs = {
+ static const struct display_clock_funcs dce110_funcs = {
+ 	.get_dp_ref_clk_frequency = dce_get_dp_ref_freq_khz,
+ 	.set_dispclk = dce_psr_set_clock,
+-	.update_clocks = dce_update_clocks
++	.update_clocks = dce_update_clocks,
++	.update_dfs_bypass = dce_update_dfs_bypass
+ };
+ 
+ static const struct display_clock_funcs dce_funcs = {
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h
+index e5e44ad..8be68eb 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clocks.h
+@@ -78,6 +78,8 @@ struct dce_dccg {
+ 
+ 	/* Cache the status of DFS-bypass feature*/
+ 	bool dfs_bypass_enabled;
++	/* True if the DFS-bypass feature is enabled and active. */
++	bool dfs_bypass_active;
+ 	/* Cache the display clock returned by VBIOS if DFS-bypass is enabled.
+ 	 * This is basically "Crystal Frequency In KHz" (XTALIN) frequency */
+ 	int dfs_bypass_disp_clk;
+diff --git a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+index afd1743..3b4a9f9 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dce110/dce110_hw_sequencer.c
+@@ -2539,6 +2539,7 @@ void dce110_set_bandwidth(
+ 		bool decrease_allowed)
+ {
+ 	struct dc_clocks req_clks;
++	struct dccg *dccg = dc->res_pool->dccg;
+ 
+ 	req_clks.dispclk_khz = context->bw.dce.dispclk_khz;
+ 	req_clks.phyclk_khz = get_max_pixel_clock_for_all_paths(dc, context);
+@@ -2548,8 +2549,15 @@ void dce110_set_bandwidth(
+ 	else
+ 		dce110_set_safe_displaymarks(&context->res_ctx, dc->res_pool);
+ 
+-	dc->res_pool->dccg->funcs->update_clocks(
+-			dc->res_pool->dccg,
++	if (dccg->funcs->update_dfs_bypass)
++		dccg->funcs->update_dfs_bypass(
++			dccg,
++			dc,
++			context,
++			req_clks.dispclk_khz);
++
++	dccg->funcs->update_clocks(
++			dccg,
+ 			&req_clks,
+ 			decrease_allowed);
+ 	pplib_apply_display_requirements(dc, context);
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/hw/display_clock.h b/drivers/gpu/drm/amd/display/dc/inc/hw/display_clock.h
+index 3c7ccb6..689faa1 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/hw/display_clock.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/hw/display_clock.h
+@@ -53,6 +53,11 @@ struct display_clock_funcs {
+ 		int requested_clock_khz);
+ 
+ 	int (*get_dp_ref_clk_frequency)(struct dccg *dccg);
++
++	bool (*update_dfs_bypass)(struct dccg *dccg,
++		struct dc *dc,
++		struct dc_state *context,
++		int requested_clock_khz);
+ };
+ 
+ #endif /* __DISPLAY_CLOCK_H__ */
+-- 
+2.7.4
+

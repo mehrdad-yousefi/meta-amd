@@ -1,0 +1,42 @@
+From 0936adc809c9d0d1781edce5a3f723fc43d187ed Mon Sep 17 00:00:00 2001
+From: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+Date: Tue, 27 Mar 2018 11:28:55 -0400
+Subject: [PATCH 5621/5725] drm/amdgpu: kfd2kgd: Support BO create from sg
+
+Change-Id: I3d50a285f6c5645995dcd45b66129fb8837f2bd4
+Signed-off-by: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 2 +-
+ drivers/gpu/drm/amd/amdkfd/kfd_process.c | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 01c8b19..33a5793 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1272,7 +1272,7 @@ static int kfd_ioctl_alloc_memory_of_gpu(struct file *filep,
+ 
+ 	err = dev->kfd2kgd->alloc_memory_of_gpu(
+ 		dev->kgd, args->va_addr, args->size,
+-		pdd->vm, (struct kgd_mem **) &mem, &offset,
++		pdd->vm, NULL, (struct kgd_mem **) &mem, &offset,
+ 		flags);
+ 
+ 	if (err)
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_process.c b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+index c627b63..5fa3559 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_process.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_process.c
+@@ -120,7 +120,8 @@ static int kfd_process_alloc_gpuvm(struct kfd_process_device *pdd,
+ 	int err;
+ 
+ 	err = kdev->kfd2kgd->alloc_memory_of_gpu(kdev->kgd, gpu_va, size,
+-						 pdd->vm, &mem, NULL, flags);
++						 pdd->vm, NULL, &mem, NULL,
++						 flags);
+ 	if (err)
+ 		goto err_alloc_mem;
+ 
+-- 
+2.7.4
+

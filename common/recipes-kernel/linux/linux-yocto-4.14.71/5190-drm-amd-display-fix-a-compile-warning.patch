@@ -1,0 +1,44 @@
+From 211b7243418fc68f7574237637f7ba182911f5f3 Mon Sep 17 00:00:00 2001
+From: Wen Yang <wen.yang99@zte.com.cn>
+Date: Fri, 17 Aug 2018 11:09:48 +0800
+Subject: [PATCH 5190/5725] drm/amd/display: fix a compile warning
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fix comile warning like,
+  CC [M]  drivers/gpu/drm/i915/gvt/execlist.o
+  CC [M]  drivers/gpu/drm/nouveau/nvkm/subdev/instmem/nv50.o
+  CC [M]  drivers/gpu/drm/radeon/btc_dpm.o
+  CC [M]  drivers/isdn/hisax/avm_a1p.o
+  CC [M]  drivers/gpu/drm/amd/amdgpu/../display/dc/dcn10/dcn10_dpp.o
+drivers/gpu/drm/amd/amdgpu/../display/dc/dcn10/dcn10_hw_sequencer.c: In function ‘dcn10_update_mpcc’:
+drivers/gpu/drm/amd/amdgpu/../display/dc/dcn10/dcn10_hw_sequencer.c:1903:9: warning: missing braces around initializer [-Wmissing-braces]
+  struct mpcc_blnd_cfg blnd_cfg = {0};
+         ^
+drivers/gpu/drm/amd/amdgpu/../display/dc/dcn10/dcn10_hw_sequencer.c:1903:9: warning: (near initialization for ‘blnd_cfg.black_color’) [-Wmissing-braces]
+
+Acked-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Wen Yang <wen.yang99@zte.com.cn>
+Reviewed-by: Jiang Biao <jiang.biao2@zte.com.cn>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+index 051f427..1c5bb14 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_hw_sequencer.c
+@@ -1917,7 +1917,7 @@ static void update_dpp(struct dpp *dpp, struct dc_plane_state *plane_state)
+ static void dcn10_update_mpcc(struct dc *dc, struct pipe_ctx *pipe_ctx)
+ {
+ 	struct hubp *hubp = pipe_ctx->plane_res.hubp;
+-	struct mpcc_blnd_cfg blnd_cfg = {0};
++	struct mpcc_blnd_cfg blnd_cfg = {{0}};
+ 	bool per_pixel_alpha = pipe_ctx->plane_state->per_pixel_alpha && pipe_ctx->bottom_pipe;
+ 	int mpcc_id;
+ 	struct mpcc *new_mpcc;
+-- 
+2.7.4
+

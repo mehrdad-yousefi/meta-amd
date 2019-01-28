@@ -1,0 +1,30 @@
+From 488ed90009247f2783dc321dc205fddf9b31cdef Mon Sep 17 00:00:00 2001
+From: Feifei Xu <Feifei.Xu@amd.com>
+Date: Fri, 20 Apr 2018 13:32:46 +0800
+Subject: [PATCH 4391/5725] drm/amdgpu/powerplay: Add initial vega20 support v2
+
+Initial powerplay support the same as vega10 for now.
+
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Hawking Zhang <Hawking.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+index 71b4233..e63bc47 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/hwmgr.c
+@@ -151,6 +151,7 @@ int hwmgr_early_init(struct pp_hwmgr *hwmgr)
+ 		hwmgr->feature_mask &= ~PP_GFXOFF_MASK;
+ 		switch (hwmgr->chip_id) {
+ 		case CHIP_VEGA10:
++		case CHIP_VEGA20:
+ 			hwmgr->smumgr_funcs = &vega10_smu_funcs;
+ 			vega10_hwmgr_init(hwmgr);
+ 			break;
+-- 
+2.7.4
+

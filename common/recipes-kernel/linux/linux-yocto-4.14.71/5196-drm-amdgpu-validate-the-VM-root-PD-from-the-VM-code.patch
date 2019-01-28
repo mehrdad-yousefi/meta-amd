@@ -1,0 +1,42 @@
+From 6d514bcb1053af1796748d2d9515318b7abec0a4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Wed, 15 Aug 2018 19:10:40 +0200
+Subject: [PATCH 5196/5725] drm/amdgpu: validate the VM root PD from the VM
+ code
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Preparation for following changes. This validates the root PD twice,
+but the overhead of that should be minimal.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index deaef9f..bd12f4a 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -291,11 +291,11 @@ int amdgpu_vm_validate_pt_bos(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	list_for_each_entry_safe(bo_base, tmp, &vm->evicted, vm_status) {
+ 		struct amdgpu_bo *bo = bo_base->bo;
+ 
+-		if (bo->parent) {
+-			r = validate(param, bo);
+-			if (r)
+-				break;
++		r = validate(param, bo);
++		if (r)
++			break;
+ 
++		if (bo->parent) {
+ 			spin_lock(&glob->lru_lock);
+ 			ttm_bo_move_to_lru_tail(&bo->tbo);
+ 			if (bo->shadow)
+-- 
+2.7.4
+

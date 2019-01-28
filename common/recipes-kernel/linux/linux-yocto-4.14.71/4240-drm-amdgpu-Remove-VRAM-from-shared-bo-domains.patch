@@ -1,0 +1,42 @@
+From e45ae87a05e45e3da96c2900e2f8fba33f38a7aa Mon Sep 17 00:00:00 2001
+From: Samuel Li <Samuel.Li@amd.com>
+Date: Wed, 18 Apr 2018 16:26:18 -0400
+Subject: [PATCH 4240/5725] drm/amdgpu: Remove VRAM from shared bo domains.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This fixes an issue introduced by change "allow framebuffer in GART
+memory as well" which could lead to a shared buffer ending up
+pinned in vram.  Use GTT if it is included in the domain, otherwise
+return an error.
+
+Signed-off-by: Samuel Li <Samuel.Li@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index af6f1c5..dcf5acd 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -734,8 +734,12 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+ 		return -EINVAL;
+ 
+ 	/* A shared bo cannot be migrated to VRAM */
+-	if (bo->prime_shared_count && (domain == AMDGPU_GEM_DOMAIN_VRAM))
+-		return -EINVAL;
++	if (bo->prime_shared_count) {
++		if (domain & AMDGPU_GEM_DOMAIN_GTT)
++			domain = AMDGPU_GEM_DOMAIN_GTT;
++		else
++			return -EINVAL;
++	}
+ 
+ 	if (bo->pin_count) {
+ 		uint32_t mem_type = bo->tbo.mem.mem_type;
+-- 
+2.7.4
+

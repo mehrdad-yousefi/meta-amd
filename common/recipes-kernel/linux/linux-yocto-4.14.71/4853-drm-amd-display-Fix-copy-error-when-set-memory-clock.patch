@@ -1,0 +1,34 @@
+From afe0cec5197d44d6d59671128eb8dde5d3ae22fc Mon Sep 17 00:00:00 2001
+From: Rex Zhu <rex.zhu@amd.com>
+Date: Tue, 3 Jul 2018 17:17:21 +0800
+Subject: [PATCH 4853/5725] drm/amd/display: Fix copy error when set memory
+ clocks
+
+Set memory clocks same as soc clocks
+
+Acked-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Rex Zhu <Rex.Zhu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+index 9c105c0..50e8630 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_pp_smu.c
+@@ -503,9 +503,9 @@ void pp_rv_set_wm_ranges(struct pp_smu *pp,
+ 		wm_soc_clocks[i].wm_min_socclk_clk_in_khz =
+ 				ranges->writer_wm_sets[i].min_fill_clk_khz;
+ 		wm_soc_clocks[i].wm_max_mem_clk_in_khz =
+-				ranges->writer_wm_sets[i].max_fill_clk_khz;
++				ranges->writer_wm_sets[i].max_drain_clk_khz;
+ 		wm_soc_clocks[i].wm_min_mem_clk_in_khz =
+-				ranges->writer_wm_sets[i].min_fill_clk_khz;
++				ranges->writer_wm_sets[i].min_drain_clk_khz;
+ 	}
+ 
+ 	pp_funcs->set_watermarks_for_clocks_ranges(pp_handle, &wm_with_clock_ranges);
+-- 
+2.7.4
+

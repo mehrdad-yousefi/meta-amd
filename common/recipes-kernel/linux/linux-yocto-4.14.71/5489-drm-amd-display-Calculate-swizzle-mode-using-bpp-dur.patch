@@ -1,0 +1,213 @@
+From d65fce193c443c6d29ac5252941de442203a633a Mon Sep 17 00:00:00 2001
+From: Su Sung Chung <Su.Chung@amd.com>
+Date: Thu, 13 Sep 2018 15:26:08 -0400
+Subject: [PATCH 5489/5725] drm/amd/display: Calculate swizzle mode using bpp
+ during validation
+
+[Why]
+Previously bandwidth validation was failing because swizzle mode was not
+initialized during plane_state allocation. The swizzle mode was
+calculated using pixed format which is how swizzle mode is initially
+calculated in addrlib.
+
+[How]
+* Set default swizzle mode for validation to DC_SW_UNKNOWN
+* Created new function in dcn10_assign_swizzle_mode which sets the
+  plane swizzle mode based on selected pixed format
+* Added the call of assign_swizzle_mode into dc_validate_global_state
+* Set failsafe swizzle mode back to DC_SW_LINEAR
+
+Signed-off-by: Su Sung Chung <Su.Chung@amd.com>
+Reviewed-by: Eric Yang <eric.yang2@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/core/dc.c           | 30 ++----------------
+ drivers/gpu/drm/amd/display/dc/core/dc_resource.c  | 37 ++++++++++++++++++++++
+ drivers/gpu/drm/amd/display/dc/dc_hw_types.h       |  3 +-
+ .../gpu/drm/amd/display/dc/dcn10/dcn10_resource.c  | 21 +++++++++++-
+ drivers/gpu/drm/amd/display/dc/inc/core_types.h    |  3 ++
+ drivers/gpu/drm/amd/display/dc/inc/resource.h      |  3 ++
+ 6 files changed, 67 insertions(+), 30 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index 080b9cb..2d1e774 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -1139,32 +1139,6 @@ static bool is_surface_in_context(
+ 	return false;
+ }
+ 
+-static unsigned int pixel_format_to_bpp(enum surface_pixel_format format)
+-{
+-	switch (format) {
+-	case SURFACE_PIXEL_FORMAT_VIDEO_420_YCbCr:
+-	case SURFACE_PIXEL_FORMAT_VIDEO_420_YCrCb:
+-		return 12;
+-	case SURFACE_PIXEL_FORMAT_GRPH_ARGB1555:
+-	case SURFACE_PIXEL_FORMAT_GRPH_RGB565:
+-	case SURFACE_PIXEL_FORMAT_VIDEO_420_10bpc_YCbCr:
+-	case SURFACE_PIXEL_FORMAT_VIDEO_420_10bpc_YCrCb:
+-		return 16;
+-	case SURFACE_PIXEL_FORMAT_GRPH_ARGB8888:
+-	case SURFACE_PIXEL_FORMAT_GRPH_ABGR8888:
+-	case SURFACE_PIXEL_FORMAT_GRPH_ARGB2101010:
+-	case SURFACE_PIXEL_FORMAT_GRPH_ABGR2101010:
+-		return 32;
+-	case SURFACE_PIXEL_FORMAT_GRPH_ARGB16161616:
+-	case SURFACE_PIXEL_FORMAT_GRPH_ARGB16161616F:
+-	case SURFACE_PIXEL_FORMAT_GRPH_ABGR16161616F:
+-		return 64;
+-	default:
+-		ASSERT_CRITICAL(false);
+-		return -1;
+-	}
+-}
+-
+ static enum surface_update_type get_plane_info_update_type(const struct dc_surface_update *u)
+ {
+ 	union surface_update_flags *update_flags = &u->surface->update_flags;
+@@ -1198,8 +1172,8 @@ static enum surface_update_type get_plane_info_update_type(const struct dc_surfa
+ 			|| u->plane_info->dcc.grph.meta_pitch != u->surface->dcc.grph.meta_pitch)
+ 		update_flags->bits.dcc_change = 1;
+ 
+-	if (pixel_format_to_bpp(u->plane_info->format) !=
+-			pixel_format_to_bpp(u->surface->format))
++	if (resource_pixel_format_to_bpp(u->plane_info->format) !=
++			resource_pixel_format_to_bpp(u->surface->format))
+ 		/* different bytes per element will require full bandwidth
+ 		 * and DML calculation
+ 		 */
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+index 28a9b24..4942810 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc_resource.c
+@@ -2082,6 +2082,14 @@ enum dc_status dc_validate_global_state(
+ 			if (pipe_ctx->stream != stream)
+ 				continue;
+ 
++			if (dc->res_pool->funcs->get_default_swizzle_mode &&
++					pipe_ctx->plane_state &&
++					pipe_ctx->plane_state->tiling_info.gfx9.swizzle == DC_SW_UNKNOWN) {
++				result = dc->res_pool->funcs->get_default_swizzle_mode(pipe_ctx->plane_state);
++				if (result != DC_OK)
++					return result;
++			}
++
+ 			/* Switch to dp clock source only if there is
+ 			 * no non dp stream that shares the same timing
+ 			 * with the dp stream.
+@@ -2871,3 +2879,32 @@ enum dc_status dc_validate_plane(struct dc *dc, const struct dc_plane_state *pla
+ 
+ 	return res;
+ }
++
++unsigned int resource_pixel_format_to_bpp(enum surface_pixel_format format)
++{
++	switch (format) {
++	case SURFACE_PIXEL_FORMAT_GRPH_PALETA_256_COLORS:
++		return 8;
++	case SURFACE_PIXEL_FORMAT_VIDEO_420_YCbCr:
++	case SURFACE_PIXEL_FORMAT_VIDEO_420_YCrCb:
++		return 12;
++	case SURFACE_PIXEL_FORMAT_GRPH_ARGB1555:
++	case SURFACE_PIXEL_FORMAT_GRPH_RGB565:
++	case SURFACE_PIXEL_FORMAT_VIDEO_420_10bpc_YCbCr:
++	case SURFACE_PIXEL_FORMAT_VIDEO_420_10bpc_YCrCb:
++		return 16;
++	case SURFACE_PIXEL_FORMAT_GRPH_ARGB8888:
++	case SURFACE_PIXEL_FORMAT_GRPH_ABGR8888:
++	case SURFACE_PIXEL_FORMAT_GRPH_ARGB2101010:
++	case SURFACE_PIXEL_FORMAT_GRPH_ABGR2101010:
++	case SURFACE_PIXEL_FORMAT_GRPH_ABGR2101010_XR_BIAS:
++		return 32;
++	case SURFACE_PIXEL_FORMAT_GRPH_ARGB16161616:
++	case SURFACE_PIXEL_FORMAT_GRPH_ARGB16161616F:
++	case SURFACE_PIXEL_FORMAT_GRPH_ABGR16161616F:
++		return 64;
++	default:
++		ASSERT_CRITICAL(false);
++		return -1;
++	}
++}
+diff --git a/drivers/gpu/drm/amd/display/dc/dc_hw_types.h b/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
+index 57f57cf..7825e4b 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
++++ b/drivers/gpu/drm/amd/display/dc/dc_hw_types.h
+@@ -289,7 +289,8 @@ enum swizzle_mode_values {
+ 	DC_SW_VAR_S_X = 29,
+ 	DC_SW_VAR_D_X = 30,
+ 	DC_SW_VAR_R_X = 31,
+-	DC_SW_MAX
++	DC_SW_MAX = 32,
++	DC_SW_UNKNOWN = DC_SW_MAX
+ };
+ 
+ union dc_tiling_info {
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+index e148f70..910f0b4 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn10/dcn10_resource.c
+@@ -1131,6 +1131,24 @@ static enum dc_status dcn10_validate_plane(const struct dc_plane_state *plane_st
+ 	return DC_OK;
+ }
+ 
++static enum dc_status dcn10_get_default_swizzle_mode(struct dc_plane_state *plane_state)
++{
++	enum dc_status result = DC_OK;
++
++	enum surface_pixel_format surf_pix_format = plane_state->format;
++	unsigned int bpp = resource_pixel_format_to_bpp(surf_pix_format);
++
++	enum swizzle_mode_values swizzle = DC_SW_LINEAR;
++
++	if (bpp == 64)
++		swizzle = DC_SW_64KB_D;
++	else
++		swizzle = DC_SW_64KB_S;
++
++	plane_state->tiling_info.gfx9.swizzle = swizzle;
++	return result;
++}
++
+ static const struct dc_cap_funcs cap_funcs = {
+ 	.get_dcc_compression_cap = dcn10_get_dcc_compression_cap
+ };
+@@ -1141,7 +1159,8 @@ static const struct resource_funcs dcn10_res_pool_funcs = {
+ 	.validate_bandwidth = dcn_validate_bandwidth,
+ 	.acquire_idle_pipe_for_layer = dcn10_acquire_idle_pipe_for_layer,
+ 	.validate_plane = dcn10_validate_plane,
+-	.add_stream_to_ctx = dcn10_add_stream_to_ctx
++	.add_stream_to_ctx = dcn10_add_stream_to_ctx,
++	.get_default_swizzle_mode = dcn10_get_default_swizzle_mode
+ };
+ 
+ static uint32_t read_pipe_fuses(struct dc_context *ctx)
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/core_types.h b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+index d7dadfd..879c34e 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/core_types.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/core_types.h
+@@ -119,6 +119,9 @@ struct resource_funcs {
+ 				struct dc *dc,
+ 				struct dc_state *new_ctx,
+ 				struct dc_stream_state *stream);
++	enum dc_status (*get_default_swizzle_mode)(
++			struct dc_plane_state *plane_state);
++
+ };
+ 
+ struct audio_support{
+diff --git a/drivers/gpu/drm/amd/display/dc/inc/resource.h b/drivers/gpu/drm/amd/display/dc/inc/resource.h
+index 76d00c6..33b99e3 100644
+--- a/drivers/gpu/drm/amd/display/dc/inc/resource.h
++++ b/drivers/gpu/drm/amd/display/dc/inc/resource.h
+@@ -172,4 +172,7 @@ void update_audio_usage(
+ 		const struct resource_pool *pool,
+ 		struct audio *audio,
+ 		bool acquired);
++
++unsigned int resource_pixel_format_to_bpp(enum surface_pixel_format format);
++
+ #endif /* DRIVERS_GPU_DRM_AMD_DC_DEV_DC_INC_RESOURCE_H_ */
+-- 
+2.7.4
+

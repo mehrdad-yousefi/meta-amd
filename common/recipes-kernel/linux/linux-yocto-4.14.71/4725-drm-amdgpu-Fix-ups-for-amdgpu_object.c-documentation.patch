@@ -1,0 +1,261 @@
+From 51392c1794ba799b582d8240d1c8a4ae0b3028f3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Michel=20D=C3=A4nzer?= <michel.daenzer@amd.com>
+Date: Fri, 1 Jun 2018 12:29:45 +0200
+Subject: [PATCH 4725/5725] drm/amdgpu: Fix-ups for amdgpu_object.c
+ documentation
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+* Fix format of return value descriptions
+* Document all parameters of amdgpu_bo_free_kernel
+* Document amdgpu_bo_get_preferred_pin_domain
+
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_object.c | 70 ++++++++++++++++++++----------
+ 1 file changed, 47 insertions(+), 23 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+index e85c07b..31f8de1 100755
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_object.c
+@@ -96,7 +96,8 @@ static void amdgpu_ttm_bo_destroy(struct ttm_buffer_object *tbo)
+  * Uses destroy function associated with the object to determine if this is
+  * an &amdgpu_bo.
+  *
+- * Returns true if the object belongs to &amdgpu_bo, false if not.
++ * Returns:
++ * true if the object belongs to &amdgpu_bo, false if not.
+  */
+ bool amdgpu_ttm_bo_is_amdgpu_bo(struct ttm_buffer_object *bo)
+ {
+@@ -237,7 +238,8 @@ void amdgpu_ttm_placement_from_domain(struct amdgpu_bo *abo, u32 domain)
+  *
+  * Note: For bo_ptr new BO is only created if bo_ptr points to NULL.
+  *
+- * Returns 0 on success, negative error code otherwise.
++ * Returns:
++ * 0 on success, negative error code otherwise.
+  */
+ int amdgpu_bo_create_reserved(struct amdgpu_device *adev,
+ 			      unsigned long size, int align,
+@@ -314,7 +316,8 @@ int amdgpu_bo_create_reserved(struct amdgpu_device *adev,
+  *
+  * Note: For bo_ptr new BO is only created if bo_ptr points to NULL.
+  *
+- * Returns 0 on success, negative error code otherwise.
++ * Returns:
++ * 0 on success, negative error code otherwise.
+  */
+ int amdgpu_bo_create_kernel(struct amdgpu_device *adev,
+ 			    unsigned long size, int align,
+@@ -338,6 +341,8 @@ int amdgpu_bo_create_kernel(struct amdgpu_device *adev,
+  * amdgpu_bo_free_kernel - free BO for kernel use
+  *
+  * @bo: amdgpu BO to free
++ * @gpu_addr: pointer to where the BO's GPU memory space address was stored
++ * @cpu_addr: pointer to where the BO's CPU memory space address was stored
+  *
+  * unmaps and unpin a BO for kernel internal use.
+  */
+@@ -579,7 +584,8 @@ static int amdgpu_bo_create_shadow(struct amdgpu_device *adev,
+  * Shadow object is used to backup the original buffer object, and is always
+  * in GTT.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_create(struct amdgpu_device *adev,
+ 			struct amdgpu_bo_param *bp,
+@@ -622,7 +628,8 @@ int amdgpu_bo_create(struct amdgpu_device *adev,
+  * Copies an &amdgpu_bo buffer object to its shadow object.
+  * Not used for now.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_backup_to_shadow(struct amdgpu_device *adev,
+ 			       struct amdgpu_ring *ring,
+@@ -665,7 +672,8 @@ int amdgpu_bo_backup_to_shadow(struct amdgpu_device *adev,
+  * This is used for validating shadow bos.  It calls ttm_bo_validate() to
+  * make sure the buffer is resident where it needs to be.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_validate(struct amdgpu_bo *bo)
+ {
+@@ -702,7 +710,8 @@ int amdgpu_bo_validate(struct amdgpu_bo *bo)
+  * This is used for recovering a buffer from its shadow in case of a gpu
+  * reset where vram context may be lost.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_restore_from_shadow(struct amdgpu_device *adev,
+ 				  struct amdgpu_ring *ring,
+@@ -744,7 +753,8 @@ int amdgpu_bo_restore_from_shadow(struct amdgpu_device *adev,
+  * Calls ttm_bo_kmap() to set up the kernel virtual mapping; calls
+  * amdgpu_bo_kptr() to get the kernel virtual address.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_kmap(struct amdgpu_bo *bo, void **ptr)
+ {
+@@ -782,7 +792,8 @@ int amdgpu_bo_kmap(struct amdgpu_bo *bo, void **ptr)
+  *
+  * Calls ttm_kmap_obj_virtual() to get the kernel virtual address
+  *
+- * Returns the virtual address of a buffer object area.
++ * Returns:
++ * the virtual address of a buffer object area.
+  */
+ void *amdgpu_bo_kptr(struct amdgpu_bo *bo)
+ {
+@@ -809,7 +820,8 @@ void amdgpu_bo_kunmap(struct amdgpu_bo *bo)
+  *
+  * References the contained &ttm_buffer_object.
+  *
+- * Returns a refcounted pointer to the &amdgpu_bo buffer object.
++ * Returns:
++ * a refcounted pointer to the &amdgpu_bo buffer object.
+  */
+ struct amdgpu_bo *amdgpu_bo_ref(struct amdgpu_bo *bo)
+ {
+@@ -859,7 +871,8 @@ void amdgpu_bo_unref(struct amdgpu_bo **bo)
+  * where to pin a buffer if there are specific restrictions on where a buffer
+  * must be located.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+ 			     u64 min_offset, u64 max_offset,
+@@ -964,7 +977,8 @@ int amdgpu_bo_pin_restricted(struct amdgpu_bo *bo, u32 domain,
+  * Provides a simpler API for buffers that do not have any strict restrictions
+  * on where a buffer must be located.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_pin(struct amdgpu_bo *bo, u32 domain, u64 *gpu_addr)
+ {
+@@ -978,7 +992,8 @@ int amdgpu_bo_pin(struct amdgpu_bo *bo, u32 domain, u64 *gpu_addr)
+  * Decreases the pin_count, and clears the flags if pin_count reaches 0.
+  * Changes placement and pin size accordingly.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_unpin(struct amdgpu_bo *bo)
+ {
+@@ -1019,7 +1034,8 @@ int amdgpu_bo_unpin(struct amdgpu_bo *bo)
+  * Evicts all VRAM buffers on the lru list of the memory type.
+  * Mainly used for evicting vram at suspend time.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_evict_vram(struct amdgpu_device *adev)
+ {
+@@ -1049,7 +1065,8 @@ static const char *amdgpu_vram_names[] = {
+  *
+  * Calls amdgpu_ttm_init() to initialize amdgpu memory manager.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_init(struct amdgpu_device *adev)
+ {
+@@ -1075,7 +1092,8 @@ int amdgpu_bo_init(struct amdgpu_device *adev)
+  * Calls amdgpu_ttm_late_init() to free resources used earlier during
+  * initialization.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_late_init(struct amdgpu_device *adev)
+ {
+@@ -1104,7 +1122,8 @@ void amdgpu_bo_fini(struct amdgpu_device *adev)
+  *
+  * Calls ttm_fbdev_mmap() to mmap fbdev memory if it is backed by a bo.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_fbdev_mmap(struct amdgpu_bo *bo,
+ 			     struct vm_area_struct *vma)
+@@ -1120,7 +1139,8 @@ int amdgpu_bo_fbdev_mmap(struct amdgpu_bo *bo,
+  * Sets buffer object's tiling flags with the new one. Used by GEM ioctl or
+  * kernel driver to set the tiling flags on a buffer.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_set_tiling_flags(struct amdgpu_bo *bo, u64 tiling_flags)
+ {
+@@ -1160,7 +1180,8 @@ void amdgpu_bo_get_tiling_flags(struct amdgpu_bo *bo, u64 *tiling_flags)
+  * Sets buffer object's metadata, its size and flags.
+  * Used via GEM ioctl.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_set_metadata (struct amdgpu_bo *bo, void *metadata,
+ 			    uint32_t metadata_size, uint64_t flags)
+@@ -1203,7 +1224,8 @@ int amdgpu_bo_set_metadata (struct amdgpu_bo *bo, void *metadata,
+  * less than metadata_size.
+  * Used via GEM ioctl.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_get_metadata(struct amdgpu_bo *bo, void *buffer,
+ 			   size_t buffer_size, uint32_t *metadata_size,
+@@ -1274,7 +1296,8 @@ void amdgpu_bo_move_notify(struct ttm_buffer_object *bo,
+  * also performs bookkeeping.
+  * TTM driver callback for dealing with vm faults.
+  *
+- * Returns 0 for success or a negative error code on failure.
++ * Returns:
++ * 0 for success or a negative error code on failure.
+  */
+ int amdgpu_bo_fault_reserve_notify(struct ttm_buffer_object *bo)
+ {
+@@ -1349,10 +1372,11 @@ void amdgpu_bo_fence(struct amdgpu_bo *bo, struct dma_fence *fence,
+  * amdgpu_bo_gpu_offset - return GPU offset of bo
+  * @bo:	amdgpu object for which we query the offset
+  *
+- * Returns current GPU offset of the object.
+- *
+  * Note: object should either be pinned or reserved when calling this
+  * function, it might be useful to add check for this for debugging.
++ *
++ * Returns:
++ * current GPU offset of the object.
+  */
+ u64 amdgpu_bo_gpu_offset(struct amdgpu_bo *bo)
+ {
+-- 
+2.7.4
+

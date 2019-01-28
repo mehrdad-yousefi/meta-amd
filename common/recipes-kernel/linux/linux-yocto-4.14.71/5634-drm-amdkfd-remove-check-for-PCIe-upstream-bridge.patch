@@ -1,0 +1,37 @@
+From 3944f92b3180fc83bf15a96bb3ec4d1b979a58ad Mon Sep 17 00:00:00 2001
+From: welu <Wei.Lu2@amd.com>
+Date: Wed, 4 Apr 2018 11:44:04 -0400
+Subject: [PATCH 5634/5725] drm/amdkfd: remove check for PCIe upstream bridge
+
+atomic support for GFX9 GPUs.
+1. set vega10 needs_pci_atomics as false because vega10 do not need
+pci atomics;
+2. firstly try to enable atomics in pci_enable_atomic_ops_to_root()
+and if this function failed and need_pic_atomics is true,
+we need to report the error and return NULL.
+
+Bug:SWDEV-149359
+
+Change-Id: I71cbbe63cb1f03f606f8f4b5e4b8c796e164e0d1
+Signed-off-by: welu <Wei.Lu2@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device.c b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+index 26c6163..088f5db 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device.c
+@@ -207,7 +207,7 @@ static const struct kfd_device_info polaris11_device_info = {
+ 	.mqd_size_aligned = MQD_SIZE_ALIGNED,
+ 	.supports_cwsr = true,
+ 	.needs_iommu_device = false,
+-	.needs_pci_atomics = true,
++	.needs_pci_atomics = false,
+ 	.num_sdma_engines = 2,
+ };
+ 
+-- 
+2.7.4
+

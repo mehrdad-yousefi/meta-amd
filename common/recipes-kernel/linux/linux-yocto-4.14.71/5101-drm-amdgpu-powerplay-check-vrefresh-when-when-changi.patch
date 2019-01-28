@@ -1,0 +1,129 @@
+From 3e6308fb44e64513771f433769df77098134bf27 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Thu, 9 Aug 2018 14:24:08 -0500
+Subject: [PATCH 5101/5725] drm/amdgpu/powerplay: check vrefresh when when
+ changing displays
+
+Compare the current vrefresh in addition to the number of displays
+when determining whether or not the smu needs updates when changing
+modes. The SMU needs to be updated if the vbi timeout changes due
+to a different refresh rate.  Fixes flickering around mode changes
+in some cases on polaris parts.
+
+Reviewed-by: Rex Zhu <Rex.Zhu@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c        | 3 +++
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.h        | 1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/ci_smumgr.c        | 1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c      | 3 ++-
+ drivers/gpu/drm/amd/powerplay/smumgr/iceland_smumgr.c   | 1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/polaris10_smumgr.c | 1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/tonga_smumgr.c     | 1 +
+ drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c     | 1 +
+ 8 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+index d785b76..15e110f 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.c
+@@ -4132,6 +4132,9 @@ smu7_check_smc_update_required_for_display_configuration(struct pp_hwmgr *hwmgr)
+ 	if (data->display_timing.num_existing_displays != hwmgr->display_config->num_display)
+ 		is_update_required = true;
+ 
++	if (data->display_timing.vrefresh != hwmgr->display_config->vrefresh)
++		is_update_required = true;
++
+ 	if (phm_cap_enabled(hwmgr->platform_descriptor.platformCaps, PHM_PlatformCaps_SclkDeepSleep)) {
+ 		if (data->display_timing.min_clock_in_sr != hwmgr->display_config->min_core_set_clock_in_sr &&
+ 			(data->display_timing.min_clock_in_sr >= SMU7_MINIMUM_ENGINE_CLOCK ||
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.h b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.h
+index 3784ce6..69d361f 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.h
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu7_hwmgr.h
+@@ -156,6 +156,7 @@ struct smu7_vbios_boot_state {
+ struct smu7_display_timing {
+ 	uint32_t  min_clock_in_sr;
+ 	uint32_t  num_existing_displays;
++	uint32_t  vrefresh;
+ };
+ 
+ struct smu7_dpmlevel_enable_mask {
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/ci_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/ci_smumgr.c
+index fbe3ef4..18643e0 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/ci_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/ci_smumgr.c
+@@ -1231,6 +1231,7 @@ static int ci_populate_single_memory_level(
+ 	memory_level->DisplayWatermark = PPSMC_DISPLAY_WATERMARK_LOW;
+ 
+ 	data->display_timing.num_existing_displays = hwmgr->display_config->num_display;
++	data->display_timing.vrefresh = hwmgr->display_config->vrefresh;
+ 
+ 	/* stutter mode not support on ci */
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c
+index 18048f8..ec14798 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/fiji_smumgr.c
+@@ -1210,7 +1210,8 @@ static int fiji_populate_single_memory_level(struct pp_hwmgr *hwmgr,
+ 	 * PECI_GetNumberOfActiveDisplays(hwmgr->pPECI,
+ 	 * &(data->DisplayTiming.numExistingDisplays));
+ 	 */
+-	data->display_timing.num_existing_displays = 1;
++	data->display_timing.num_existing_displays = hwmgr->display_config->num_display;
++	data->display_timing.vrefresh = hwmgr->display_config->vrefresh;
+ 
+ 	if (mclk_stutter_mode_threshold &&
+ 		(clock <= mclk_stutter_mode_threshold) &&
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/iceland_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/iceland_smumgr.c
+index 9299b93..73aa368 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/iceland_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/iceland_smumgr.c
+@@ -1280,6 +1280,7 @@ static int iceland_populate_single_memory_level(
+ 	memory_level->DisplayWatermark = PPSMC_DISPLAY_WATERMARK_LOW;
+ 
+ 	data->display_timing.num_existing_displays = hwmgr->display_config->num_display;
++	data->display_timing.vrefresh = hwmgr->display_config->vrefresh;
+ 
+ 	/* stutter mode not support on iceland */
+ 
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/polaris10_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/polaris10_smumgr.c
+index 1276f16..872d382 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/polaris10_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/polaris10_smumgr.c
+@@ -1103,6 +1103,7 @@ static int polaris10_populate_single_memory_level(struct pp_hwmgr *hwmgr,
+ 	mem_level->DisplayWatermark = PPSMC_DISPLAY_WATERMARK_LOW;
+ 
+ 	data->display_timing.num_existing_displays = hwmgr->display_config->num_display;
++	data->display_timing.vrefresh = hwmgr->display_config->vrefresh;
+ 
+ 	if (mclk_stutter_mode_threshold &&
+ 		(clock <= mclk_stutter_mode_threshold) &&
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/tonga_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/tonga_smumgr.c
+index 7dabc6c..ae8378e 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/tonga_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/tonga_smumgr.c
+@@ -1004,6 +1004,7 @@ static int tonga_populate_single_memory_level(
+ 	memory_level->DisplayWatermark = PPSMC_DISPLAY_WATERMARK_LOW;
+ 
+ 	data->display_timing.num_existing_displays = hwmgr->display_config->num_display;
++	data->display_timing.vrefresh = hwmgr->display_config->vrefresh;
+ 
+ 	if ((mclk_stutter_mode_threshold != 0) &&
+ 	    (memory_clock <= mclk_stutter_mode_threshold) &&
+diff --git a/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c b/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
+index 57420d7..3d415fa 100644
+--- a/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
++++ b/drivers/gpu/drm/amd/powerplay/smumgr/vegam_smumgr.c
+@@ -1009,6 +1009,7 @@ static int vegam_populate_single_memory_level(struct pp_hwmgr *hwmgr,
+ 	mem_level->DisplayWatermark = PPSMC_DISPLAY_WATERMARK_LOW;
+ 
+ 	data->display_timing.num_existing_displays = hwmgr->display_config->num_display;
++	data->display_timing.vrefresh = hwmgr->display_config->vrefresh;
+ 
+ 	if (mclk_stutter_mode_threshold &&
+ 		(clock <= mclk_stutter_mode_threshold) &&
+-- 
+2.7.4
+

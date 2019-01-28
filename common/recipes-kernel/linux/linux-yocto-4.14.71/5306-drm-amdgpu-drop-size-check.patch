@@ -1,0 +1,46 @@
+From 227bc979d2b556195511885787bee0e67636db90 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 14 Sep 2018 21:06:50 +0200
+Subject: [PATCH 5306/5725] drm/amdgpu: drop size check
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We no don't allocate zero sized kernel BOs any longer.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c | 15 ++++++---------
+ 1 file changed, 6 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+index 212ce92..1654715 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c
+@@ -1990,15 +1990,12 @@ int amdgpu_ttm_init(struct amdgpu_device *adev)
+ 	 * This is used for VGA emulation and pre-OS scanout buffers to
+ 	 * avoid display artifacts while transitioning between pre-OS
+ 	 * and driver.  */
+-	if (adev->gmc.stolen_size) {
+-		r = amdgpu_bo_create_kernel(adev, adev->gmc.stolen_size, PAGE_SIZE,
+-					    AMDGPU_GEM_DOMAIN_VRAM,
+-					    &adev->stolen_vga_memory,
+-					    NULL, NULL);
+-		if (r)
+-			return r;
+-	}
+-
++	r = amdgpu_bo_create_kernel(adev, adev->gmc.stolen_size, PAGE_SIZE,
++				    AMDGPU_GEM_DOMAIN_VRAM,
++				    &adev->stolen_vga_memory,
++				    NULL, NULL);
++	if (r)
++		return r;	
+ 	DRM_INFO("amdgpu: %uM of VRAM memory ready\n",
+ 		 (unsigned) (adev->gmc.real_vram_size / (1024 * 1024)));
+ 
+-- 
+2.7.4
+

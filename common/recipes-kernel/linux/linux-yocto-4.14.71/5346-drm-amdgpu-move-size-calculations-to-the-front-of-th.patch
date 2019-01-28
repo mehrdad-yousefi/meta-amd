@@ -1,0 +1,123 @@
+From 48e0e1bcb40cd4a729cc6f899e9e9057ba4e70c4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Thu, 30 Aug 2018 10:31:52 +0200
+Subject: [PATCH 5346/5725] drm/amdgpu: move size calculations to the front of
+ the file again
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+amdgpu_vm_bo_* functions should come much later.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Junwei Zhang <Jerry.Zhang@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 84 +++++++++++++++++-----------------
+ 1 file changed, 42 insertions(+), 42 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index feef79c..8b83cc4 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -134,48 +134,6 @@ struct amdgpu_prt_cb {
+ };
+ 
+ /**
+- * amdgpu_vm_bo_base_init - Adds bo to the list of bos associated with the vm
+- *
+- * @base: base structure for tracking BO usage in a VM
+- * @vm: vm to which bo is to be added
+- * @bo: amdgpu buffer object
+- *
+- * Initialize a bo_va_base structure and add it to the appropriate lists
+- *
+- */
+-static void amdgpu_vm_bo_base_init(struct amdgpu_vm_bo_base *base,
+-				   struct amdgpu_vm *vm,
+-				   struct amdgpu_bo *bo)
+-{
+-	base->vm = vm;
+-	base->bo = bo;
+-	INIT_LIST_HEAD(&base->bo_list);
+-	INIT_LIST_HEAD(&base->vm_status);
+-
+-	if (!bo)
+-		return;
+-	list_add_tail(&base->bo_list, &bo->va);
+-
+-	if (bo->tbo.type == ttm_bo_type_kernel)
+-		list_move(&base->vm_status, &vm->relocated);
+-
+-	if (bo->tbo.resv != vm->root.base.bo->tbo.resv)
+-		return;
+-
+-	if (bo->preferred_domains &
+-	    amdgpu_mem_type_to_domain(bo->tbo.mem.mem_type))
+-		return;
+-
+-	/*
+-	 * we checked all the prerequisites, but it looks like this per vm bo
+-	 * is currently evicted. add the bo to the evicted list to make sure it
+-	 * is validated on next vm use to avoid fault.
+-	 * */
+-	list_move_tail(&base->vm_status, &vm->evicted);
+-	base->moved = true;
+-}
+-
+-/**
+  * amdgpu_vm_level_shift - return the addr shift for each level
+  *
+  * @adev: amdgpu_device pointer
+@@ -247,6 +205,48 @@ static unsigned amdgpu_vm_bo_size(struct amdgpu_device *adev, unsigned level)
+ }
+ 
+ /**
++ * amdgpu_vm_bo_base_init - Adds bo to the list of bos associated with the vm
++ *
++ * @base: base structure for tracking BO usage in a VM
++ * @vm: vm to which bo is to be added
++ * @bo: amdgpu buffer object
++ *
++ * Initialize a bo_va_base structure and add it to the appropriate lists
++ *
++ */
++static void amdgpu_vm_bo_base_init(struct amdgpu_vm_bo_base *base,
++                                   struct amdgpu_vm *vm,
++                                   struct amdgpu_bo *bo)
++{
++        base->vm = vm;
++        base->bo = bo;
++        INIT_LIST_HEAD(&base->bo_list);
++        INIT_LIST_HEAD(&base->vm_status);
++
++        if (!bo)
++                return;
++        list_add_tail(&base->bo_list, &bo->va);
++
++        if (bo->tbo.type == ttm_bo_type_kernel)
++                list_move(&base->vm_status, &vm->relocated);
++
++        if (bo->tbo.resv != vm->root.base.bo->tbo.resv)
++                return;
++
++        if (bo->preferred_domains &
++            amdgpu_mem_type_to_domain(bo->tbo.mem.mem_type))
++                return;
++
++        /*
++         * we checked all the prerequisites, but it looks like this per vm bo
++         * is currently evicted. add the bo to the evicted list to make sure it
++         * is validated on next vm use to avoid fault.
++         * */
++        list_move_tail(&base->vm_status, &vm->evicted);
++        base->moved = true;
++}
++
++/**
+  * amdgpu_vm_get_pd_bo - add the VM PD to a validation list
+  *
+  * @vm: vm providing the BOs
+-- 
+2.7.4
+

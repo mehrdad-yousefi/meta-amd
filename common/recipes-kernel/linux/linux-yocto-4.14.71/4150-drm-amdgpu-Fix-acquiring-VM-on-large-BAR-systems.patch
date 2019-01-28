@@ -1,0 +1,32 @@
+From 4e9babb2ea3572f2c4bbf0739bb4968d90dc1290 Mon Sep 17 00:00:00 2001
+From: Felix Kuehling <Felix.Kuehling@amd.com>
+Date: Wed, 21 Mar 2018 16:59:34 -0400
+Subject: [PATCH 4150/5725] drm/amdgpu: Fix acquiring VM on large-BAR systems
+
+On large-BAR systems the VM page tables for compute are accessed by
+the CPU. Always allow CPU access to the page directory so that it can
+be used later by the CPU when a VM is converted to a compute VM.
+
+Change-Id: I5f2876c3d7a159bda2ddabb6014b4a3123275071
+Signed-off-by: Felix Kuehling <Felix.Kuehling@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 6c071ae..1a7d9aba 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -2454,8 +2454,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 	if (vm->use_cpu_for_update)
+ 		flags |= AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
+ 	else
+-		flags |= (AMDGPU_GEM_CREATE_NO_CPU_ACCESS |
+-				AMDGPU_GEM_CREATE_SHADOW);
++		flags |= AMDGPU_GEM_CREATE_SHADOW;
+ 
+ 	size = amdgpu_vm_bo_size(adev, adev->vm_manager.root_level);
+ 	r = amdgpu_bo_create(adev, size, align, AMDGPU_GEM_DOMAIN_VRAM, flags,
+-- 
+2.7.4
+

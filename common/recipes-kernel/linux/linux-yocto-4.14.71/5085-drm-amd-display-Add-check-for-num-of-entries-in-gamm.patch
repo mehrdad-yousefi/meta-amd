@@ -1,0 +1,33 @@
+From 356beb979312bc7885fb4f59b2cfefe30b208f0a Mon Sep 17 00:00:00 2001
+From: Vitaly Prosyak <vitaly.prosyak@amd.com>
+Date: Thu, 12 Jul 2018 14:26:47 -0500
+Subject: [PATCH 5085/5725] drm/amd/display: Add check for num of entries in
+ gamma
+
+This check avoids potential bugs related to gamma.
+
+Signed-off-by: Vitaly Prosyak <vitaly.prosyak@amd.com>
+Reviewed-by: Charlene Liu <Charlene.Liu@amd.com>
+Acked-by: Bhawanpreet Lakha <Bhawanpreet.Lakha@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/modules/color/color_gamma.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+index 646e60d..e130aac 100644
+--- a/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
++++ b/drivers/gpu/drm/amd/display/modules/color/color_gamma.c
+@@ -1575,7 +1575,8 @@ bool mod_color_calculate_degamma_params(struct dc_transfer_func *input_tf,
+ 	/* we can use hardcoded curve for plain SRGB TF */
+ 	if (input_tf->type == TF_TYPE_PREDEFINED &&
+ 			input_tf->tf == TRANSFER_FUNCTION_SRGB &&
+-			(!mapUserRamp && ramp->type == GAMMA_RGB_256))
++			(!mapUserRamp &&
++			(ramp->type == GAMMA_RGB_256 || ramp->num_entries == 0)))
+ 		return true;
+ 
+ 	input_tf->type = TF_TYPE_DISTRIBUTED_POINTS;
+-- 
+2.7.4
+

@@ -1,0 +1,34 @@
+From da5225e6b37767398878ee99236adf5ba94d5c5e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Sat, 15 Sep 2018 10:04:54 +0200
+Subject: [PATCH 5419/5725] drm/amdgpu: fix parameter documentation for
+ amdgpu_vm_free_pts
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The function was modified without updating the documentation.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+index 1e09cf3..85d700b 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c
+@@ -870,8 +870,7 @@ int amdgpu_vm_alloc_pts(struct amdgpu_device *adev,
+  * amdgpu_vm_free_pts - free PD/PT levels
+  *
+  * @adev: amdgpu device structure
+- * @parent: PD/PT starting level to free
+- * @level: level of parent structure
++ * @vm: amdgpu vm structure
+  *
+  * Free the page directory or page table level and all sub levels.
+  */
+-- 
+2.7.4
+

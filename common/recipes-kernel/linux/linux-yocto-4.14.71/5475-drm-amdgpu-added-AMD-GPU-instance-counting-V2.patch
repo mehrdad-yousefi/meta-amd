@@ -1,0 +1,158 @@
+From 3a4bcdefa362f429f7ee5e3d4fbf50a4ae32d370 Mon Sep 17 00:00:00 2001
+From: Evan Quan <evan.quan@amd.com>
+Date: Thu, 27 Sep 2018 13:26:58 +0800
+Subject: [PATCH 5475/5725] drm/amdgpu: added AMD GPU instance counting V2
+
+Count all GPU instances from AMD(including iGPUs and
+dGPUs) in the system.
+
+V2: drop unnecessary initialization for other gpu_info
+    members except mutex
+
+Change-Id: If62a0873c64857a3fcdf9785557e24cb3456c12e
+Signed-off-by: Evan Quan <evan.quan@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu.h     | 18 ++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c |  3 ++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c | 52 +++++++++++++++++++++++++++++++++
+ 3 files changed, 73 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu.h b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+index 7d10f6e..15e12e7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu.h
+@@ -82,6 +82,23 @@
+ #include "amdgpu_bo_list.h"
+ #include "amdgpu_gem.h"
+ 
++#define MAX_GPU_INSTANCE		16
++
++struct amdgpu_gpu_instance
++{
++	struct amdgpu_device		*adev;
++	int				mgpu_fan_enabled;
++};
++
++struct amdgpu_mgpu_info
++{
++	struct amdgpu_gpu_instance	gpu_ins[MAX_GPU_INSTANCE];
++	struct mutex			mutex;
++	uint32_t			num_gpu;
++	uint32_t			num_dgpu;
++	uint32_t			num_apu;
++};
++
+ /*
+  * Modules parameters.
+  */
+@@ -139,6 +156,7 @@ extern int amdgpu_compute_multipipe;
+ extern int amdgpu_gpu_recovery;
+ extern int amdgpu_emu_mode;
+ extern uint amdgpu_smu_memory_pool_size;
++extern struct amdgpu_mgpu_info mgpu_info;
+ 
+ #ifdef CONFIG_DRM_AMDGPU_SI
+ extern int amdgpu_si_support;
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+index 626a172..5f59a07 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c
+@@ -133,6 +133,9 @@ int amdgpu_compute_multipipe = -1;
+ int amdgpu_gpu_recovery = -1; /* auto */
+ int amdgpu_emu_mode = 0;
+ uint amdgpu_smu_memory_pool_size = 0;
++struct amdgpu_mgpu_info mgpu_info = {
++	.mutex = __MUTEX_INITIALIZER(mgpu_info.mutex),
++};
+ 
+ /**
+  * DOC: vramlimit (int)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+index 42b9d30..625eb29 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_kms.c
+@@ -40,6 +40,30 @@
+ #include "amdgpu_gem.h"
+ #include "amdgpu_display.h"
+ 
++static void amdgpu_unregister_gpu_instance(struct amdgpu_device *adev)
++{
++	struct amdgpu_gpu_instance *gpu_instance;
++	int i;
++
++	mutex_lock(&mgpu_info.mutex);
++
++	for (i = 0; i < mgpu_info.num_gpu; i++) {
++		gpu_instance = &(mgpu_info.gpu_ins[i]);
++		if (gpu_instance->adev == adev) {
++			mgpu_info.gpu_ins[i] =
++				mgpu_info.gpu_ins[mgpu_info.num_gpu - 1];
++			mgpu_info.num_gpu--;
++			if (adev->flags & AMD_IS_APU)
++				mgpu_info.num_apu--;
++			else
++				mgpu_info.num_dgpu--;
++			break;
++		}
++	}
++
++	mutex_unlock(&mgpu_info.mutex);
++}
++
+ /**
+  * amdgpu_driver_unload_kms - Main unload function for KMS.
+  *
+@@ -55,6 +79,8 @@ void amdgpu_driver_unload_kms(struct drm_device *dev)
+ 	if (adev == NULL)
+ 		return;
+ 
++	amdgpu_unregister_gpu_instance(adev);
++
+ 	if (adev->rmmio == NULL)
+ 		goto done_free;
+ 
+@@ -75,6 +101,31 @@ void amdgpu_driver_unload_kms(struct drm_device *dev)
+ 	dev->dev_private = NULL;
+ }
+ 
++static void amdgpu_register_gpu_instance(struct amdgpu_device *adev)
++{
++	struct amdgpu_gpu_instance *gpu_instance;
++
++	mutex_lock(&mgpu_info.mutex);
++
++	if (mgpu_info.num_gpu >= MAX_GPU_INSTANCE) {
++		DRM_ERROR("Cannot register more gpu instance\n");
++		mutex_unlock(&mgpu_info.mutex);
++		return;
++	}
++
++	gpu_instance = &(mgpu_info.gpu_ins[mgpu_info.num_gpu]);
++	gpu_instance->adev = adev;
++	gpu_instance->mgpu_fan_enabled = 0;
++
++	mgpu_info.num_gpu++;
++	if (adev->flags & AMD_IS_APU)
++		mgpu_info.num_apu++;
++	else
++		mgpu_info.num_dgpu++;
++
++	mutex_unlock(&mgpu_info.mutex);
++}
++
+ /**
+  * amdgpu_driver_load_kms - Main load function for KMS.
+  *
+@@ -166,6 +217,7 @@ int amdgpu_driver_load_kms(struct drm_device *dev, unsigned long flags)
+ 		pm_runtime_put_autosuspend(dev->dev);
+ 	}
+ 
++	amdgpu_register_gpu_instance(adev);
+ out:
+ 	if (r) {
+ 		/* balance pm_runtime_get_sync in amdgpu_driver_unload_kms */
+-- 
+2.7.4
+

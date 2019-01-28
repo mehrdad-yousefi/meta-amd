@@ -1,0 +1,56 @@
+From 7b94aa6477399501eea2ddd3293277a540706253 Mon Sep 17 00:00:00 2001
+From: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+Date: Fri, 13 Apr 2018 14:48:10 -0400
+Subject: [PATCH 5646/5725] drm/amdfd: Don't hard code wait time
+
+Also dma_fence_wait_timeout() returns 0 if fence timed out. Handle that.
+
+Change-Id: Ia5f4f97f35d3dac0b5263449a366d9a051664598
+Signed-off-by: Harish Kasiviswanathan <Harish.Kasiviswanathan@amd.com>
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c | 21 ++++++++++++++++++---
+ 1 file changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 548775e..035f10b 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1805,6 +1805,21 @@ static void kfd_free_cma_bos(struct cma_iter *ci)
+ 	}
+ }
+ 
++/* 1 second timeout */
++#define CMA_WAIT_TIMEOUT msecs_to_jiffies(1000)
++
++static int kfd_cma_fence_wait(struct dma_fence *f)
++{
++	int ret;
++
++	ret = dma_fence_wait_timeout(f, false, CMA_WAIT_TIMEOUT);
++	if (likely(ret > 0))
++		return 0;
++	if (!ret)
++		ret = -ETIME;
++	return ret;
++}
++
+ /* Create a system BO by pinning underlying system pages of the given userptr
+  * BO @ubo
+  * @ubo: Userptr BO
+@@ -2330,10 +2345,10 @@ static int kfd_ioctl_cross_memory_copy(struct file *filep,
+ 
+ 	/* Wait for the last fence irrespective of error condition */
+         if (lfence) {
+-                if (dma_fence_wait_timeout(lfence, false,
+-                                           msecs_to_jiffies(1000)) < 0)
+-                        pr_err("CMA %s failed. BO timed out\n", cma_op);
++                err = kfd_cma_fence_wait(lfence);
+ 		dma_fence_put(lfence);
++                if (err)
++                        pr_err("CMA %s failed. BO timed out\n", cma_op);
+ 	}
+ 
+ 	kfd_free_cma_bos(&si);
+-- 
+2.7.4
+

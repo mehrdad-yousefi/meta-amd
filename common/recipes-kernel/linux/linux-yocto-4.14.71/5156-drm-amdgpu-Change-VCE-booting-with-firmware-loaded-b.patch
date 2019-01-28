@@ -1,0 +1,62 @@
+From dc1a269d5bbac245710695d802859b88e875dccc Mon Sep 17 00:00:00 2001
+From: James Zhu <jzhums@gmail.com>
+Date: Tue, 14 Aug 2018 14:53:51 -0400
+Subject: [PATCH 5156/5725] drm/amdgpu: Change VCE booting with firmware loaded
+ by PSP
+
+With PSP firmware loading, TMR mc address is supposed to be used.
+
+Signed-off-by: James Zhu <James.Zhu@amd.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Feifei Xu <Feifei.Xu@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/vce_v4_0.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c b/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c
+index 65f8860..258f015 100755
+--- a/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/vce_v4_0.c
+@@ -595,6 +595,7 @@ static int vce_v4_0_resume(void *handle)
+ static void vce_v4_0_mc_resume(struct amdgpu_device *adev)
+ {
+ 	uint32_t offset, size;
++	uint64_t tmr_mc_addr;
+ 
+ 	WREG32_P(SOC15_REG_OFFSET(VCE, 0, mmVCE_CLOCK_GATING_A), 0, ~(1 << 16));
+ 	WREG32_P(SOC15_REG_OFFSET(VCE, 0, mmVCE_UENC_CLOCK_GATING), 0x1FF000, ~0xFF9FF000);
+@@ -607,21 +608,25 @@ static void vce_v4_0_mc_resume(struct amdgpu_device *adev)
+ 	WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_LMI_SWAP_CNTL1), 0);
+ 	WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_LMI_VM_CTRL), 0);
+ 
++	offset = AMDGPU_VCE_FIRMWARE_OFFSET;
++
+ 	if (adev->firmware.load_type == AMDGPU_FW_LOAD_PSP) {
++		tmr_mc_addr = (uint64_t)(adev->firmware.ucode[AMDGPU_UCODE_ID_VCE].tmr_mc_addr_hi) << 32 |
++										adev->firmware.ucode[AMDGPU_UCODE_ID_VCE].tmr_mc_addr_lo;
+ 		WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_LMI_VCPU_CACHE_40BIT_BAR0),
+-			(adev->firmware.ucode[AMDGPU_UCODE_ID_VCE].mc_addr >> 8));
++			(tmr_mc_addr >> 8));
+ 		WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_LMI_VCPU_CACHE_64BIT_BAR0),
+-			(adev->firmware.ucode[AMDGPU_UCODE_ID_VCE].mc_addr >> 40) & 0xff);
++			(tmr_mc_addr >> 40) & 0xff);
++		WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_VCPU_CACHE_OFFSET0), 0);
+ 	} else {
+ 		WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_LMI_VCPU_CACHE_40BIT_BAR0),
+ 			(adev->vce.gpu_addr >> 8));
+ 		WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_LMI_VCPU_CACHE_64BIT_BAR0),
+ 			(adev->vce.gpu_addr >> 40) & 0xff);
++		WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_VCPU_CACHE_OFFSET0), offset & ~0x0f000000);
+ 	}
+ 
+-	offset = AMDGPU_VCE_FIRMWARE_OFFSET;
+ 	size = VCE_V4_0_FW_SIZE;
+-	WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_VCPU_CACHE_OFFSET0), offset & ~0x0f000000);
+ 	WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_VCPU_CACHE_SIZE0), size);
+ 
+ 	WREG32(SOC15_REG_OFFSET(VCE, 0, mmVCE_LMI_VCPU_CACHE_40BIT_BAR1), (adev->vce.gpu_addr >> 8));
+-- 
+2.7.4
+

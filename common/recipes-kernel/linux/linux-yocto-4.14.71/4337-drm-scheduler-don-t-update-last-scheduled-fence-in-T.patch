@@ -1,0 +1,40 @@
+From 6aed7c90e6e8e50b9477752782bd052d6ea256e8 Mon Sep 17 00:00:00 2001
+From: Pixel Ding <Pixel.Ding@amd.com>
+Date: Tue, 24 Apr 2018 22:52:45 -0400
+Subject: [PATCH 4337/5725] drm/scheduler: don't update last scheduled fence in
+ TDR
+
+The current sequence in scheduler thread is:
+1. update last sched fence
+2. job begin (adding to mirror list)
+3. job finish (remove from mirror list)
+4. back to 1
+
+Since we update last sched prior to joining mirror list, the jobs
+in mirror list already pass the last sched fence. TDR just run
+the jobs in mirror list, so we should not update the last sched
+fences in TDR.
+
+Signed-off-by: Pixel Ding <Pixel.Ding@amd.com>
+Reviewed-by: Monk Liu <monk.liu@amd.com>
+---
+ drivers/gpu/drm/scheduler/gpu_scheduler.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/scheduler/gpu_scheduler.c b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+index 203f553..3d41246 100644
+--- a/drivers/gpu/drm/scheduler/gpu_scheduler.c
++++ b/drivers/gpu/drm/scheduler/gpu_scheduler.c
+@@ -574,9 +574,6 @@ void drm_sched_job_recovery(struct drm_gpu_scheduler *sched)
+ 		fence = sched->ops->run_job(s_job);
+ 		atomic_inc(&sched->hw_rq_count);
+ 
+-		dma_fence_put(s_job->entity->last_scheduled);
+-		s_job->entity->last_scheduled = dma_fence_get(&s_fence->finished);
+-
+ 		if (fence) {
+ 			s_fence->parent = dma_fence_get(fence);
+ 			r = dma_fence_add_callback(fence, &s_fence->cb,
+-- 
+2.7.4
+

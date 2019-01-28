@@ -1,0 +1,33 @@
+From ccbeba8f72c3e3371845efd9bd71401eb4977cf6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Thu, 19 Apr 2018 09:57:21 +0200
+Subject: [PATCH 4446/5725] drm/amdgpu: remove unused member
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This lock isn't used any more.
+
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Chunming Zhou <david1.zhou@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+index 84658b5..3492ab7 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.h
+@@ -190,9 +190,6 @@ struct amdgpu_vm {
+ 	struct amdgpu_vm_pt     root;
+ 	struct dma_fence	*last_update;
+ 
+-	/* protecting freed */
+-	spinlock_t		freed_lock;
+-
+ 	/* Scheduler entity for page table updates */
+ 	struct drm_sched_entity	entity;
+ 
+-- 
+2.7.4
+

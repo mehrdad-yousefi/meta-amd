@@ -1,0 +1,48 @@
+From 6188d097b8316e815429f49731946dc17024fec3 Mon Sep 17 00:00:00 2001
+From: Leo Li <sunpeng.li@amd.com>
+Date: Wed, 5 Sep 2018 11:28:29 -0400
+Subject: [PATCH 5302/5725] drm/amd/display: Drop amdgpu_dm_prev_state struct
+
+[Why]
+It's not being used
+
+[How]
+Nuke it
+
+Signed-off-by: Leo Li <sunpeng.li@amd.com>
+Reviewed-by: David Francis <David.Francis@amd.com>
+Acked-by: Leo Li <sunpeng.li@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+index d01ed33..772368c 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.h
+@@ -54,13 +54,6 @@ struct drm_device;
+ struct amdgpu_dm_irq_handler_data;
+ struct dc;
+ 
+-struct amdgpu_dm_prev_state {
+-	struct drm_framebuffer *fb;
+-	int32_t x;
+-	int32_t y;
+-	struct drm_display_mode mode;
+-};
+-
+ struct common_irq_params {
+ 	struct amdgpu_device *adev;
+ 	enum dc_irq_source irq_src;
+@@ -110,8 +103,6 @@ struct amdgpu_display_manager {
+ 	struct drm_device *ddev;	/*DRM base driver*/
+ 	u16 display_indexes_num;
+ 
+-	struct amdgpu_dm_prev_state prev_state;
+-
+ 	/*
+ 	 * 'irq_source_handler_table' holds a list of handlers
+ 	 * per (DAL) IRQ source.
+-- 
+2.7.4
+
