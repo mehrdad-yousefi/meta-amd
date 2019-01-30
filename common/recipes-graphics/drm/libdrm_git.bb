@@ -13,11 +13,10 @@ PV = "git"
 
 inherit autotools pkgconfig
 
-SRCREV = "85ae22af0f209e73c954d8867d9189ab2cfeb3e1"
+SRCREV = "5a3bdc7add2f30f7673052376514c91dbcd1b64a"
 DEPENDS = "libpthread-stubs udev libpciaccess freetype libxext cairo fontconfig libxrender libpng pixman"
 
 SRC_URI = "git://anongit.freedesktop.org/mesa/drm;branch=master \
-              file://0001-headers-sync-up-amdgpu_drm.h-with-drm-next.patch \
               file://amdgpu.ids \
 "
 
