@@ -1,0 +1,80 @@
+From 7d08c14012602dc43c5b92b4fe0848801d6d54c1 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Tue, 12 Feb 2019 19:14:24 +0530
+Subject: [PATCH 5737/5758] mmc: sdhci: Add 32-bit block count support for v4
+ mode
+
+Host Controller Version 4.10 re-defines SDMA System Address register
+as 32-bit Block Count for v4 mode, and SDMA uses ADMA System
+Address register (05Fh-058h) instead if v4 mode is enabled. Also
+when using 32-bit block count, 16-bit block count register need
+to be set to zero.
+
+Since using 32-bit Block Count would cause problems for auto-cmd23,
+it can be chosen via host->quirk2.
+
+Signed-off-by: Chunyan Zhang <zhang.chunyan@linaro.org>
+Acked-by: Adrian Hunter <adrian.hunter@intel.com>
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/mmc/host/sdhci.c | 14 +++++++++++++-
+ drivers/mmc/host/sdhci.h |  8 ++++++++
+ 2 files changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/host/sdhci.c b/drivers/mmc/host/sdhci.c
+index 0cd4b1e..a082614 100755
+--- a/drivers/mmc/host/sdhci.c
++++ b/drivers/mmc/host/sdhci.c
+@@ -998,7 +998,19 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_command *cmd)
+ 	/* Set the DMA boundary value and block size */
+ 	sdhci_writew(host, SDHCI_MAKE_BLKSZ(host->sdma_boundary, data->blksz),
+ 		     SDHCI_BLOCK_SIZE);
+-	sdhci_writew(host, data->blocks, SDHCI_BLOCK_COUNT);
++
++	/*
++	 * For Version 4.10 onwards, if v4 mode is enabled, 32-bit Block Count
++	 * can be supported, in that case 16-bit block count register must be 0.
++	 */
++	if (host->version >= SDHCI_SPEC_410 && host->v4_mode &&
++	    (host->quirks2 & SDHCI_QUIRK2_USE_32BIT_BLK_CNT)) {
++		if (sdhci_readw(host, SDHCI_BLOCK_COUNT))
++			sdhci_writew(host, 0, SDHCI_BLOCK_COUNT);
++		sdhci_writew(host, data->blocks, SDHCI_32BIT_BLK_CNT);
++	} else {
++		sdhci_writew(host, data->blocks, SDHCI_BLOCK_COUNT);
++	}
+ }
+ 
+ static inline bool sdhci_auto_cmd12(struct sdhci_host *host,
+diff --git a/drivers/mmc/host/sdhci.h b/drivers/mmc/host/sdhci.h
+index 2763970..73ae5f8 100755
+--- a/drivers/mmc/host/sdhci.h
++++ b/drivers/mmc/host/sdhci.h
+@@ -28,6 +28,7 @@
+ 
+ #define SDHCI_DMA_ADDRESS	0x00
+ #define SDHCI_ARGUMENT2		SDHCI_DMA_ADDRESS
++#define SDHCI_32BIT_BLK_CNT	SDHCI_DMA_ADDRESS
+ 
+ #define SDHCI_BLOCK_SIZE	0x04
+ #define  SDHCI_MAKE_BLKSZ(dma, blksz) (((dma & 0x7) << 12) | (blksz & 0xFFF))
+@@ -449,6 +450,13 @@ struct sdhci_host {
+ #define SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN		(1<<15)
+ /* Controller has CRC in 136 bit Command Response */
+ #define SDHCI_QUIRK2_RSP_136_HAS_CRC			(1<<16)
++/*
++ * 32-bit block count may not support eMMC where upper bits of CMD23 are used
++ * for other purposes.  Consequently we support 16-bit block count by default.
++ * Otherwise, SDHCI_QUIRK2_USE_32BIT_BLK_CNT can be selected to use 32-bit
++ * block count.
++ */
++#define SDHCI_QUIRK2_USE_32BIT_BLK_CNT			(1<<18)
+ 
+ #define SDHCI_QUIRK2_BROKEN_TUNING_WA		(1<<17)
+ 	int irq;		/* Device IRQ */
+-- 
+2.7.4
+

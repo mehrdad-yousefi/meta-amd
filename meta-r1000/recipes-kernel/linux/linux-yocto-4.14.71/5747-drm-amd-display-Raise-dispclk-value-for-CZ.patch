@@ -1,0 +1,48 @@
+From 0a5c7924cab22adc4f0e062850072402c53e8c27 Mon Sep 17 00:00:00 2001
+From: Kalyan Alle <kalyan.alle@amd.com>
+Date: Tue, 20 Nov 2018 16:50:29 -0500
+Subject: [PATCH 5747/5758] drm/amd/display: Raise dispclk value for CZ.
+
+[Why]
+The visual corruption due to low display clock value.
+Observed on 4k@60Hz.
+
+[How]
+There was earlier patch for dspclk:
+'drm/amd/display: Raise dispclk value for dce_update_clocks'
+Adding +15% workaround also to to dce11_update_clocks
+
+Signed-off-by: Roman Li <Roman.Li@amd.com>
+Reviewed-by: Nicholas Kazlauskas <Nicholas.Kazlauskas@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c b/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c
+index 493e2f4..1dfe93e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c
++++ b/drivers/gpu/drm/amd/display/dc/dce/dce_clk_mgr.c
+@@ -648,6 +648,10 @@ static void dce11_update_clocks(struct clk_mgr *clk_mgr,
+ {
+ 	struct dce_clk_mgr *clk_mgr_dce = TO_DCE_CLK_MGR(clk_mgr);
+ 	struct dm_pp_power_level_change_request level_change_req;
++        int unpatched_disp_clk = context->bw.dce.dispclk_khz;
++
++        if (!clk_mgr_dce->dfs_bypass_active)
++                context->bw.dce.dispclk_khz = context->bw.dce.dispclk_khz * 115 / 100;
+ 
+ 	level_change_req.power_level = dce_get_required_clocks_state(clk_mgr, context);
+ 	/* get max clock state from PPLIB */
+@@ -662,6 +666,8 @@ static void dce11_update_clocks(struct clk_mgr *clk_mgr,
+ 		clk_mgr->clks.dispclk_khz = context->bw.dce.dispclk_khz;
+ 	}
+ 	dce11_pplib_apply_display_requirements(clk_mgr->ctx->dc, context);
++
++	context->bw.dce.dispclk_khz = unpatched_disp_clk;
+ }
+ 
+ static void dce112_update_clocks(struct clk_mgr *clk_mgr,
+-- 
+2.7.4
+

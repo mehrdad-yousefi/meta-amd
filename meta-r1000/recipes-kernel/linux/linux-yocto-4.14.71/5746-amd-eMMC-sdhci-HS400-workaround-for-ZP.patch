@@ -1,0 +1,103 @@
+From 527e0c11bf326ce3e14cc85a79f0cf95cbcff7af Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Tue, 12 Feb 2019 20:08:46 +0530
+Subject: [PATCH 5746/5758] amd-eMMC sdhci HS400 workaround for ZP
+
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/mmc/core/mmc.c        | 2 ++
+ drivers/mmc/host/sdhci-acpi.c | 1 -
+ drivers/mmc/host/sdhci.c      | 9 ---------
+ drivers/mmc/host/sdhci.h      | 1 -
+ include/linux/mmc/host.h      | 1 -
+ 5 files changed, 2 insertions(+), 12 deletions(-)
+ mode change 100755 => 100644 drivers/mmc/host/sdhci-acpi.c
+ mode change 100755 => 100644 drivers/mmc/host/sdhci.c
+ mode change 100755 => 100644 include/linux/mmc/host.h
+
+diff --git a/drivers/mmc/core/mmc.c b/drivers/mmc/core/mmc.c
+index cd3604d..20be475 100755
+--- a/drivers/mmc/core/mmc.c
++++ b/drivers/mmc/core/mmc.c
+@@ -1405,6 +1405,8 @@ static int mmc_select_hs400es(struct mmc_card *card)
+ 	if (host->ops->hs400_complete)
+ 		host->ops->hs400_complete(host);
+ 
++	if (host->ops->set_hs400_dll)
++		host->ops->set_hs400_dll(host);
+ 	return 0;
+ 
+ out_err:
+diff --git a/drivers/mmc/host/sdhci-acpi.c b/drivers/mmc/host/sdhci-acpi.c
+old mode 100755
+new mode 100644
+index 33592a6..b01e906
+--- a/drivers/mmc/host/sdhci-acpi.c
++++ b/drivers/mmc/host/sdhci-acpi.c
+@@ -411,7 +411,6 @@ static const struct sdhci_ops sdhci_acpi_ops_amd = {
+ 	.set_bus_width	= sdhci_set_bus_width,
+ 	.reset		= sdhci_reset,
+ 	.set_uhs_signaling = sdhci_set_uhs_signaling,
+-	 .set_hs400_dll = sdhci_acpi_amd_hs400_dll,
+ };
+ 
+ static const struct sdhci_acpi_chip sdhci_acpi_chip_amd = {
+diff --git a/drivers/mmc/host/sdhci.c b/drivers/mmc/host/sdhci.c
+old mode 100755
+new mode 100644
+index d7c9274..46346ec
+--- a/drivers/mmc/host/sdhci.c
++++ b/drivers/mmc/host/sdhci.c
+@@ -1983,14 +1983,6 @@ static void sdhci_hw_reset(struct mmc_host *mmc)
+ 		host->ops->hw_reset(host);
+ }
+ 
+-static void sdhci_set_hs400_dll(struct mmc_host *mmc)
+-{
+-	struct sdhci_host *host = mmc_priv(mmc);
+-
+-	if (host->ops && host->ops->set_hs400_dll)
+-		host->ops->set_hs400_dll(host);
+-}
+-
+ static void sdhci_enable_sdio_irq_nolock(struct sdhci_host *host, int enable)
+ {
+ 	if (!(host->flags & SDHCI_DEVICE_DEAD)) {
+@@ -2478,7 +2470,6 @@ static const struct mmc_host_ops sdhci_ops = {
+ 	.get_cd		= sdhci_get_cd,
+ 	.get_ro		= sdhci_get_ro,
+ 	.hw_reset	= sdhci_hw_reset,
+-	.set_hs400_dll = sdhci_set_hs400_dll,
+ 	.enable_sdio_irq = sdhci_enable_sdio_irq,
+ 	.start_signal_voltage_switch	= sdhci_start_signal_voltage_switch,
+ 	.prepare_hs400_tuning		= sdhci_prepare_hs400_tuning,
+diff --git a/drivers/mmc/host/sdhci.h b/drivers/mmc/host/sdhci.h
+index dd3219e..027d85a 100755
+--- a/drivers/mmc/host/sdhci.h
++++ b/drivers/mmc/host/sdhci.h
+@@ -611,7 +611,6 @@ struct sdhci_ops {
+ 	int	(*platform_execute_tuning)(struct sdhci_host *host, u32 opcode);
+ 	void	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
+ 	void	(*hw_reset)(struct sdhci_host *host);
+-	void    (*set_hs400_dll)(struct sdhci_host *host);
+ 	void    (*adma_workaround)(struct sdhci_host *host, u32 intmask);
+ 	void    (*card_event)(struct sdhci_host *host);
+ 	void	(*voltage_switch)(struct sdhci_host *host);
+diff --git a/include/linux/mmc/host.h b/include/linux/mmc/host.h
+old mode 100755
+new mode 100644
+index ba4af38..843c38f
+--- a/include/linux/mmc/host.h
++++ b/include/linux/mmc/host.h
+@@ -159,7 +159,6 @@ struct mmc_host_ops {
+ 					 unsigned int max_dtr, int host_drv,
+ 					 int card_drv, int *drv_type);
+ 	void	(*hw_reset)(struct mmc_host *host);
+-	void	(*set_hs400_dll)(struct mmc_host *host);
+ 	void	(*card_event)(struct mmc_host *host);
+ 
+ 	/*
+-- 
+2.7.4
+

@@ -1,0 +1,91 @@
+From 7b0182dd9999843427374c2a0ae7d009786d16d6 Mon Sep 17 00:00:00 2001
+From: "ernest.zhang" <ernest.zhang@bayhubtech.com>
+Date: Mon, 16 Jul 2018 14:26:53 +0800
+Subject: [PATCH 5730/5758] mmc: sdhci: Export sdhci tuning function symbol
+
+Export sdhci tuning function symbols which are used by other SD Host
+controller driver modules.
+
+Signed-off-by: ernest.zhang <ernest.zhang@bayhubtech.com>
+Acked-by: Adrian Hunter <adrian.hunter@intel.com>
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+---
+ drivers/mmc/host/sdhci.c | 12 ++++++++----
+ drivers/mmc/host/sdhci.h |  5 +++++
+ 2 files changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mmc/host/sdhci.c b/drivers/mmc/host/sdhci.c
+index 8837d45..53f6b2a 100755
+--- a/drivers/mmc/host/sdhci.c
++++ b/drivers/mmc/host/sdhci.c
+@@ -2041,7 +2041,7 @@ static int sdhci_prepare_hs400_tuning(struct mmc_host *mmc, struct mmc_ios *ios)
+ 	return 0;
+ }
+ 
+-static void sdhci_start_tuning(struct sdhci_host *host)
++void sdhci_start_tuning(struct sdhci_host *host)
+ {
+ 	u16 ctrl;
+ 
+@@ -2064,14 +2064,16 @@ static void sdhci_start_tuning(struct sdhci_host *host)
+ 	sdhci_writel(host, SDHCI_INT_DATA_AVAIL, SDHCI_INT_ENABLE);
+ 	sdhci_writel(host, SDHCI_INT_DATA_AVAIL, SDHCI_SIGNAL_ENABLE);
+ }
++EXPORT_SYMBOL_GPL(sdhci_start_tuning);
+ 
+-static void sdhci_end_tuning(struct sdhci_host *host)
++void sdhci_end_tuning(struct sdhci_host *host)
+ {
+ 	sdhci_writel(host, host->ier, SDHCI_INT_ENABLE);
+ 	sdhci_writel(host, host->ier, SDHCI_SIGNAL_ENABLE);
+ }
++EXPORT_SYMBOL_GPL(sdhci_end_tuning);
+ 
+-static void sdhci_reset_tuning(struct sdhci_host *host)
++void sdhci_reset_tuning(struct sdhci_host *host)
+ {
+ 	u16 ctrl;
+ 
+@@ -2080,6 +2082,7 @@ static void sdhci_reset_tuning(struct sdhci_host *host)
+ 	ctrl &= ~SDHCI_CTRL_EXEC_TUNING;
+ 	sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
+ }
++EXPORT_SYMBOL_GPL(sdhci_reset_tuning);
+ 
+ static void sdhci_abort_tuning(struct sdhci_host *host, u32 opcode)
+ {
+@@ -2100,7 +2103,7 @@ static void sdhci_abort_tuning(struct sdhci_host *host, u32 opcode)
+  * interrupt setup is different to other commands and there is no timeout
+  * interrupt so special handling is needed.
+  */
+-static void sdhci_send_tuning(struct sdhci_host *host, u32 opcode)
++void sdhci_send_tuning(struct sdhci_host *host, u32 opcode)
+ {
+ 	struct mmc_host *mmc = host->mmc;
+ 	struct mmc_command cmd = {};
+@@ -2150,6 +2153,7 @@ static void sdhci_send_tuning(struct sdhci_host *host, u32 opcode)
+ 			   msecs_to_jiffies(50));
+ 
+ }
++EXPORT_SYMBOL_GPL(sdhci_send_tuning);
+ 
+ static void __sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
+ {
+diff --git a/drivers/mmc/host/sdhci.h b/drivers/mmc/host/sdhci.h
+index b5fd294..983b7df 100755
+--- a/drivers/mmc/host/sdhci.h
++++ b/drivers/mmc/host/sdhci.h
+@@ -735,4 +735,9 @@ bool sdhci_cqe_irq(struct sdhci_host *host, u32 intmask, int *cmd_error,
+ 
+ void sdhci_dumpregs(struct sdhci_host *host);
+ 
++void sdhci_start_tuning(struct sdhci_host *host);
++void sdhci_end_tuning(struct sdhci_host *host);
++void sdhci_reset_tuning(struct sdhci_host *host);
++void sdhci_send_tuning(struct sdhci_host *host, u32 opcode);
++
+ #endif /* __SDHCI_HW_H */
+-- 
+2.7.4
+

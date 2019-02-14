@@ -1,0 +1,45 @@
+From 814a991d5e22411b1ca2bf47c7c25aa07042de38 Mon Sep 17 00:00:00 2001
+From: YueHaibing <yuehaibing@huawei.com>
+Date: Thu, 26 Jul 2018 09:51:27 +0800
+Subject: [PATCH 5739/5758] amd-xgbe: use dma_mapping_error to check map errors
+
+The dma_mapping_error() returns true or false, but we want
+to return -ENOMEM if there was an error.
+
+Fixes: 174fd2597b0b ("amd-xgbe: Implement split header receive support")
+Signed-off-by: YueHaibing <yuehaibing@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+---
+ drivers/net/ethernet/amd/xgbe/xgbe-desc.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/amd/xgbe/xgbe-desc.c b/drivers/net/ethernet/amd/xgbe/xgbe-desc.c
+index cc1e4f8..5330942 100644
+--- a/drivers/net/ethernet/amd/xgbe/xgbe-desc.c
++++ b/drivers/net/ethernet/amd/xgbe/xgbe-desc.c
+@@ -289,7 +289,7 @@ static int xgbe_alloc_pages(struct xgbe_prv_data *pdata,
+ 	struct page *pages = NULL;
+ 	dma_addr_t pages_dma;
+ 	gfp_t gfp;
+-	int order, ret;
++	int order;
+ 
+ again:
+ 	order = alloc_order;
+@@ -316,10 +316,9 @@ static int xgbe_alloc_pages(struct xgbe_prv_data *pdata,
+ 	/* Map the pages */
+ 	pages_dma = dma_map_page(pdata->dev, pages, 0,
+ 				 PAGE_SIZE << order, DMA_FROM_DEVICE);
+-	ret = dma_mapping_error(pdata->dev, pages_dma);
+-	if (ret) {
++	if (dma_mapping_error(pdata->dev, pages_dma)) {
+ 		put_page(pages);
+-		return ret;
++		return -ENOMEM;
+ 	}
+ 
+ 	pa->pages = pages;
+-- 
+2.7.4
+

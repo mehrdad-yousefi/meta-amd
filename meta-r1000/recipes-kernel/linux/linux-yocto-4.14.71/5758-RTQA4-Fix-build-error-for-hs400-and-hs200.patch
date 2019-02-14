@@ -1,0 +1,81 @@
+From 80bfa93f2f180dd45284f0d4fc75f0b934fcc329 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Thu, 14 Feb 2019 13:02:47 +0530
+Subject: [PATCH 5758/5758] RTQA4 : Fix build error for hs400 and hs200
+
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ drivers/mmc/host/sdhci-acpi.c |  1 +
+ drivers/mmc/host/sdhci.c      | 11 +++++++++++
+ drivers/mmc/host/sdhci.h      |  1 +
+ include/linux/mmc/host.h      |  1 +
+ 4 files changed, 14 insertions(+)
+
+diff --git a/drivers/mmc/host/sdhci-acpi.c b/drivers/mmc/host/sdhci-acpi.c
+index b01e906..d13a177 100644
+--- a/drivers/mmc/host/sdhci-acpi.c
++++ b/drivers/mmc/host/sdhci-acpi.c
+@@ -411,6 +411,7 @@ static const struct sdhci_ops sdhci_acpi_ops_amd = {
+ 	.set_bus_width	= sdhci_set_bus_width,
+ 	.reset		= sdhci_reset,
+ 	.set_uhs_signaling = sdhci_set_uhs_signaling,
++	.set_hs400_dll = sdhci_acpi_amd_hs400_dll,
+ };
+ 
+ static const struct sdhci_acpi_chip sdhci_acpi_chip_amd = {
+diff --git a/drivers/mmc/host/sdhci.c b/drivers/mmc/host/sdhci.c
+index 46346ec..7e29a39 100644
+--- a/drivers/mmc/host/sdhci.c
++++ b/drivers/mmc/host/sdhci.c
+@@ -1983,6 +1983,16 @@ static void sdhci_hw_reset(struct mmc_host *mmc)
+ 		host->ops->hw_reset(host);
+ }
+ 
++static void sdhci_set_hs400_dll(struct mmc_host *mmc)
++{
++        struct sdhci_host *host = mmc_priv(mmc);
++
++        if (host->ops && host->ops->set_hs400_dll)
++                host->ops->set_hs400_dll(host);
++}
++
++
++
+ static void sdhci_enable_sdio_irq_nolock(struct sdhci_host *host, int enable)
+ {
+ 	if (!(host->flags & SDHCI_DEVICE_DEAD)) {
+@@ -2470,6 +2480,7 @@ static const struct mmc_host_ops sdhci_ops = {
+ 	.get_cd		= sdhci_get_cd,
+ 	.get_ro		= sdhci_get_ro,
+ 	.hw_reset	= sdhci_hw_reset,
++	.set_hs400_dll = sdhci_set_hs400_dll,
+ 	.enable_sdio_irq = sdhci_enable_sdio_irq,
+ 	.start_signal_voltage_switch	= sdhci_start_signal_voltage_switch,
+ 	.prepare_hs400_tuning		= sdhci_prepare_hs400_tuning,
+diff --git a/drivers/mmc/host/sdhci.h b/drivers/mmc/host/sdhci.h
+index 027d85a..dd3219e 100755
+--- a/drivers/mmc/host/sdhci.h
++++ b/drivers/mmc/host/sdhci.h
+@@ -611,6 +611,7 @@ struct sdhci_ops {
+ 	int	(*platform_execute_tuning)(struct sdhci_host *host, u32 opcode);
+ 	void	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
+ 	void	(*hw_reset)(struct sdhci_host *host);
++	void    (*set_hs400_dll)(struct sdhci_host *host);
+ 	void    (*adma_workaround)(struct sdhci_host *host, u32 intmask);
+ 	void    (*card_event)(struct sdhci_host *host);
+ 	void	(*voltage_switch)(struct sdhci_host *host);
+diff --git a/include/linux/mmc/host.h b/include/linux/mmc/host.h
+index 843c38f..95a1452 100644
+--- a/include/linux/mmc/host.h
++++ b/include/linux/mmc/host.h
+@@ -159,6 +159,7 @@ struct mmc_host_ops {
+ 					 unsigned int max_dtr, int host_drv,
+ 					 int card_drv, int *drv_type);
+ 	void	(*hw_reset)(struct mmc_host *host);
++	void    (*set_hs400_dll)(struct mmc_host *host);
+ 	void	(*card_event)(struct mmc_host *host);
+ 
+ 	/*
+-- 
+2.7.4
+

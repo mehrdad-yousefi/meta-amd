@@ -1,0 +1,38 @@
+From 241cbaf30db2728ec005607a659358174cb3a486 Mon Sep 17 00:00:00 2001
+From: Alex Deucher <alexander.deucher@amd.com>
+Date: Tue, 23 Aug 2016 17:37:36 -0400
+Subject: [PATCH 5748/5758] drm/amdgpu/gfx8: disable EDC
+
+This if fixing the unigine heaven application soft hang
+while running in extreme preset mode
+
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Kalyan Alle <kalyan.alle@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 90cbf66..43272fb 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -1665,7 +1665,7 @@ static int gfx_v8_0_do_edc_gpr_workarounds(struct amdgpu_device *adev)
+ 		DRM_ERROR("amdgpu: fence wait failed (%d).\n", r);
+ 		goto fail;
+ 	}
+-	
++#if 0	
+ 	tmp = REG_SET_FIELD(tmp, GB_EDC_MODE, DED_MODE, 2);
+ 	tmp = REG_SET_FIELD(tmp, GB_EDC_MODE, PROP_FED, 1);
+ 	WREG32(mmGB_EDC_MODE, tmp);
+@@ -1673,6 +1673,7 @@ static int gfx_v8_0_do_edc_gpr_workarounds(struct amdgpu_device *adev)
+ 	tmp = RREG32(mmCC_GC_EDC_CONFIG);
+ 	tmp = REG_SET_FIELD(tmp, CC_GC_EDC_CONFIG, DIS_EDC, 0) | 1;
+ 	WREG32(mmCC_GC_EDC_CONFIG, tmp);
++#endif
+ 
+ 	/* read back registers to clear the counters */
+ 	for (i = 0; i < ARRAY_SIZE(sec_ded_counter_registers); i++)
+-- 
+2.7.4
+

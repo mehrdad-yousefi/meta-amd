@@ -1591,3 +1591,12 @@ patch 5722-Code-cleanup.patch
 patch 5723-drm-amdgpu-vcn-Fixed-S3-hung-issue.patch
 patch 5724-drm-amdgpu-change-VEGA-booting-with-firmware-loaded-.patch
 patch 5725-Fix-compilation-error-for-kfd.patch
+patch 5747-drm-amd-display-Raise-dispclk-value-for-CZ.patch
+patch 5748-drm-amdgpu-gfx8-disable-EDC.patch
+patch 5751-Revert-drm-amdgpu-make-gfx9-enter-into-rlc-safe-mode.patch
+patch 5752-Revert-drm-amdgpu-abstract-the-function-of-enter-exi.patch
+patch 5753-Revert-drm-amdgpu-separate-amdgpu_rlc-into-a-single-.patch
+patch 5754-drm-amdgpu-make-gfx9-enter-into-rlc-safe-mode-when-s.patch
+patch 5755-Revert-drm-amdgpu-revert-the-commit-interim-disable-.patch
+patch 5756-Revert-drm-amdgpu-revert-psp-firmware-load-status-ch.patch
+patch 5757-drm-amdgpu-psp-ignore-psp-response-status.patch

@@ -1,0 +1,46 @@
+From 6850c5d0e288e198475c2ad18d393065a49bbd29 Mon Sep 17 00:00:00 2001
+From: Chunyan Zhang <zhang.chunyan@linaro.org>
+Date: Thu, 30 Aug 2018 16:21:37 +0800
+Subject: [PATCH 5734/5758] mmc: sdhci: Add version V4 definition
+
+Added definitions for v400, v410, v420.
+
+Signed-off-by: Chunyan Zhang <zhang.chunyan@linaro.org>
+Acked-by: Adrian Hunter <adrian.hunter@intel.com>
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+---
+ drivers/mmc/host/sdhci.c | 2 +-
+ drivers/mmc/host/sdhci.h | 3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/host/sdhci.c b/drivers/mmc/host/sdhci.c
+index 05cd6c0..e698218 100755
+--- a/drivers/mmc/host/sdhci.c
++++ b/drivers/mmc/host/sdhci.c
+@@ -3443,7 +3443,7 @@ int sdhci_setup_host(struct sdhci_host *host)
+ 
+ 	override_timeout_clk = host->timeout_clk;
+ 
+-	if (host->version > SDHCI_SPEC_300) {
++	if (host->version > SDHCI_SPEC_420) {
+ 		pr_err("%s: Unknown controller version (%d). You may experience problems.\n",
+ 		       mmc_hostname(mmc), host->version);
+ 	}
+diff --git a/drivers/mmc/host/sdhci.h b/drivers/mmc/host/sdhci.h
+index bb57fa0..6bafe26 100755
+--- a/drivers/mmc/host/sdhci.h
++++ b/drivers/mmc/host/sdhci.h
+@@ -270,6 +270,9 @@
+ #define   SDHCI_SPEC_100	0
+ #define   SDHCI_SPEC_200	1
+ #define   SDHCI_SPEC_300	2
++#define   SDHCI_SPEC_400	3
++#define   SDHCI_SPEC_410	4
++#define   SDHCI_SPEC_420	5
+ 
+ /*
+  * End of controller registers.
+-- 
+2.7.4
+

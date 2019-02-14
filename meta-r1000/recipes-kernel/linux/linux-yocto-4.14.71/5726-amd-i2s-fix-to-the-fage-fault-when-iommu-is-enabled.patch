@@ -1,0 +1,156 @@
+From 4f19dca18de5c5d3dc374c946f5d42c3e8f3d396 Mon Sep 17 00:00:00 2001
+From: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+Date: Tue, 12 Feb 2019 19:00:21 +0530
+Subject: [PATCH 5726/5758] amd-i2s fix to the fage fault when iommu is enabled
+
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <chaudharyamit.kumar@amd.com>
+---
+ sound/soc/amd/raven/acp3x-pcm-dma.c | 27 +++++++++++++++------------
+ sound/soc/soc-core.c                | 13 +++++++++++--
+ 2 files changed, 26 insertions(+), 14 deletions(-)
+ mode change 100644 => 100755 sound/soc/amd/raven/acp3x-pcm-dma.c
+ mode change 100644 => 100755 sound/soc/soc-core.c
+
+diff --git a/sound/soc/amd/raven/acp3x-pcm-dma.c b/sound/soc/amd/raven/acp3x-pcm-dma.c
+old mode 100644
+new mode 100755
+index 7ed9d0e..3abdf1f
+--- a/sound/soc/amd/raven/acp3x-pcm-dma.c
++++ b/sound/soc/amd/raven/acp3x-pcm-dma.c
+@@ -22,9 +22,12 @@
+ #include <sound/pcm_params.h>
+ #include <sound/soc.h>
+ #include <sound/soc-dai.h>
++#include <linux/pci.h>
+ #include <linux/io.h>
+ #include "acp3x.h"
+ 
++#define DRV_NAME "acp3x-i2s-audio"
++
+ struct i2s_dev_data {
+ 	bool tdm_mode;
+ 	unsigned int i2s_irq;
+@@ -39,7 +42,7 @@ struct i2s_stream_instance {
+ 	u16 channels;
+ 	u32 xfer_resolution;
+ 	u32 val;
+-	struct page *pg;
++	dma_addr_t dma_addr;
+ 	void __iomem *acp3x_base;
+ };
+ 
+@@ -223,10 +226,10 @@ static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
+ static void config_acp3x_dma(struct i2s_stream_instance *rtd, int direction)
+ {
+ 	u16 page_idx;
+-	u64 addr;
+ 	u32 low, high, val, acp_fifo_addr;
+-	struct page *pg = rtd->pg;
++	dma_addr_t addr;
+ 
++	addr = rtd->dma_addr;
+ 	/* 8 scratch registers used to map one 64 bit address.
+ 	 * For 2 pages (4096 * 2 bytes), it will be 16 registers.
+ 	 */
+@@ -243,7 +246,6 @@ static void config_acp3x_dma(struct i2s_stream_instance *rtd, int direction)
+ 
+ 	for (page_idx = 0; page_idx < rtd->num_pages; page_idx++) {
+ 		/* Load the low address of page int ACP SRAM through SRBM */
+-		addr = page_to_phys(pg);
+ 		low = lower_32_bits(addr);
+ 		high = upper_32_bits(addr);
+ 
+@@ -253,7 +255,7 @@ static void config_acp3x_dma(struct i2s_stream_instance *rtd, int direction)
+ 				+ 4);
+ 		/* Move to next physically contiguos page */
+ 		val += 8;
+-		pg++;
++		addr += PAGE_SIZE;
+ 	}
+ 
+ 	if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
+@@ -339,7 +341,6 @@ static int acp3x_dma_hw_params(struct snd_pcm_substream *substream,
+ 	int status;
+ 	uint64_t size;
+ 	struct snd_dma_buffer *dma_buffer;
+-	struct page *pg;
+ 	struct i2s_stream_instance *rtd = substream->runtime->private_data;
+ 
+ 	if (rtd == NULL)
+@@ -352,9 +353,8 @@ static int acp3x_dma_hw_params(struct snd_pcm_substream *substream,
+ 		return status;
+ 
+ 	memset(substream->runtime->dma_area, 0, params_buffer_bytes(params));
+-	pg = virt_to_page(substream->dma_buffer.area);
+-	if (pg != NULL) {
+-		rtd->pg = pg;
++	if (substream->dma_buffer.area) {
++		rtd->dma_addr = substream->dma_buffer.addr;
+ 		rtd->num_pages = (PAGE_ALIGN(size) >> PAGE_SHIFT);
+ 		config_acp3x_dma(rtd, substream->stream);
+ 		status = 0;
+@@ -384,9 +384,12 @@ static snd_pcm_uframes_t acp3x_dma_pointer(struct snd_pcm_substream *substream)
+ 
+ static int acp3x_dma_new(struct snd_soc_pcm_runtime *rtd)
+ {
++	struct snd_soc_component *component = snd_soc_rtdcom_lookup(rtd,
++							DRV_NAME);
++	struct device *parent = component->dev->parent;
+ 	return snd_pcm_lib_preallocate_pages_for_all(rtd->pcm,
+ 							SNDRV_DMA_TYPE_DEV,
+-							NULL, MIN_BUFFER,
++							parent, MIN_BUFFER,
+ 							MAX_BUFFER);
+ }
+ 
+@@ -611,7 +614,7 @@ static struct snd_soc_dai_driver acp3x_i2s_dai_driver = {
+ };
+ 
+ static const struct snd_soc_component_driver acp3x_i2s_component = {
+-	.name           = "acp3x_i2s",
++	.name           = DRV_NAME,
+ };
+ 
+ static int acp3x_audio_probe(struct platform_device *pdev)
+@@ -802,4 +805,4 @@ module_platform_driver(acp3x_dma_driver);
+ MODULE_AUTHOR("Maruthi.Bayyavarapu@amd.com");
+ MODULE_DESCRIPTION("AMD ACP 3.x PCM Driver");
+ MODULE_LICENSE("GPL v2");
+-MODULE_ALIAS("platform:acp3x-i2s-audio");
++MODULE_ALIAS("platform:"DRV_NAME);
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+old mode 100644
+new mode 100755
+index fee4b0e..719416c
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -590,14 +590,23 @@ struct snd_soc_component *snd_soc_rtdcom_lookup(struct snd_soc_pcm_runtime *rtd,
+ {
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 
++	if (!driver_name)
++		return NULL;
++
+ 	for_each_rtdcom(rtd, rtdcom) {
+-		if ((rtdcom->component->driver->name == driver_name) ||
+-		    strcmp(rtdcom->component->driver->name, driver_name) == 0)
++		const char *component_name = rtdcom->component->driver->name;
++
++		if (!component_name)
++			continue;
++
++		if ((component_name == driver_name) ||
++		    strcmp(component_name, driver_name) == 0)
+ 			return rtdcom->component;
+ 	}
+ 
+ 	return NULL;
+ }
++EXPORT_SYMBOL_GPL(snd_soc_rtdcom_lookup);
+ 
+ struct snd_pcm_substream *snd_soc_get_dai_substream(struct snd_soc_card *card,
+ 		const char *dai_link, int stream)
+-- 
+2.7.4
+

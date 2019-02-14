@@ -1,0 +1,53 @@
+From 344895043e849dddc9ab272172c7b867227c32ba Mon Sep 17 00:00:00 2001
+From: Aapo Vienamo <avienamo@nvidia.com>
+Date: Mon, 20 Aug 2018 12:23:32 +0300
+Subject: [PATCH 5731/5758] mmc: sdhci: Export sdhci_request()
+
+Allow SDHCI drivers to hook code before and after sdhci_request() by
+making it externally visible.
+
+Signed-off-by: Aapo Vienamo <avienamo@nvidia.com>
+Acked-by: Adrian Hunter <adrian.hunter@intel.com>
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+---
+ drivers/mmc/host/sdhci.c | 3 ++-
+ drivers/mmc/host/sdhci.h | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/host/sdhci.c b/drivers/mmc/host/sdhci.c
+index 53f6b2a..677815e 100755
+--- a/drivers/mmc/host/sdhci.c
++++ b/drivers/mmc/host/sdhci.c
+@@ -1558,7 +1558,7 @@ EXPORT_SYMBOL_GPL(sdhci_set_power);
+  *                                                                           *
+ \*****************************************************************************/
+ 
+-static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
++void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
+ {
+ 	struct sdhci_host *host;
+ 	int present;
+@@ -1597,6 +1597,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
+ 	mmiowb();
+ 	spin_unlock_irqrestore(&host->lock, flags);
+ }
++EXPORT_SYMBOL_GPL(sdhci_request);
+ 
+ void sdhci_set_bus_width(struct sdhci_host *host, int width)
+ {
+diff --git a/drivers/mmc/host/sdhci.h b/drivers/mmc/host/sdhci.h
+index 983b7df..ba5227c 100755
+--- a/drivers/mmc/host/sdhci.h
++++ b/drivers/mmc/host/sdhci.h
+@@ -711,6 +711,7 @@ void sdhci_set_power(struct sdhci_host *host, unsigned char mode,
+ 		     unsigned short vdd);
+ void sdhci_set_power_noreg(struct sdhci_host *host, unsigned char mode,
+ 			   unsigned short vdd);
++void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq);
+ void sdhci_set_bus_width(struct sdhci_host *host, int width);
+ void sdhci_reset(struct sdhci_host *host, u8 mask);
+ void sdhci_set_uhs_signaling(struct sdhci_host *host, unsigned timing);
+-- 
+2.7.4
+

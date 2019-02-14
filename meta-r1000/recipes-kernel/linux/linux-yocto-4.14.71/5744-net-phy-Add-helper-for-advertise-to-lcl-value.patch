@@ -1,0 +1,71 @@
+From 8bdf040cce4c23fb86265d962915c8cee6abe5a7 Mon Sep 17 00:00:00 2001
+From: Andrew Lunn <andrew@lunn.ch>
+Date: Sat, 29 Sep 2018 23:04:13 +0200
+Subject: [PATCH 5744/5758] net: phy: Add helper for advertise to lcl value
+
+Add a helper to convert the local advertising to an LCL capabilities,
+which is then used to resolve pause flow control settings.
+
+Signed-off-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Reviewed-by: Maxime Chevallier <maxime.chevallier@bootlin.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+---
+ drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c |  5 +----
+ include/linux/mii.h                         | 20 ++++++++++++++++++++
+ 2 files changed, 21 insertions(+), 4 deletions(-)
+ mode change 100644 => 100755 include/linux/mii.h
+
+diff --git a/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c b/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c
+index 194ec27..151bdb6 100755
+--- a/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c
++++ b/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c
+@@ -1497,10 +1497,7 @@ static void xgbe_phy_phydev_flowctrl(struct xgbe_prv_data *pdata)
+ 	if (!phy_data->phydev)
+ 		return;
+ 
+-	if (phy_data->phydev->advertising & ADVERTISED_Pause)
+-		lcl_adv |= ADVERTISE_PAUSE_CAP;
+-	if (phy_data->phydev->advertising & ADVERTISED_Asym_Pause)
+-		lcl_adv |= ADVERTISE_PAUSE_ASYM;
++	lcl_adv = ethtool_adv_to_lcl_adv_t(phy_data->phydev->advertising);
+ 
+ 	if (phy_data->phydev->pause) {
+ 		XGBE_SET_LP_ADV(lks, Pause);
+diff --git a/include/linux/mii.h b/include/linux/mii.h
+old mode 100644
+new mode 100755
+index 55000ee..63cd587
+--- a/include/linux/mii.h
++++ b/include/linux/mii.h
+@@ -302,6 +302,26 @@ static inline u32 mii_lpa_to_ethtool_lpa_x(u32 lpa)
+ 	return result | mii_adv_to_ethtool_adv_x(lpa);
+ }
+ 
++
++/**
++ * ethtool_adv_to_lcl_adv_t
++ * @advertising:pointer to ethtool advertising
++ *
++ * A small helper function that translates ethtool advertising to LVL
++ * pause capabilities.
++ */
++static inline u32 ethtool_adv_to_lcl_adv_t(u32 advertising)
++{
++	u32 lcl_adv = 0;
++
++	if (advertising & ADVERTISED_Pause)
++		lcl_adv |= ADVERTISE_PAUSE_CAP;
++	if (advertising & ADVERTISED_Asym_Pause)
++		lcl_adv |= ADVERTISE_PAUSE_ASYM;
++
++	return lcl_adv;
++}
++
+ /**
+  * mii_advertise_flowctrl - get flow control advertisement flags
+  * @cap: Flow control capabilities (FLOW_CTRL_RX, FLOW_CTRL_TX or both)
+-- 
+2.7.4
+

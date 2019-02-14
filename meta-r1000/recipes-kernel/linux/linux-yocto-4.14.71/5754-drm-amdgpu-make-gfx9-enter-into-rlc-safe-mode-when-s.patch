@@ -1,0 +1,39 @@
+From 0c68f4fffe18d5894cb4ac2111001999f747c96e Mon Sep 17 00:00:00 2001
+From: Likun Gao <Likun.Gao@amd.com>
+Date: Wed, 9 Jan 2019 10:46:48 +0800
+Subject: [PATCH 5754/5758] drm/amdgpu: make gfx9 enter into rlc safe mode when
+ set MGCG
+
+MGCG should RLC enter into safe mode first.
+
+Signed-off-by: Likun Gao <Likun.Gao@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 0481e21..c7db271 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -3721,6 +3721,8 @@ static void gfx_v9_0_update_medium_grain_clock_gating(struct amdgpu_device *adev
+ {
+ 	uint32_t data, def;
+ 
++	adev->gfx.rlc.funcs->enter_safe_mode(adev);
++
+ 	/* It is disabled by HW by default */
+ 	if (enable && (adev->cg_flags & AMD_CG_SUPPORT_GFX_MGCG)) {
+ 		/* 1 - RLC_CGTT_MGCG_OVERRIDE */
+@@ -3785,6 +3787,8 @@ static void gfx_v9_0_update_medium_grain_clock_gating(struct amdgpu_device *adev
+ 			WREG32_SOC15(GC, 0, mmCP_MEM_SLP_CNTL, data);
+ 		}
+ 	}
++
++	adev->gfx.rlc.funcs->exit_safe_mode(adev);
+ }
+ 
+ static void gfx_v9_0_update_3d_clock_gating(struct amdgpu_device *adev,
+-- 
+2.7.4
+

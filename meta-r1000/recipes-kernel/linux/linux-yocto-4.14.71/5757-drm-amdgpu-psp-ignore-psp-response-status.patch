@@ -1,0 +1,54 @@
+From b54e241076bd705560bd6f262846a40a0c3dbeed Mon Sep 17 00:00:00 2001
+From: Aaron Liu <aaron.liu@amd.com>
+Date: Mon, 14 Jan 2019 16:08:32 +0800
+Subject: [PATCH 5757/5758] drm/amdgpu/psp: ignore psp response status
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+In some cases, psp response status is not 0 even there is no
+problem while the command is submitted. Some version of PSP FW
+doesn't write 0 to that field.
+So here we would like to only print a warning instead of an error
+during psp initialization to avoid breaking hw_init and it doesn't
+return -EINVAL.
+
+Change-Id: I680679983f972b6969f4949f1faafaf17fe996a6
+Signed-off-by: Aaron Liu <aaron.liu@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+Reviewed-by: Xiangliang Yu<Xiangliang.Yu@amd.com>
+Acked-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Feifei Xu <Feifei.Xu@amd.com>
+Reviewed-by: Paul Menzel <pmenzel+amd-gfx@molgen.mpg.de>
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+index a176706..78e7469 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_psp.c
+@@ -134,11 +134,16 @@ psp_cmd_submit_buf(struct psp_context *psp,
+ 		msleep(1);
+ 	}
+ 
+-	/* the status field must be 0 after FW is loaded */
++	/* In some cases, psp response status is not 0 even there is no
++	 * problem while the command is submitted. Some version of PSP FW
++	 * doesn't write 0 to that field.
++	 * So here we would like to only print a warning instead of an error
++	 * during psp initialization to avoid breaking hw_init and it doesn't
++	 * return -EINVAL.
++	 */
+ 	if (ucode && psp->cmd_buf_mem->resp.status) {
+-		DRM_ERROR("failed loading with status (%d) and ucode id (%d)\n",
++		DRM_WARN("failed loading with status (%d) and ucode id (%d)\n",
+ 			  psp->cmd_buf_mem->resp.status, ucode->ucode_id);
+-		return -EINVAL;
+ 	}
+ 
+ 	if (ucode) {
+-- 
+2.7.4
+

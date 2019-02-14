@@ -1,0 +1,56 @@
+From 061b7fcf0d45da2dc816a58f0c01c35c59113871 Mon Sep 17 00:00:00 2001
+From: Jose Abreu <jose.abreu@synopsys.com>
+Date: Sun, 2 Dec 2018 16:33:14 +0100
+Subject: [PATCH 5749/5758] net: phy: Also request modules for C45 IDs
+
+Logic of phy_device_create() requests PHY modules according to PHY ID
+but for C45 PHYs we use different field for the IDs.
+
+Let's also request the modules for these IDs.
+
+Changes from v1:
+- Only request C22 modules if C45 are not present (Andrew)
+
+Signed-off-by: Jose Abreu <joabreu@synopsys.com>
+Cc: Andrew Lunn <andrew@lunn.ch>
+Cc: Florian Fainelli <f.fainelli@gmail.com>
+Cc: "David S. Miller" <davem@davemloft.net>
+Cc: Joao Pinto <joao.pinto@synopsys.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+---
+ drivers/net/phy/phy_device.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/phy_device.c b/drivers/net/phy/phy_device.c
+index f16af99..a711f62 100755
+--- a/drivers/net/phy/phy_device.c
++++ b/drivers/net/phy/phy_device.c
+@@ -402,7 +402,21 @@ struct phy_device *phy_device_create(struct mii_bus *bus, int addr, int phy_id,
+ 	 * driver will get bored and give up as soon as it finds that
+ 	 * there's no driver _already_ loaded.
+ 	 */
+-	request_module(MDIO_MODULE_PREFIX MDIO_ID_FMT, MDIO_ID_ARGS(phy_id));
++	if (is_c45 && c45_ids) {
++		const int num_ids = ARRAY_SIZE(c45_ids->device_ids);
++		int i;
++
++		for (i = 1; i < num_ids; i++) {
++			if (!(c45_ids->devices_in_package & (1 << i)))
++				continue;
++
++			request_module(MDIO_MODULE_PREFIX MDIO_ID_FMT,
++				       MDIO_ID_ARGS(c45_ids->device_ids[i]));
++		}
++	} else {
++		request_module(MDIO_MODULE_PREFIX MDIO_ID_FMT,
++			       MDIO_ID_ARGS(phy_id));
++	}
+ 
+ 	device_initialize(&mdiodev->dev);
+ 
+-- 
+2.7.4
+

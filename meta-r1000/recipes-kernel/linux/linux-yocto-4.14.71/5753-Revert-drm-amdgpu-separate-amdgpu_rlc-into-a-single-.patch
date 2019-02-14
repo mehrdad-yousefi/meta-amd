@@ -1,0 +1,454 @@
+From bfaff79812373e4bb7f52dc09bb21a2c5a6e7d2f Mon Sep 17 00:00:00 2001
+From: Raveendra Talabattula <raveendra.talabattula@amd.com>
+Date: Thu, 10 Jan 2019 16:24:27 +0530
+Subject: [PATCH 5753/5758] Revert drm/amdgpu: separate amdgpu_rlc into a
+ single file
+
+Signed-off-by: Raveendra Talabattula <raveendra.talabattula@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/Makefile     |  1 -
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c |  1 -
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h | 54 +++++++++++++++++++-
+ drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.c | 57 ---------------------
+ drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.h | 89 ---------------------------------
+ drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c   | 13 +++--
+ drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c   | 15 ++++--
+ drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c   | 10 +++-
+ drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c   | 17 ++++++-
+ 9 files changed, 97 insertions(+), 160 deletions(-)
+ delete mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.c
+ delete mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.h
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/Makefile b/drivers/gpu/drm/amd/amdgpu/Makefile
+index 467125d..0b967d9 100644
+--- a/drivers/gpu/drm/amd/amdgpu/Makefile
++++ b/drivers/gpu/drm/amd/amdgpu/Makefile
+@@ -105,7 +105,6 @@ amdgpu-y += \
+ # add GFX block
+ amdgpu-y += \
+ 	amdgpu_gfx.o \
+-	amdgpu_rlc.o \
+ 	gfx_v8_0.o \
+ 	gfx_v9_0.o
+ 
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c
+index 54ee584..a750242 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.c
+@@ -25,7 +25,6 @@
+ #include <drm/drmP.h>
+ #include "amdgpu.h"
+ #include "amdgpu_gfx.h"
+-#include "amdgpu_rlc.h"
+ 
+ /* delay 0.1 second to enable gfx off feature */
+ #define GFX_OFF_DELAY_ENABLE         msecs_to_jiffies(100)
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
+index f790e15..b61b5c1 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gfx.h
+@@ -29,7 +29,6 @@
+  */
+ #include "clearstate_defs.h"
+ #include "amdgpu_ring.h"
+-#include "amdgpu_rlc.h"
+ 
+ /* GFX current status */
+ #define AMDGPU_GFX_NORMAL_MODE			0x00000000L
+@@ -38,6 +37,59 @@
+ #define AMDGPU_GFX_CG_DISABLED_MODE		0x00000004L
+ #define AMDGPU_GFX_LBPW_DISABLED_MODE		0x00000008L
+ 
++
++struct amdgpu_rlc_funcs {
++	void (*enter_safe_mode)(struct amdgpu_device *adev);
++	void (*exit_safe_mode)(struct amdgpu_device *adev);
++};
++
++struct amdgpu_rlc {
++	/* for power gating */
++	struct amdgpu_bo	*save_restore_obj;
++	uint64_t		save_restore_gpu_addr;
++	volatile uint32_t	*sr_ptr;
++	const u32               *reg_list;
++	u32                     reg_list_size;
++	/* for clear state */
++	struct amdgpu_bo	*clear_state_obj;
++	uint64_t		clear_state_gpu_addr;
++	volatile uint32_t	*cs_ptr;
++	const struct cs_section_def   *cs_data;
++	u32                     clear_state_size;
++	/* for cp tables */
++	struct amdgpu_bo	*cp_table_obj;
++	uint64_t		cp_table_gpu_addr;
++	volatile uint32_t	*cp_table_ptr;
++	u32                     cp_table_size;
++
++	/* safe mode for updating CG/PG state */
++	bool in_safe_mode;
++	const struct amdgpu_rlc_funcs *funcs;
++
++	/* for firmware data */
++	u32 save_and_restore_offset;
++	u32 clear_state_descriptor_offset;
++	u32 avail_scratch_ram_locations;
++	u32 reg_restore_list_size;
++	u32 reg_list_format_start;
++	u32 reg_list_format_separate_start;
++	u32 starting_offsets_start;
++	u32 reg_list_format_size_bytes;
++	u32 reg_list_size_bytes;
++	u32 reg_list_format_direct_reg_list_length;
++	u32 save_restore_list_cntl_size_bytes;
++	u32 save_restore_list_gpm_size_bytes;
++	u32 save_restore_list_srm_size_bytes;
++
++	u32 *register_list_format;
++	u32 *register_restore;
++	u8 *save_restore_list_cntl;
++	u8 *save_restore_list_gpm;
++	u8 *save_restore_list_srm;
++
++	bool is_rlc_v2_1;
++};
++
+ #define AMDGPU_MAX_COMPUTE_QUEUES KGD_MAX_QUEUES
+ 
+ struct amdgpu_mec {
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.c
+deleted file mode 100644
+index c5459ab..0000000
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.c
++++ /dev/null
+@@ -1,57 +0,0 @@
+-
+-/*
+- * Copyright 2014 Advanced Micro Devices, Inc.
+- * Copyright 2008 Red Hat Inc.
+- * Copyright 2009 Jerome Glisse.
+- *
+- * Permission is hereby granted, free of charge, to any person obtaining a
+- * copy of this software and associated documentation files (the "Software"),
+- * to deal in the Software without restriction, including without limitation
+- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+- * and/or sell copies of the Software, and to permit persons to whom the
+- * Software is furnished to do so, subject to the following conditions:
+- *
+- * The above copyright notice and this permission notice shall be included in
+- * all copies or substantial portions of the Software.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+- * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+- * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+- * OTHER DEALINGS IN THE SOFTWARE.
+- *
+- */
+-
+-#include "amdgpu.h"
+-#include "amdgpu_gfx.h"
+-#include "amdgpu_rlc.h"
+-
+-/**
+- * amdgpu_gfx_rlc_fini - Free BO which used for RLC
+- *
+- * @adev: amdgpu_device pointer
+- *
+- * Free three BO which is used for rlc_save_restore_block, rlc_clear_state_block
+- * and rlc_jump_table_block.
+- */
+-void amdgpu_gfx_rlc_fini(struct amdgpu_device *adev)
+-{
+-	/* save restore block */
+-	if (adev->gfx.rlc.save_restore_obj) {
+-		amdgpu_bo_free_kernel(&adev->gfx.rlc.save_restore_obj,
+-				      &adev->gfx.rlc.save_restore_gpu_addr,
+-				      (void **)&adev->gfx.rlc.sr_ptr);
+-	}
+-
+-	/* clear state block */
+-	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj,
+-			      &adev->gfx.rlc.clear_state_gpu_addr,
+-			      (void **)&adev->gfx.rlc.cs_ptr);
+-
+-	/* jump table block */
+-	amdgpu_bo_free_kernel(&adev->gfx.rlc.cp_table_obj,
+-			      &adev->gfx.rlc.cp_table_gpu_addr,
+-			      (void **)&adev->gfx.rlc.cp_table_ptr);
+-}
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.h
+deleted file mode 100644
+index b3b0920..0000000
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_rlc.h
++++ /dev/null
+@@ -1,89 +0,0 @@
+-
+-/*
+- * Copyright 2014 Advanced Micro Devices, Inc.
+- *
+- * Permission is hereby granted, free of charge, to any person obtaining a
+- * copy of this software and associated documentation files (the "Software"),
+- * to deal in the Software without restriction, including without limitation
+- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+- * and/or sell copies of the Software, and to permit persons to whom the
+- * Software is furnished to do so, subject to the following conditions:
+- *
+- * The above copyright notice and this permission notice shall be included in
+- * all copies or substantial portions of the Software.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+- * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+- * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+- * OTHER DEALINGS IN THE SOFTWARE.
+- *
+- */
+-
+-#ifndef __AMDGPU_RLC_H__
+-#define __AMDGPU_RLC_H__
+-
+-#include "clearstate_defs.h"
+-
+-struct amdgpu_rlc_funcs {
+-	void (*enter_safe_mode)(struct amdgpu_device *adev);
+-	void (*exit_safe_mode)(struct amdgpu_device *adev);
+-	int  (*init)(struct amdgpu_device *adev);
+-	int  (*resume)(struct amdgpu_device *adev);
+-	void (*stop)(struct amdgpu_device *adev);
+-	void (*reset)(struct amdgpu_device *adev);
+-	void (*start)(struct amdgpu_device *adev);
+-};
+-
+-struct amdgpu_rlc {
+-	/* for power gating */
+-	struct amdgpu_bo	*save_restore_obj;
+-	uint64_t		save_restore_gpu_addr;
+-	volatile uint32_t	*sr_ptr;
+-	const u32               *reg_list;
+-	u32                     reg_list_size;
+-	/* for clear state */
+-	struct amdgpu_bo	*clear_state_obj;
+-	uint64_t		clear_state_gpu_addr;
+-	volatile uint32_t	*cs_ptr;
+-	const struct cs_section_def   *cs_data;
+-	u32                     clear_state_size;
+-	/* for cp tables */
+-	struct amdgpu_bo	*cp_table_obj;
+-	uint64_t		cp_table_gpu_addr;
+-	volatile uint32_t	*cp_table_ptr;
+-	u32                     cp_table_size;
+-
+-	/* safe mode for updating CG/PG state */
+-	bool in_safe_mode;
+-	const struct amdgpu_rlc_funcs *funcs;
+-
+-	/* for firmware data */
+-	u32 save_and_restore_offset;
+-	u32 clear_state_descriptor_offset;
+-	u32 avail_scratch_ram_locations;
+-	u32 reg_restore_list_size;
+-	u32 reg_list_format_start;
+-	u32 reg_list_format_separate_start;
+-	u32 starting_offsets_start;
+-	u32 reg_list_format_size_bytes;
+-	u32 reg_list_size_bytes;
+-	u32 reg_list_format_direct_reg_list_length;
+-	u32 save_restore_list_cntl_size_bytes;
+-	u32 save_restore_list_gpm_size_bytes;
+-	u32 save_restore_list_srm_size_bytes;
+-
+-	u32 *register_list_format;
+-	u32 *register_restore;
+-	u8 *save_restore_list_cntl;
+-	u8 *save_restore_list_gpm;
+-	u8 *save_restore_list_srm;
+-
+-	bool is_rlc_v2_1;
+-};
+-
+-void amdgpu_gfx_rlc_fini(struct amdgpu_device *adev);
+-
+-#endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
+index abc8ec6..4f8d6a2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v6_0.c
+@@ -2397,6 +2397,13 @@ static void gfx_v6_0_ring_emit_wreg(struct amdgpu_ring *ring,
+ 	amdgpu_ring_write(ring, val);
+ }
+ 
++static void gfx_v6_0_rlc_fini(struct amdgpu_device *adev)
++{
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.save_restore_obj, NULL, NULL);
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj, NULL, NULL);
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.cp_table_obj, NULL, NULL);
++}
++
+ static int gfx_v6_0_rlc_init(struct amdgpu_device *adev)
+ {
+ 	const u32 *src_ptr;
+@@ -2425,7 +2432,7 @@ static int gfx_v6_0_rlc_init(struct amdgpu_device *adev)
+ 		if (r) {
+ 			dev_warn(adev->dev, "(%d) create RLC sr bo failed\n",
+ 				 r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v6_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 
+@@ -2450,7 +2457,7 @@ static int gfx_v6_0_rlc_init(struct amdgpu_device *adev)
+ 					      (void **)&adev->gfx.rlc.cs_ptr);
+ 		if (r) {
+ 			dev_warn(adev->dev, "(%d) create RLC c bo failed\n", r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v6_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 
+@@ -3187,7 +3194,7 @@ static int gfx_v6_0_sw_fini(void *handle)
+ 	for (i = 0; i < adev->gfx.num_compute_rings; i++)
+ 		amdgpu_ring_fini(&adev->gfx.compute_ring[i]);
+ 
+-	amdgpu_gfx_rlc_fini(adev);
++	gfx_v6_0_rlc_fini(adev);
+ 
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+index 19a0e4f..05f7a29 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v7_0.c
+@@ -3288,6 +3288,13 @@ static void gfx_v7_0_ring_emit_wreg(struct amdgpu_ring *ring,
+  * The RLC is a multi-purpose microengine that handles a
+  * variety of functions.
+  */
++static void gfx_v7_0_rlc_fini(struct amdgpu_device *adev)
++{
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.save_restore_obj, NULL, NULL);
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj, NULL, NULL);
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.cp_table_obj, NULL, NULL);
++}
++
+ static int gfx_v7_0_rlc_init(struct amdgpu_device *adev)
+ {
+ 	const u32 *src_ptr;
+@@ -3327,7 +3334,7 @@ static int gfx_v7_0_rlc_init(struct amdgpu_device *adev)
+ 					      (void **)&adev->gfx.rlc.sr_ptr);
+ 		if (r) {
+ 			dev_warn(adev->dev, "(%d) create, pin or map of RLC sr bo failed\n", r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v7_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 
+@@ -3350,7 +3357,7 @@ static int gfx_v7_0_rlc_init(struct amdgpu_device *adev)
+ 					      (void **)&adev->gfx.rlc.cs_ptr);
+ 		if (r) {
+ 			dev_warn(adev->dev, "(%d) create RLC c bo failed\n", r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v7_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 
+@@ -3370,7 +3377,7 @@ static int gfx_v7_0_rlc_init(struct amdgpu_device *adev)
+ 					      (void **)&adev->gfx.rlc.cp_table_ptr);
+ 		if (r) {
+ 			dev_warn(adev->dev, "(%d) create RLC cp table bo failed\n", r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v7_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 
+@@ -4617,7 +4624,7 @@ static int gfx_v7_0_sw_fini(void *handle)
+ 		amdgpu_ring_fini(&adev->gfx.compute_ring[i]);
+ 
+ 	gfx_v7_0_cp_compute_fini(adev);
+-	amdgpu_gfx_rlc_fini(adev);
++	gfx_v7_0_rlc_fini(adev);
+ 	gfx_v7_0_mec_fini(adev);
+ 	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj,
+ 				&adev->gfx.rlc.clear_state_gpu_addr,
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+index 3ec5832..9619369 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v8_0.c
+@@ -1363,6 +1363,12 @@ static void cz_init_cp_jump_table(struct amdgpu_device *adev)
+ 	}
+ }
+ 
++static void gfx_v8_0_rlc_fini(struct amdgpu_device *adev)
++{
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj, NULL, NULL);
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.cp_table_obj, NULL, NULL);
++}
++
+ static int gfx_v8_0_rlc_init(struct amdgpu_device *adev)
+ {
+ 	volatile u32 *dst_ptr;
+@@ -1385,7 +1391,7 @@ static int gfx_v8_0_rlc_init(struct amdgpu_device *adev)
+ 					      (void **)&adev->gfx.rlc.cs_ptr);
+ 		if (r) {
+ 			dev_warn(adev->dev, "(%d) create RLC c bo failed\n", r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v8_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 
+@@ -2175,7 +2181,7 @@ static int gfx_v8_0_sw_fini(void *handle)
+ 	amdgpu_gfx_kiq_fini(adev);
+ 
+ 	gfx_v8_0_mec_fini(adev);
+-	amdgpu_gfx_rlc_fini(adev);	
++	gfx_v8_0_rlc_fini(adev);
+ 	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj,
+ 				&adev->gfx.rlc.clear_state_gpu_addr,
+ 				(void **)&adev->gfx.rlc.cs_ptr);
+diff --git a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+index 69fcc77..0481e21 100644
+--- a/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gfx_v9_0.c
+@@ -1141,6 +1141,19 @@ static void rv_init_cp_jump_table(struct amdgpu_device *adev)
+ 	}
+ }
+ 
++static void gfx_v9_0_rlc_fini(struct amdgpu_device *adev)
++{
++	/* clear state block */
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.clear_state_obj,
++			&adev->gfx.rlc.clear_state_gpu_addr,
++			(void **)&adev->gfx.rlc.cs_ptr);
++
++	/* jump table block */
++	amdgpu_bo_free_kernel(&adev->gfx.rlc.cp_table_obj,
++			&adev->gfx.rlc.cp_table_gpu_addr,
++			(void **)&adev->gfx.rlc.cp_table_ptr);
++}
++
+ static int gfx_v9_0_rlc_init(struct amdgpu_device *adev)
+ {
+ 	volatile u32 *dst_ptr;
+@@ -1163,7 +1176,7 @@ static int gfx_v9_0_rlc_init(struct amdgpu_device *adev)
+ 		if (r) {
+ 			dev_err(adev->dev, "(%d) failed to create rlc csb bo\n",
+ 				r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v9_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 		/* set up the cs buffer */
+@@ -1185,7 +1198,7 @@ static int gfx_v9_0_rlc_init(struct amdgpu_device *adev)
+ 		if (r) {
+ 			dev_err(adev->dev,
+ 				"(%d) failed to create cp table bo\n", r);
+-			amdgpu_gfx_rlc_fini(adev);
++			gfx_v9_0_rlc_fini(adev);
+ 			return r;
+ 		}
+ 
+-- 
+2.7.4
+
