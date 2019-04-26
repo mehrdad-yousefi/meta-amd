@@ -1,0 +1,72 @@
+From fa10114debafb2058789047704dbe2b21ce8df7e Mon Sep 17 00:00:00 2001
+From: Leo Liu <leo.liu@amd.com>
+Date: Tue, 19 Mar 2019 13:37:39 -0400
+Subject: [PATCH] vl/dri3: remove the wait before getting back buffer
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The wait here is unnecessary since we got a pool of back buffers,
+and the wait for swap buffer will happen before the present pixmap,
+at the same time the previous back buffer will be put back to pool
+for reuse after the check for PresentIdleNotify event
+
+Signed-off-by: Leo Liu <leo.liu@amd.com>
+Reviewed-by: Michel Dänzer <michel.daenzer@amd.com>
+---
+ src/gallium/auxiliary/vl/vl_winsys_dri3.c | 18 +++---------------
+ 1 file changed, 3 insertions(+), 15 deletions(-)
+
+diff --git a/src/gallium/auxiliary/vl/vl_winsys_dri3.c b/src/gallium/auxiliary/vl/vl_winsys_dri3.c
+index 152d28e59fc..1558d832555 100644
+--- a/src/gallium/auxiliary/vl/vl_winsys_dri3.c
++++ b/src/gallium/auxiliary/vl/vl_winsys_dri3.c
+@@ -88,7 +88,6 @@ struct vl_dri3_screen
+    uint64_t send_sbc, recv_sbc;
+    int64_t last_ust, ns_frame, last_msc, next_msc;
+ 
+-   bool flushed;
+    bool is_different_gpu;
+ };
+ 
+@@ -570,11 +569,9 @@ vl_dri3_flush_frontbuffer(struct pipe_screen *screen,
+    if (!back)
+        return;
+ 
+-   if (scrn->flushed) {
+-      while (scrn->special_event && scrn->recv_sbc < scrn->send_sbc)
+-         if (!dri3_wait_present_events(scrn))
+-            return;
+-   }
++   while (scrn->special_event && scrn->recv_sbc < scrn->send_sbc)
++      if (!dri3_wait_present_events(scrn))
++         return;
+ 
+    rectangle.x = 0;
+    rectangle.y = 0;
+@@ -610,8 +607,6 @@ vl_dri3_flush_frontbuffer(struct pipe_screen *screen,
+ 
+    xcb_flush(scrn->conn);
+ 
+-   scrn->flushed = true;
+-
+    return;
+ }
+ 
+@@ -626,13 +621,6 @@ vl_dri3_screen_texture_from_drawable(struct vl_screen *vscreen, void *drawable)
+    if (!dri3_set_drawable(scrn, (Drawable)drawable))
+       return NULL;
+ 
+-   if (scrn->flushed) {
+-      while (scrn->special_event && scrn->recv_sbc < scrn->send_sbc)
+-         if (!dri3_wait_present_events(scrn))
+-            return NULL;
+-   }
+-   scrn->flushed = false;
+-
+    buffer = (scrn->is_pixmap) ?
+             dri3_get_front_buffer(scrn) :
+             dri3_get_back_buffer(scrn);
+-- 
+2.17.1
+

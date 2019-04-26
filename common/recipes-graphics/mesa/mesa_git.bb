@@ -5,7 +5,7 @@ S = "${WORKDIR}/git"
 DEPENDS_append = " python-mako-native"
 inherit pythonnative
 
-SRCREV_amd = "0144bbdb98f515cce31688fce57d769e7fd82d52"
+SRCREV_amd = "d2c170eb355a912586cb982858faac2fc85c4783"
 LIC_FILES_CHKSUM_amd = "file://docs/license.html;md5=725f991a1cc322aa7a0cd3a2016621c4"
 PV_amd = "19.0.0+git${SRCPV}"
 
@@ -27,7 +27,7 @@ RDEPENDS_mesa-megadriver += "${@bb.utils.contains('PACKAGECONFIG', 'va', '${LIBV
 SRC_URI_amd = "git://anongit.freedesktop.org/mesa/mesa;branch=master \
                file://0001-configure.ac-obey-llvm_prefix-if-available.patch \
                file://0001-configure.ac-adjust-usage-of-LLVM-flags.patch \
-               file://0001-gallium-add-missing-PIPE_CAP_SURFACE_SAMPLE_COUNT-de.patch"
+	       file://0001-vl-dri3-remove-the-wait-before-getting-back-buffer.patch"
 
 EXTRA_OECONF_append_amd = " \
 		 --enable-vdpau \
