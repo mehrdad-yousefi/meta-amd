@@ -20,3 +20,6 @@ patch 5744-net-phy-Add-helper-for-advertise-to-lcl-value.patch
 patch 5745-drivers-net-remove-net-busy_poll.h-inclusion-when-no.patch
 patch 5749-net-phy-Also-request-modules-for-C45-IDs.patch
 patch 5750-amd-xgbe-Fix-mdio-access-for-non-zero-ports-and-clau.patch
+patch 5761-net-phy-marvell10g-remove-XGMII-as-an-option-for-88x.patch
+patch 5762-net-phy-marvell10g-update-header-comments.patch
+patch 5763-amd-xgbe-Sometimes-driver-report-incorrect-link-stat.patch

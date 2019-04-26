@@ -5714,4 +5714,6 @@ patch 5754-drm-amdgpu-make-gfx9-enter-into-rlc-safe-mode-when-s.patch
 patch 5755-Revert-drm-amdgpu-revert-the-commit-interim-disable-.patch
 patch 5756-Revert-drm-amdgpu-revert-psp-firmware-load-status-ch.patch
 patch 5757-drm-amdgpu-psp-ignore-psp-response-status.patch
-
+patch 5760-Revert-drm-amdgpu-interim-disable-RV2-GFX-CG-flag-fo.patch
+patch 5764-Revert-drm-amdgpu-enable-gfxoff-in-non-sriov-and-stu.patch
+patch 5765-drm-amd-powerplay-enable-UMDPSTATE-support-on-raven2.patch

@@ -1,0 +1,33 @@
+From 7263bf34a3ffb2123e336bc0bf4cba055197b3ab Mon Sep 17 00:00:00 2001
+From: Pavan Kumar Ramayanam <pavan.ramayanam@amd.com>
+Date: Tue, 23 Apr 2019 10:16:19 +0530
+Subject: [PATCH 5765/5765] drm/amd/powerplay: enable UMDPSTATE support on
+ raven2 enable UMDPSTATE support to force performance level for raven2.
+
+Signed-off-by: Chengming Gui <Jack.Gui@amd.com>
+Reviewed-by: Huang Rui <ray.huang@amd.com>
+
+Signed-off-by: Pavan Kumar Ramayanam <pavan.ramayanam@amd.com>
+---
+ drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+index 7100c74422cd..de047fb004ec 100644
+--- a/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
++++ b/drivers/gpu/drm/amd/powerplay/hwmgr/smu10_hwmgr.c
+@@ -560,11 +560,6 @@ static int smu10_dpm_force_dpm_level(struct pp_hwmgr *hwmgr,
+ 		return 0;
+ 	}
+ 
+-	/* Disable UMDPSTATE support on rv2 temporarily */
+-	if ((adev->asic_type == CHIP_RAVEN) &&
+-	    (adev->rev_id >= 8))
+-		return 0;
+-
+ 	if (min_sclk < data->gfx_min_freq_limit)
+ 		min_sclk = data->gfx_min_freq_limit;
+ 
+-- 
+2.17.1
+

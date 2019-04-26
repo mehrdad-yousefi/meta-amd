@@ -15,3 +15,4 @@ patch 5737-mmc-sdhci-Add-32-bit-block-count-support-for-v4-mode.patch
 patch 5738-mmc-sdhci-Add-Auto-CMD-Auto-Select-support.patch
 patch 5746-amd-eMMC-sdhci-HS400-workaround-for-ZP.patch
 patch 5758-RTQA4-Fix-build-error-for-hs400-and-hs200.patch
+patch 5759-mmc-sdhci-add-tuning-error-codes.patch

@@ -1,0 +1,34 @@
+From 244867f0fc21846b3ddce22a4623823b4a72be34 Mon Sep 17 00:00:00 2001
+From: Russell King <rmk+kernel@armlinux.org.uk>
+Date: Tue, 12 Dec 2017 12:53:18 +0000
+Subject: [PATCH 5761/5765] net: phy: marvell10g: remove XGMII as an option for
+ 88x3310
+
+Remove XGMII as an option for the 88x3310 PHY driver, as the PHY doesn't
+support XGMII's 32-bit data lanes.  It supports USXGMII, which is not
+XGMII, but a single-lane serdes interface - see
+https://developer.cisco.com/site/usgmii-usxgmii/
+
+Signed-off-by: Russell King <rmk+kernel@armlinux.org.uk>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Sudheesh Mavila <sudheesh.mavila@amd.com>
+---
+ drivers/net/phy/marvell10g.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/net/phy/marvell10g.c b/drivers/net/phy/marvell10g.c
+index 21b3f36e023a..f0cfba4e758b 100644
+--- a/drivers/net/phy/marvell10g.c
++++ b/drivers/net/phy/marvell10g.c
+@@ -84,7 +84,6 @@ static int mv3310_config_init(struct phy_device *phydev)
+ 
+ 	/* Check that the PHY interface type is compatible */
+ 	if (phydev->interface != PHY_INTERFACE_MODE_SGMII &&
+-	    phydev->interface != PHY_INTERFACE_MODE_XGMII &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_XAUI &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_RXAUI &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_10GKR)
+-- 
+2.17.1
+
