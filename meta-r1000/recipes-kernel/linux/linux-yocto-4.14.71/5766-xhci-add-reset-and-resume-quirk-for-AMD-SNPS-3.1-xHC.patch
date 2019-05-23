@@ -1,0 +1,42 @@
+From 338463780ae490056734510352531a406ea93032 Mon Sep 17 00:00:00 2001
+From: Sandeep Singh <sandeep.singh@amd.com>
+Date: Wed, 22 May 2019 09:39:36 +0530
+Subject: [PATCH] xhci:add reset and resume quirk for AMD SNPS 3.1 xHC
+
+On AMD platforms with SNPS 3.1 USB controller if stop endpoint command is
+issued the controller does not respond, when the EP is not in running
+state. HW completes the command execution and reports
+"Context State Error" completion code. This is as per the spec. However
+HW on receiving the second command additionally marks EP to Flow control
+state in HW which is RTL bug. This bug causes the HW not to respond
+to any further doorbells that are rung by the driver. This makes the EP
+to not functional anymore and causes gross functional failures. xHC.
+
+As a workaround, not to hit this problem use of the
+XHCI_RESET_ON_RESUME quirk in order to avoid failures
+after resume.
+
+Signed-off-by: Sandeep Singh <sandeep.singh@amd.com>
+Signed-off-by: Chaudhary Amit Kumar <Chaudharyamit.Kumar@amd.com>
+---
+ drivers/usb/host/xhci-pci.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/usb/host/xhci-pci.c b/drivers/usb/host/xhci-pci.c
+index 838d37e79fa2..cb2077732b06 100644
+--- a/drivers/usb/host/xhci-pci.c
++++ b/drivers/usb/host/xhci-pci.c
+@@ -144,6 +144,10 @@ static void xhci_pci_quirks(struct device *dev, struct xhci_hcd *xhci)
+ 		 pdev->device == 0x43bb))
+ 		xhci->quirks |= XHCI_SUSPEND_DELAY;
+ 
++	if (pdev->vendor == PCI_VENDOR_ID_AMD &&
++		pdev->device == 0x15e5)
++		xhci->quirks |= XHCI_RESET_ON_RESUME;
++
+ 	if (pdev->vendor == PCI_VENDOR_ID_AMD)
+ 		xhci->quirks |= XHCI_TRUST_TX_LENGTH;
+ 
+-- 
+2.17.1
+
