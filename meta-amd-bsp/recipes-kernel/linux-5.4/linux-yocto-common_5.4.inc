@@ -1,8 +1,8 @@
 PR := "${INC_PR}.1"
 
 KMACHINE_amdx86 ?= "common-pc-64"
-SRCREV_meta_amdx86 ?= "94bb91f62b8ea78d1b87eef6fc348035c405726a"
-LINUX_VERSION_amdx86 ?= "5.4.2"
+SRCREV_meta_amdx86 ??= "94bb91f62b8ea78d1b87eef6fc348035c405726a"
+LINUX_VERSION_amdx86 ??= "5.4.2"
 
 FILESEXTRAPATHS_prepend := "${THISDIR}/linux-yocto-${LINUX_VERSION}:"
 
