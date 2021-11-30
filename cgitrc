@@ -1,0 +1,3 @@
+desc=Layer containing AMD hardware support metadata
+section=-Yocto Metadata Layers - Member Layers
+hide=0
