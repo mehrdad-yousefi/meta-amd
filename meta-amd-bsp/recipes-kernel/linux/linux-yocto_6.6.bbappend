@@ -2,6 +2,7 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/linux-amd:"
 
 SRC_URI:append:v3000 = " file://xgbe.cfg file://amd_io.cfg"
 
+require linux-amd.inc
 
 do_install() {
     install -d ${D}/lib/modules/${KERNEL_VERSION}/

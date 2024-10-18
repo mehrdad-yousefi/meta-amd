@@ -1,3 +1,5 @@
+
+
 KBRANCH ?= "linux-6.6.y"
 require recipes-kernel/linux/linux-yocto.inc
 
