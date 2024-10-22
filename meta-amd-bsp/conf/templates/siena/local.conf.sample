@@ -66,7 +66,7 @@ KERNEL_MODULE_AUTOLOAD += "nvmem_core nvme nvme-common nvmem cxl cxl_mem cxl_por
 # Package manager class
 PACKAGE_CLASSES ?= "package_rpm"
 
-IMAGE_INSTALL:append = " iperf3 bridge-utils ndctl kernel-module-ntb fio stream ltp"
+IMAGE_INSTALL:append = " iperf3 bridge-utils ndctl kernel-module-ntb fio stream ltp python3-modules python3-matplotlib python3-pip"
 
 IMAGE_INSTALL:append = " nvme-cli  rpm opkg lshw mokutil stress-ng hwloc tpm-tools  numactl packagegroup-core-buildessential lib64-setup coremark iproute2 cpupower ncurses libxcrypt-compat gfortran gfortran-symlinks libgfortran libgfortran-dev"
 
