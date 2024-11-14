@@ -4,6 +4,7 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/linux-amd:"
 SRC_URI:append:v3000 := " \
            file://xgbe.cfg \
            file://amd_io.cfg \
+           file://v3000-edac.scc \
 	  "
 
 SRC_URI:append:siena := " \
