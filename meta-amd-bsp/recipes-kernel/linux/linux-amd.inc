@@ -16,5 +16,7 @@ SRC_URI:append:turin := " \
            file://amd_io.cfg \
 	   file://prof.scc \
 	   file://prof.cfg \
+	   file://sdci.scc \
+	   file://sdci.cfg \
 	  "
 
