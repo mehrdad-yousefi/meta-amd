@@ -6,6 +6,7 @@ SRC_URI:append:v3000 := " \
            file://amd_io.cfg \
            file://v3000-edac.scc \
            file://v3000-eSPI.scc \
+           file://spi.scc \
 	  "
 
 SRC_URI:append:siena := " \
