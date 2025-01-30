@@ -51,6 +51,7 @@ MACHINE = "v3000"
 EXTRA_IMAGE_FEATURES ?= "debug-tweaks"
 
 PREFERRED_VERSION_linux-yocto = "6.6"
+PREFERRED_PROVIDER_virtual/kernel ?= "linux-yocto"
 
 IMAGE_INSTALL:append = " lib64-setup openssh"
 

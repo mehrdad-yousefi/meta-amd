@@ -23,7 +23,6 @@ PR := "${INC_PR}.0"
 
 KMACHINE = "common-pc-64"
 COMPATIBLE_MACHINE = "${MACHINE}"
-DISTRO_FEATURES:remove = " usrmerge"
 
 
 

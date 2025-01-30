@@ -51,6 +51,7 @@ ROOT_HOME = "/home/root"
 EXTRA_IMAGE_FEATURES ?= "debug-tweaks"
 
 PREFERRED_VERSION_linux-yocto = "6.6"
+PREFERRED_PROVIDER_virtual/kernel ?= "linux-yocto"
 
 AMD_ENABLE_XEN = "0"
 
@@ -67,4 +68,3 @@ IMAGE_INSTALL:append = " iperf3 bridge-utils ndctl kernel-module-ntb fio stream 
 IMAGE_INSTALL:append = " nvme-cli  rpm opkg lshw mokutil stress-ng hwloc tpm-tools  numactl packagegroup-core-buildessential lib64-setup coremark iproute2"
 
 DISTRO_FEATURES:append = " ptest pthread tpm systemd posix-testsuite"
-PREFERRED_PROVIDER_virtual/kernel = "linux-yocto"
