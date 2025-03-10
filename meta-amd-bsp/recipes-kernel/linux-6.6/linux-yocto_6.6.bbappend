@@ -58,6 +58,6 @@ siena_prefunc() {
     fi
 }
 
-DEPENDS += "lib64-setup"
+DEPENDS += "lib64-setup elfutils elfutils-native"
 IMAGE_INSTALL:append = " lib64-setup"
 VIRTUAL-RUNTIME_init_manager = "systemd"
