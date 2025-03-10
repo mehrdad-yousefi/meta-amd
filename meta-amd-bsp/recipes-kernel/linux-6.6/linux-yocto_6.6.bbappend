@@ -13,13 +13,17 @@ do_configure() {
 #S = "${WORKDIR}"
 
 do_install() {
+    # Install kernel modules
     install -d ${D}/lib/modules/${KERNEL_VERSION}/
-#    cp -r ${WORKDIR}/lib/modules/* ${D}/lib/modules/${KERNEL_VERSION}/
-#install -d ${D}${nonarch_base_libdir}
-oe_runmake INSTALL_MOD_PATH=${D}/ modules_install
-    # Install kernel image and device tree (if applicable)
+    oe_runmake INSTALL_MOD_PATH=${D}/ modules_install
+
+    # Install kernel image
     install -d ${D}/boot
-    oe_runmake INSTALL_PATH=${D}/boot install
+    if [ -e "${KERNEL_OUTPUT_DIR}/${KERNEL_IMAGETYPE}" ]; then
+        install -m 0644 ${KERNEL_OUTPUT_DIR}/${KERNEL_IMAGETYPE} ${D}/boot/${KERNEL_IMAGETYPE}-${KERNEL_VERSION}
+    fi
+
+    # Install device tree (if applicable)
     if [ -n "${KERNEL_DEVICETREE}" ]; then
         for dtb in ${KERNEL_DEVICETREE}; do
             dtb_base=$(basename ${dtb})
@@ -27,35 +31,32 @@ oe_runmake INSTALL_MOD_PATH=${D}/ modules_install
         done
     fi
 
-
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/Module.symvers
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.builtin.alias.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.symbols
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.softdep
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.dep.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.alias
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.alias.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.devname
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.symbols.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.dep
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.builtin.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/Module.symvers
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.builtin.alias.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.symbols
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.softdep
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.dep.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.alias
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.alias.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.devname
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.symbols.bin
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.dep
-rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.builtin.bin
-
+    # Clean up module metadata
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/Module.symvers
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.builtin.alias.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.symbols
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.softdep
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.dep.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.alias
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.alias.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.devname
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.symbols.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.dep
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}/modules.builtin.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/Module.symvers
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.builtin.alias.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.symbols
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.softdep
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.dep.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.alias
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.alias.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.devname
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.symbols.bin
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.dep
+    rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.builtin.bin
 }
 
 PACKAGES =+ "extra-modules"
-# With this
-FILES:${PN}:append = " /boot /boot/*"
 
 EXTRA_OEMAKE += "INSTALL_MOD_STRIP=1"
 INSANE_SKIP:${PN} += "already-stripped"
