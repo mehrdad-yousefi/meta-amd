@@ -54,6 +54,7 @@ rm -rf ${D}/lib/modules/${KERNEL_VERSION}+/modules.builtin.bin
 }
 
 PACKAGES =+ "extra-modules"
+FILES:${PN} += "/boot/*"
 
 EXTRA_OEMAKE += "INSTALL_MOD_STRIP=1"
 INSANE_SKIP:${PN} += "already-stripped"
