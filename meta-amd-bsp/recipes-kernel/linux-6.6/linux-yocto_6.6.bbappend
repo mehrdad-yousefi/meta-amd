@@ -17,6 +17,15 @@ do_install() {
 #    cp -r ${WORKDIR}/lib/modules/* ${D}/lib/modules/${KERNEL_VERSION}/
 #install -d ${D}${nonarch_base_libdir}
 oe_runmake INSTALL_MOD_PATH=${D}/ modules_install
+    # Install kernel image and device tree (if applicable)
+    install -d ${D}/boot
+    oe_runmake INSTALL_PATH=${D}/boot install
+    if [ -n "${KERNEL_DEVICETREE}" ]; then
+        for dtb in ${KERNEL_DEVICETREE}; do
+            dtb_base=$(basename ${dtb})
+            install -m 0644 ${B}/arch/${ARCH}/boot/dts/${dtb} ${D}/boot/${dtb_base}
+        done
+    fi
 
 
 rm -rf ${D}/lib/modules/${KERNEL_VERSION}/Module.symvers
